@@ -6,6 +6,7 @@ from .dataset_descriptor import BaseDatasetDescriptor
 from .import_configuration import BaseImportConfiguration
 
 from utils import ComponentFactory, ComponentRegistry
+from ..services import Store
 
 source_registry = ComponentRegistry()
 
@@ -22,13 +23,13 @@ class DatasetDescriptor:
 
 class Source(ABC, metaclass=source_registry.metaclass):
     @abstractmethod
-    async def determine_datasets(
+    async def find_datasets(
         self, configuration: BaseImportConfiguration
     ) -> List[BaseDatasetDescriptor]:
         pass
 
     @abstractmethod
-    async def fetch(self, dataset: BaseDatasetDescriptor) -> None:
+    async def retrieve_and_store_dataset(self, dataset: BaseDatasetDescriptor, store: Store) -> None:
         pass
 
 
