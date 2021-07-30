@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List
 
+from .dataset import DatasetIdentifier
 from .dataset_descriptor import BaseDatasetDescriptor
 from .import_configuration import BaseImportConfiguration
 
 from utils import ComponentFactory, ComponentRegistry
-from ..services import Store
 
 source_registry = ComponentRegistry()
 
@@ -22,17 +22,16 @@ class DatasetDescriptor:
 
 
 class Source(ABC, metaclass=source_registry.metaclass):
-    def __init__(self, version_policy: RefreshPolicy):
-        self.refresh_policy = refresh_policy
-
     @abstractmethod
-    async def find_datasets(
-        self, configuration: BaseImportConfiguration
+    def fetch_dataset_identifiers(
+        self, dataset_selector: DatasetIdentifier
     ) -> List[BaseDatasetDescriptor]:
         pass
 
     @abstractmethod
-    async def retrieve_and_store_dataset(self, dataset: BaseDatasetDescriptor, store: Store) -> None:
+    def fetch_dataset(
+        self, dataset_descriptor: BaseDatasetDescriptor, current_version: DatasetVersion
+    ) -> None:
         pass
 
 

@@ -1,9 +1,9 @@
-from domain.models import BaseDatasetDescriptor
+from domain.models import DatasetSelector, DatasetIdentifier, Dataset, DatasetVersion
 
 
 class Store:
-    async def get_metadata(self, dataset_descriptor: BaseDatasetDescriptor):
+    def get_datasets(self, dataset_selector: dict) -> List[Dataset]:
         return None
 
-    async def add(self, dataset_descriptor: BaseDatasetDescriptor, data):
+    def add(self, dataset_identifier: DatasetIdentifier, dataset_version: DatasetVersion):
         pass

@@ -1,101 +1,97 @@
 import asyncio
+import inspect
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
-import aiohttp
+import requests
 
+from domain.models import DatasetVersion
 from ingestify.source_base import (
     Source,
-    BaseImportConfiguration,
-    BaseDatasetDescriptor,
+    AbstractDatasetIdentifier,
+    AbstractDatasetSelector,
     Store,
 )
 from ingestify import source_factory
 
 
-class VersionIdentifier:
-    modified_at: datetime
-    tag: str
+class Dataset:
+    pass
 
 
-async def retrieve(url, current_version: Optional[VersionIdentifier] = None):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            return await resp.json(content_type=None)
+def retrieve(url, current_version: Optional[DatasetVersion] = None):
+    return requests.get(url).json()
 
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
+
+@dataclass
+class DatasetSelector(AbstractDatasetSelector):
+    season_id: int
+    competition_id: int
+    type: str
+
+
+@dataclass
+class DatasetIdentifier(AbstractDatasetIdentifier[DatasetSelector]):
+    match_id: int
+    _match: Dict
+
+
 class StatsbombGithub(Source):
-    @dataclass
-    class ImportConfiguration(BaseImportConfiguration):
-        season_id: int
-        competition_id: int
-        type: str
+    def find_datasets(
+        self, dataset_selector: DatasetSelector
+    ) -> List[DatasetIdentifier]:
 
-    @dataclass
-    class DatasetDescriptor(BaseDatasetDescriptor[ImportConfiguration]):
-        match_id: int
-        _match: Dict
-
-    async def find_datasets(
-        self, configuration: ImportConfiguration
-    ) -> List[DatasetDescriptor]:
-
-        matches = await retrieve(
-            f"{BASE_URL}/matches/{configuration.competition_id}/{configuration.season_id}.json"
+        matches = retrieve(
+            f"{BASE_URL}/matches/{dataset_selector.competition_id}/{dataset_selector.season_id}.json"
         )
         return [
-            self.DatasetDescriptor(
-                configuration=configuration,
-                match_id=match['match_id'],
+            DatasetIdentifier(
+                dataset_selector=dataset_selector,
+                match_id=match["match_id"],
                 _match=match
             )
             for match in matches
         ]
 
-    async def retrieve_and_store_dataset(self, dataset_descriptor: DatasetDescriptor, store: Store):
-        if metadata := await store.get_metadata(dataset_descriptor):
-            fetch_if_changed()
+    def fetch_dataset(
+        self, dataset_identifier: DatasetIdentifier, current_version: DatasetVersion
+    ) -> Dataset:
+        if dataset_identifier.dataset_selector.type == "lineup":
+            data = retrieve(f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json")
+        elif dataset_identifier.dataset_selector.type == "events":
+            data = retrieve(f"{BASE_URL}/events/{dataset_identifier.match_id}.json")
         else:
-            if dataset_descriptor.configuration.type == 'lineup':
-                data = await retrieve(
-                    f"{BASE_URL}/lineups/{dataset_descriptor.match_id}.json"
-                )
-            elif dataset_descriptor.configuration.type == 'events':
-                data = await retrieve(
-                    f"{BASE_URL}/events/{dataset_descriptor.match_id}.json"
-                )
-            else:
-                raise Exception(f"Invalid dataset type {dataset_descriptor.configuration.type}")
-
-            await store.add(
-                dataset_descriptor,
-                data
+            raise Exception(
+                f"Invalid dataset type {dataset_identifier.dataset_selector.type}"
             )
 
 
 def main():
-    bla = source_factory.build(
-        "StatsbombGithub",
-        freshness_policy=AlwaysRefresh()
+    source = source_factory.build(
+        "StatsbombGithub"
     )
 
-    async def run():
-        store = Store()
+    store = Store()
 
-        dataset_descriptors = await bla.find_datasets(
-            StatsbombGithub.ImportConfiguration(
-                competition_id=11,
-                season_id=1,
-                type='lineup'
-            )
-        )
-        for dataset_descriptor in dataset_descriptors:
-            print(f"Retrieving {dataset_descriptor}")
-            await bla.retrieve_and_store_dataset(dataset_descriptor, store)
-        a = 1
+    refresh_policy = RefreshPolicy()
 
-    asyncio.run(run())
+
+    selector = dict(
+        competition_id=11,
+        season_id=1,
+        type="lineup"
+    )
+
+    dataset_identifiers = source.find_datasets(selector)
+    current_datasets = store.get_datasets(selector)
+
+    for dataset_identifier in dataset_identifiers:
+        print(f"Retrieving {dataset_identifier}")
+        source.fetch_dataset(dataset_identifier, store)
+    a = 1
+
 
 if __name__ == "__main__":
     main()
