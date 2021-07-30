@@ -15,8 +15,8 @@ class Content(ABC):
 
 @dataclass
 class Dataset:
-    dataset_identifier: DatasetIdentifier
-    dataset_version: DatasetVersion
+    identifier: DatasetIdentifier
+    version: DatasetVersion
 
     content: Union[AnyStr, BytesIO, Content]
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from .dataset import DatasetIdentifier, DatasetVersion, DatasetSelector
 
@@ -17,7 +17,7 @@ class Source(ABC, metaclass=source_registry.metaclass):
 
     @abstractmethod
     def fetch_dataset(
-        self, dataset_identifier: DatasetIdentifier, current_version: DatasetVersion
+        self, dataset_identifier: DatasetIdentifier, current_version: Optional[DatasetVersion]
     ) -> None:
         pass
 

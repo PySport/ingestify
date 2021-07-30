@@ -56,3 +56,11 @@ class ComponentFactory(Generic[T]):
         except TypeError as e:
             raise e
             # raise TypeError(f"Could not initialize {cls_name}")
+
+
+def key_from_dict(d: dict) -> str:
+    return "/".join([
+        f"{k}={v}"
+        for k, v in d.items()
+        if not k.startswith('_')
+    ])

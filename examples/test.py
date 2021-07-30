@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
 import requests
@@ -57,7 +57,7 @@ class StatsbombGithub(Source):
         matches = requests.get(url).json()
         return [
             DatasetIdentifier(
-                dataset_selector=dataset_selector,
+                selector=dataset_selector,
                 match_id=match["match_id"],
                 _match=match
             )
@@ -65,23 +65,35 @@ class StatsbombGithub(Source):
         ]
 
     def fetch_dataset(
-        self, dataset_identifier: DatasetIdentifier, current_version: DatasetVersion
+        self, dataset_identifier: DatasetIdentifier, current_version: Optional[DatasetVersion]
     ) -> Dataset:
-        if dataset_identifier.dataset_selector.type == "lineup":
+        if dataset_identifier.selector.type == "lineup":
             dataset_version, data = retrieve(f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json")
-        elif dataset_identifier.dataset_selector.type == "events":
+        elif dataset_identifier.selector.type == "events":
             dataset_version, data = retrieve(f"{BASE_URL}/events/{dataset_identifier.match_id}.json")
         else:
             raise Exception(
-                f"Invalid dataset type {dataset_identifier.dataset_selector.type}"
+                f"Invalid dataset type {dataset_identifier.selector.type}"
             )
 
         return Dataset(
-            dataset_identifier=dataset_identifier,
-            dataset_version=dataset_version,
+            identifier=dataset_identifier,
+            version=dataset_version,
             content=data
         )
 
+class RefreshPolicy:
+    def __init__(self):
+        # refresh all data that changed less than a day ago
+        self.min_age = datetime.utcnow() - timedelta(days=1)
+
+    def should_refresh(self, dataset: Optional[Dataset]) -> bool:
+        if not dataset:
+            return True
+        elif dataset.version.modified_at > self.min_age:
+            return True
+        else:
+            return False
 
 def main():
     source = source_factory.build(
@@ -92,8 +104,7 @@ def main():
         "/tmp/blaat"
     )
 
-#    refresh_policy = RefreshPolicy()
-
+    refresh_policy = RefreshPolicy()
 
     selector = DatasetSelector(
         competition_id=11,
@@ -102,12 +113,18 @@ def main():
     )
 
     dataset_identifiers = source.fetch_dataset_identifiers(selector)
-    current_datasets = store.get_dataset_identifiers(selector)
+    dataset_collection = store.get_dataset_collection(selector)
 
     for dataset_identifier in dataset_identifiers:
-        print(f"Retrieving {dataset_identifier}")
-        source.fetch_dataset(dataset_identifier, store)
-    a = 1
+        current_dataset = dataset_collection.get(dataset_identifier)
+        if refresh_policy.should_refresh(current_dataset):
+            print(f"Retrieving {dataset_identifier}")
+            dataset = source.fetch_dataset(
+                dataset_identifier,
+                current_version=current_dataset.version if current_dataset else None
+            )
+
+            store.add(dataset)
 
 
 if __name__ == "__main__":
