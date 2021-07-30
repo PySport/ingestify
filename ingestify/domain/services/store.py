@@ -1,11 +1,14 @@
+from abc import abstractmethod, ABC
 from typing import List
 
 from domain.models import DatasetSelector, DatasetIdentifier, Dataset, DatasetVersion
 
 
-class Store:
-    def get_datasets(self, dataset_selector: DatasetSelector) -> List[Dataset]:
-        return None
+class Store(ABC):
+    @abstractmethod
+    def get_dataset_identifiers(self, dataset_selector: DatasetSelector) -> List[DatasetIdentifier]:
+        pass
 
-    def add(self, dataset_identifier: DatasetIdentifier, dataset_version: DatasetVersion):
+    @abstractmethod
+    def add(self, dataset: Dataset):
         pass
