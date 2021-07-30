@@ -8,8 +8,8 @@ import requests
 from domain.models import DatasetVersion
 from ingestify.source_base import (
     Source,
-    AbstractDatasetIdentifier,
-    AbstractDatasetSelector,
+    DatasetIdentifier,
+    DatasetSelector,
     Store,
 )
 from ingestify import source_factory
@@ -25,27 +25,16 @@ def retrieve(url, current_version: Optional[DatasetVersion] = None):
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
-@dataclass
-class DatasetSelector(AbstractDatasetSelector):
-    season_id: int
-    competition_id: int
-    type: str
-
-
-@dataclass
-class DatasetIdentifier(AbstractDatasetIdentifier[DatasetSelector]):
-    match_id: int
-    _match: Dict
-
 
 class StatsbombGithub(Source):
-    def find_datasets(
+    def fetch_dataset_identifiers(
         self, dataset_selector: DatasetSelector
     ) -> List[DatasetIdentifier]:
-
-        matches = retrieve(
-            f"{BASE_URL}/matches/{dataset_selector.competition_id}/{dataset_selector.season_id}.json"
+        url = dataset_selector.format_string(
+            f"{BASE_URL}/matches/$competition_id/$season_id.json"
         )
+
+        matches = retrieve(url)
         return [
             DatasetIdentifier(
                 dataset_selector=dataset_selector,
@@ -75,16 +64,16 @@ def main():
 
     store = Store()
 
-    refresh_policy = RefreshPolicy()
+#    refresh_policy = RefreshPolicy()
 
 
-    selector = dict(
+    selector = DatasetSelector(
         competition_id=11,
         season_id=1,
         type="lineup"
     )
 
-    dataset_identifiers = source.find_datasets(selector)
+    dataset_identifiers = source.fetch_dataset_identifiers(selector)
     current_datasets = store.get_datasets(selector)
 
     for dataset_identifier in dataset_identifiers:

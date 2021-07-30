@@ -1,4 +1,4 @@
-from domain.models import AbstractDatasetIdentifier, AbstractDatasetSelector, Source
+from domain.models import DatasetSelector, DatasetIdentifier, Source
 from domain.services import Store
 
-__all__ = ["AbstractDatasetIdentifier", "AbstractDatasetSelector", "Source", "Store"]
+__all__ = ["DatasetSelector", "DatasetIdentifier", "Source", "Store"]

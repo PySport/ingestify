@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from .dataset_identifier import AbstractDatasetIdentifier
-from .dataset_version import DatasetVersion
+from .identifier import DatasetIdentifier
+from .version import DatasetVersion
 
 
 @dataclass
 class Dataset:
-    dataset_identifier: AbstractDatasetIdentifier
+    dataset_identifier: DatasetIdentifier
     dataset_version: DatasetVersion
