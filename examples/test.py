@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import aiohttp
 
@@ -13,10 +13,16 @@ from ingestify.source_base import (
 from ingestify import source_factory
 
 
-async def retrieve(url):
+class VersionIdentifier:
+    modified_at: datetime
+    tag: str
+
+
+async def retrieve(url, current_version: Optional[VersionIdentifier] = None):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             return await resp.json(content_type=None)
+
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 class StatsbombGithub(Source):
@@ -69,7 +75,10 @@ class StatsbombGithub(Source):
 
 
 def main():
-    bla = source_factory.build("StatsbombGithub")
+    bla = source_factory.build(
+        "StatsbombGithub",
+        freshness_policy=AlwaysRefresh()
+    )
 
     async def run():
         store = Store()

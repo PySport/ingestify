@@ -22,6 +22,9 @@ class DatasetDescriptor:
 
 
 class Source(ABC, metaclass=source_registry.metaclass):
+    def __init__(self, version_policy: RefreshPolicy):
+        self.refresh_policy = refresh_policy
+
     @abstractmethod
     async def find_datasets(
         self, configuration: BaseImportConfiguration
