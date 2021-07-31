@@ -22,7 +22,3 @@ class DraftDatasetVersion:
     content_type: str
 
     stream: IO[AnyStr]
-
-
-
-

@@ -1,6 +1,6 @@
 import abc
 import inspect
-from typing import TypeVar, Generic, Type
+from typing import Generic, Type, TypeVar
 
 
 class ComponentRegistry:
@@ -59,8 +59,4 @@ class ComponentFactory(Generic[T]):
 
 
 def key_from_dict(d: dict) -> str:
-    return "/".join([
-        f"{k}={v}"
-        for k, v in d.items()
-        if not k.startswith('_')
-    ])
+    return "/".join([f"{k}={v}" for k, v in d.items() if not k.startswith("_")])

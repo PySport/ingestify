@@ -12,8 +12,10 @@ class DatasetSelector:
         return self.attributes[item]
 
     def format_string(self, string: str):
-        return re.sub('\\$([a-z0-9_]+)', lambda m: str(self.attributes[m.group(1)]), string)
+        return re.sub(
+            "\\$([a-z0-9_]+)", lambda m: str(self.attributes[m.group(1)]), string
+        )
 
     def __repr__(self):
-        attributes = {k: v for k, v in self.attributes.items() if not k.startswith('_')}
+        attributes = {k: v for k, v in self.attributes.items() if not k.startswith("_")}
         return f"DatasetSelector(attributes={attributes})"

@@ -1,4 +1,5 @@
 from utils import key_from_dict
+
 from .selector import DatasetSelector
 
 
@@ -16,5 +17,5 @@ class DatasetIdentifier:
         return hash(self.key)
 
     def __repr__(self):
-        attributes = {k: v for k, v in self.attributes.items() if not k.startswith('_')}
+        attributes = {k: v for k, v in self.attributes.items() if not k.startswith("_")}
         return f"DatasetIdentifier(selector={self.selector}, attributes={attributes})"

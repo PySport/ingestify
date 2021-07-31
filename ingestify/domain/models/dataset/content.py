@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import AnyStr, IO
+from typing import IO, AnyStr
 
 
 @dataclass
@@ -8,4 +8,3 @@ class DatasetContent:
     content_type: str
 
     stream: IO[AnyStr]
-

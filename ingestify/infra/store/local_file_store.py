@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from domain.models import Dataset, DatasetSelector, DatasetCollection
+from domain.models import Dataset, DatasetCollection, DatasetSelector
 from domain.services import Store
 
 
@@ -8,7 +8,9 @@ class LocalFileStore(Store):
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
 
-    def get_dataset_collection(self, dataset_selector: DatasetSelector) -> DatasetCollection:
+    def get_dataset_collection(
+        self, dataset_selector: DatasetSelector
+    ) -> DatasetCollection:
         return DatasetCollection()
 
     def add(self, dataset: Dataset):
@@ -17,4 +19,3 @@ class LocalFileStore(Store):
 
         with open(dataset_path / "content", "wb") as fp:
             fp.write(dataset.content.read())
-
