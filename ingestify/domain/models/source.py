@@ -16,9 +16,9 @@ class Source(ABC, metaclass=source_registry.metaclass):
         pass
 
     @abstractmethod
-    def fetch_dataset(
+    def fetch_dataset_version(
         self, dataset_identifier: DatasetIdentifier, current_version: Optional[DatasetVersion]
-    ) -> None:
+    ) -> DatasetVersion:
         pass
 
 

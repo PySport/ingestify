@@ -13,5 +13,5 @@ class DatasetCollection:
             for dataset in datasets
         }
 
-    def get(self, dataset_identifier: DatasetIdentifier) -> Optional[Dataset]:
+    def get(self, dataset_identifier: DatasetIdentifier) -> Dataset:
         return self.datasets.get(dataset_identifier)

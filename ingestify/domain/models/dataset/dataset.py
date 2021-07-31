@@ -1,32 +1,28 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from io import BytesIO
-from typing import AnyStr, IO, Union
+from typing import List, Optional
 
 from .identifier import DatasetIdentifier
 from .version import DatasetVersion
 
 
-class Content(ABC):
-    @abstractmethod
-    def read(self, n: int = -1) -> AnyStr:
-        pass
-
-
 @dataclass
 class Dataset:
     identifier: DatasetIdentifier
-    version: DatasetVersion
+    versions: List[DatasetVersion]
 
-    content: Union[AnyStr, BytesIO, Content]
+    @property
+    def current_version(self) -> Optional[DatasetVersion]:
+        if self.versions:
+            return self.versions[-1]
+        return None
 
-    def __post_init__(self):
-        if isinstance(self.content, str):
-            self.content = BytesIO(self.content.encode('utf-8'))
-        elif isinstance(self.content, bytes):
-            self.content = BytesIO(self.content)
-        else:
-            if not hasattr(self.content, 'read'):
-                raise TypeError("Content doesn't provide a read method")
-
-
+    # def __post_init__(self):
+    #     if isinstance(self.content, str):
+    #         self.content = BytesIO(self.content.encode('utf-8'))
+    #     elif isinstance(self.content, bytes):
+    #         self.content = BytesIO(self.content)
+    #     else:
+    #         if not hasattr(self.content, 'read'):
+    #             raise TypeError("Content doesn't provide a read method")
+    #
+    #
