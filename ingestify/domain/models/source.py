@@ -3,7 +3,12 @@ from typing import List, Optional
 
 from utils import ComponentFactory, ComponentRegistry
 
-from .dataset import DatasetIdentifier, DatasetSelector, DatasetVersion, DraftDatasetVersion
+from .dataset import (
+    DatasetIdentifier,
+    DatasetSelector,
+    DatasetVersion,
+    DraftDatasetVersion,
+)
 
 source_registry = ComponentRegistry()
 
@@ -16,7 +21,7 @@ class Source(ABC, metaclass=source_registry.metaclass):
         pass
 
     @abstractmethod
-    def fetch_draft_dataset_version(
+    def fetch_dataset_version(
         self,
         dataset_identifier: DatasetIdentifier,
         current_version: Optional[DatasetVersion],

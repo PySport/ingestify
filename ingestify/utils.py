@@ -1,5 +1,7 @@
 import abc
 import inspect
+import time
+from datetime import datetime, timezone
 from typing import Generic, Type, TypeVar
 
 
@@ -60,3 +62,7 @@ class ComponentFactory(Generic[T]):
 
 def key_from_dict(d: dict) -> str:
     return "/".join([f"{k}={v}" for k, v in d.items() if not k.startswith("_")])
+
+
+def utcnow() -> datetime:
+    return datetime.fromtimestamp(time.time(), timezone.utc)

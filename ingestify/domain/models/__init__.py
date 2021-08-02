@@ -1,7 +1,15 @@
-from .dataset import (Dataset, DatasetCollection, DatasetContent,
-                      DatasetIdentifier, DatasetSelector, DatasetVersion,
-                      DraftDatasetVersion)
-from .da
+from .dataset import (
+    FileRepository,
+    Dataset,
+    DatasetCollection,
+    File,
+    DraftFile,
+    FileNotModified,
+    DatasetIdentifier,
+    DatasetRepository,
+    DatasetSelector,
+    DatasetVersion,
+)
 from .source import Source
 
 __all__ = [
@@ -9,8 +17,11 @@ __all__ = [
     "DatasetIdentifier",
     "Source",
     "DatasetVersion",
-    "DraftDatasetVersion",
     "Dataset",
     "DatasetCollection",
-    "DatasetContent",
+    "File",
+    "DraftFile",
+    "FileNotModified",
+    "FileRepository",
+    "DatasetRepository",
 ]

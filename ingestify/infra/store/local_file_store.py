@@ -1,10 +1,18 @@
 from pathlib import Path
 
-from domain.models import Dataset, DatasetCollection, DatasetSelector
-from domain.services import Store
+from domain.models import Dataset, DatasetCollection, DatasetSelector, FileRepository, File
 
 
-class LocalFileStore(Store):
+class LocalFileRepository(FileRepository):
+    def save(self, file: File):
+        pass
+
+    def load(self, file_id: str) -> File:
+        pass
+
+    def next_identify(self) -> str:
+        pass
+
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
 

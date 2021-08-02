@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from .identifier import DatasetIdentifier
 from .version import DatasetVersion
+from .. import FileNotModified, DraftFile
 
 
 @dataclass
@@ -12,17 +13,29 @@ class Dataset:
 
     @property
     def current_version(self) -> Optional[DatasetVersion]:
-        if self.versions:
-            return self.versions[-1]
-        return None
+        """
+        When multiple versions are available, squash versions into one single version which
+        contents all most recent files.
+        """
+        if not self.versions:
+            return None
+        elif len(self.versions) == 1:
+            return self.versions[0]
+        else:
+            files = {}
 
-    # def __post_init__(self):
-    #     if isinstance(self.content, str):
-    #         self.content = BytesIO(self.content.encode('utf-8'))
-    #     elif isinstance(self.content, bytes):
-    #         self.content = BytesIO(self.content)
-    #     else:
-    #         if not hasattr(self.content, 'read'):
-    #             raise TypeError("Content doesn't provide a read method")
-    #
-    #
+            for version in self.versions:
+                for filename, file in version.files:
+                    if isinstance(file, DraftFile):
+                        raise Exception(
+                            f"Cannot squash draft file. Version: {version}. Filename: {filename}"
+                        )
+                    if not isinstance(file, FileNotModified):
+                        files[filename] = file
+
+            return DatasetVersion(
+                created_at=utcnow(),
+                description="Squashed version",
+                is_squashed=True,
+                files=files,
+            )

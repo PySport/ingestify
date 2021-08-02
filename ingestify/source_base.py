@@ -1,6 +1,13 @@
-from domain.models import (Dataset, DatasetContent, DatasetIdentifier,
-                           DatasetSelector, DraftDatasetVersion, Source)
-from domain.services import Store
+from domain.models import (
+    Dataset,
+    File,
+    FileNotModified,
+    DraftFile,
+    DatasetIdentifier,
+    DatasetSelector,
+    Source,
+)
+from application.store import Store
 
 __all__ = [
     "DatasetSelector",
@@ -8,6 +15,7 @@ __all__ = [
     "Source",
     "Store",
     "Dataset",
-    "DatasetContent",
-    "DraftDatasetVersion",
+    "File",
+    "FileNotModified",
+    "DraftFile",
 ]

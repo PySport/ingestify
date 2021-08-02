@@ -11,17 +11,23 @@ from domain.models import DatasetVersion
 from infra.store.local_file_store import LocalFileStore
 
 from ingestify import source_factory
-from ingestify.source_base import (Dataset, DatasetContent, DatasetIdentifier,
-                                   DatasetSelector, DraftDatasetVersion,
-                                   Source, Store)
+from ingestify.source_base import (
+    Dataset,
+    File,
+    DatasetIdentifier,
+    DatasetSelector,
+    DraftFile, FileNotModified,
+    Source,
+)
+from utils import utcnow
 
 
-def retrieve(url, current_version: Optional[DatasetVersion] = None):
+def retrieve(url, current_file: Optional[File] = None) -> DraftFile:
     headers = {}
-    if current_version:
+    if current_file:
         headers = {
             "if-modified-since": format_datetime(
-                current_version.modified_at, usegmt=True
+                current_file.modified_at, usegmt=True
             )
         }
     response = requests.get(url, headers=headers)
@@ -35,7 +41,7 @@ def retrieve(url, current_version: Optional[DatasetVersion] = None):
     tag = response.headers.get("etag")
     content_length = response.headers.get("content-length", 0)
 
-    return DraftDatasetVersion(
+    return DraftFile(
         modified_at=modified_at,
         tag=tag,
         size=int(content_length) if content_length else None,
@@ -63,23 +69,26 @@ class StatsbombGithub(Source):
             for match in matches
         ]
 
-    def fetch_draft_dataset_version(
+    def fetch_dataset_version(
         self,
         dataset_identifier: DatasetIdentifier,
         current_version: Optional[DatasetVersion],
-    ) -> DraftDatasetVersion:
-        if dataset_identifier.selector.type == "lineup":
-            dataset_version = retrieve(
-                f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json"
+    ) -> DatasetVersion:
+        current_files = current_version.files if current_version else {}
+        files = {}
+        for file_name, url in [
+            ("lineups.json", f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json"),
+            ("events.json", f"{BASE_URL}/events/{dataset_identifier.match_id}.json"),
+        ]:
+            files[file_name] = retrieve(
+                url, current_files.get(file_name)
             )
-        elif dataset_identifier.selector.type == "events":
-            dataset_version = retrieve(
-                f"{BASE_URL}/events/{dataset_identifier.match_id}.json"
-            )
-        else:
-            raise Exception(f"Invalid dataset type {dataset_identifier.selector.type}")
 
-        return dataset_version
+        return DatasetVersion(
+            created_at=utcnow(),
+            description="Fetch",
+            files=files
+        )
 
 
 class FetchPolicy:
@@ -94,7 +103,7 @@ class FetchPolicy:
     def should_refetch(self, dataset: Dataset) -> bool:
         if not dataset.versions:
             return True
-        elif dataset.current_version.modified_at > self.min_age:
+        elif dataset.current_version.created_at > self.min_age:
             return True
         else:
             return False
@@ -107,7 +116,7 @@ def main():
 
     fetch_policy = FetchPolicy()
 
-    selector = DatasetSelector(competition_id=11, season_id=1, type="lineup")
+    selector = DatasetSelector(competition_id=11, season_id=1)
 
     dataset_identifiers = source.fetch_dataset_identifiers(selector)
     dataset_collection = store.get_dataset_collection(selector)
@@ -117,7 +126,8 @@ def main():
             if fetch_policy.should_refetch(dataset):
                 print(f"Updating {dataset_identifier}")
                 draft_dataset_version = source.fetch_dataset_version(
-                    dataset_identifier, current_version=dataset.current_version
+                    dataset_identifier,
+                    current_version=dataset.current_version
                 )
                 store.add_version(dataset, draft_dataset_version)
         else:
