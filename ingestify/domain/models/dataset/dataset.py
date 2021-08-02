@@ -25,7 +25,7 @@ class Dataset:
             files = {}
 
             for version in self.versions:
-                for filename, file in version.files:
+                for filename, file in version.files.items():
                     if isinstance(file, DraftFile):
                         raise Exception(
                             f"Cannot squash draft file. Version: {version}. Filename: {filename}"
