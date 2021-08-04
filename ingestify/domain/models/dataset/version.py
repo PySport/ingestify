@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Union
 
-from .file import File, FileNotModified, DraftFile
+from .file import DraftFile, File, FileNotModified
 
 
 @dataclass

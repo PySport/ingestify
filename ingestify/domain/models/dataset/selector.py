@@ -1,5 +1,5 @@
-import re
 from typing import Dict
+from string import Template
 
 from utils import key_from_dict
 
@@ -17,9 +17,7 @@ class DatasetSelector:
         raise AttributeError
 
     def format_string(self, string: str):
-        return re.sub(
-            "\\$([a-z0-9_]+)", lambda m: str(self.attributes[m.group(1)]), string
-        )
+        return Template(string).substitute(**self.attributes)
 
     def matches(self, attributes: Dict) -> bool:
         for k, v in self.attributes.items():

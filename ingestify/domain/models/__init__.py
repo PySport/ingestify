@@ -1,16 +1,16 @@
 from .dataset import (
-    FileRepository,
     Dataset,
     DatasetCollection,
-    File,
-    DraftFile,
-    FileNotModified,
     DatasetIdentifier,
     DatasetRepository,
     DatasetSelector,
     DatasetVersion,
+    DraftFile,
+    File,
+    FileNotModified,
+    FileRepository,
 )
-from .source import Source
+from .source import Source, source_factory
 
 __all__ = [
     "DatasetSelector",
@@ -24,4 +24,5 @@ __all__ = [
     "FileNotModified",
     "FileRepository",
     "DatasetRepository",
+    "source_factory",
 ]

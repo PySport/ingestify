@@ -1,11 +1,10 @@
+import glob
 import os
 import pickle
-import glob
 from pathlib import Path
 
 import shortuuid
-
-from domain.models import DatasetRepository, Dataset, DatasetSelector, DatasetCollection
+from domain.models import Dataset, DatasetCollection, DatasetRepository, DatasetSelector
 
 
 def parse_value(v):

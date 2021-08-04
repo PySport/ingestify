@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from typing import IO, AnyStr
 
-from domain.models import Dataset, FileRepository, DatasetVersion
+from domain.models import Dataset, FileRepository
 
 
 class LocalFileRepository(FileRepository):
@@ -20,7 +20,5 @@ class LocalFileRepository(FileRepository):
     def load_content(self, file_id: str) -> IO[AnyStr]:
         pass
 
-    def get_identify(
-        self, dataset: Dataset, version: DatasetVersion, filename: str
-    ) -> str:
+    def get_identify(self, dataset: Dataset, version_id: str, filename: str) -> str:
         return str(Path(dataset.dataset_id) / filename)

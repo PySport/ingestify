@@ -1,8 +1,8 @@
 from .collection import DatasetCollection
-from .file import File, FileNotModified, DraftFile
-from .file_repository import FileRepository
 from .dataset import Dataset
 from .dataset_repository import DatasetRepository
+from .file import DraftFile, File, FileNotModified
+from .file_repository import FileRepository
 from .identifier import DatasetIdentifier
 from .selector import DatasetSelector
 from .version import DatasetVersion

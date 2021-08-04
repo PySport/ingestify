@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import IO, AnyStr
 
 from .dataset import Dataset
@@ -15,7 +15,5 @@ class FileRepository(ABC):
         pass
 
     @abstractmethod
-    def get_identify(
-        self, dataset: Dataset, version: DatasetVersion, filename: str
-    ) -> str:
+    def get_identify(self, dataset: Dataset, version_id: str, filename: str) -> str:
         pass

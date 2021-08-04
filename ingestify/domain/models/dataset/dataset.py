@@ -2,9 +2,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from utils import utcnow
+
+from .file import DraftFile, FileNotModified
 from .identifier import DatasetIdentifier
 from .version import DatasetVersion
-from .file import FileNotModified, DraftFile
 
 
 @dataclass
