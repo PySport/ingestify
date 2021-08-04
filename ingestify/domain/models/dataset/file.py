@@ -22,13 +22,13 @@ class File:
     content_type: str
 
     @classmethod
-    def from_draft(cls, draft_file: DraftFile, file_id: str) -> 'File':
+    def from_draft(cls, draft_file: DraftFile, file_id: str) -> "File":
         return cls(
             file_id=file_id,
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
             size=draft_file.size,
-            content_type=draft_file.content_type
+            content_type=draft_file.content_type,
         )
 
 

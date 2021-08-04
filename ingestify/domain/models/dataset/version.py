@@ -7,6 +7,7 @@ from .file import File, FileNotModified, DraftFile
 
 @dataclass
 class DatasetVersion:
+    version_id: int
     created_at: datetime
     description: str
     files: Dict[str, Union[DraftFile, File, FileNotModified]]

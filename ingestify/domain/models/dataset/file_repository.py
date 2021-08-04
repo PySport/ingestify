@@ -15,5 +15,7 @@ class FileRepository(ABC):
         pass
 
     @abstractmethod
-    def get_identify(self, dataset: Dataset, version: DatasetVersion, filename: str) -> str:
+    def get_identify(
+        self, dataset: Dataset, version: DatasetVersion, filename: str
+    ) -> str:
         pass

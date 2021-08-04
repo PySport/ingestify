@@ -14,11 +14,13 @@ class LocalFileRepository(FileRepository):
         full_path = self.base_dir / file_id
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(full_path, 'wb') as fp:
+        with open(full_path, "wb") as fp:
             shutil.copyfileobj(stream, fp)
 
     def load_content(self, file_id: str) -> IO[AnyStr]:
         pass
 
-    def get_identify(self, dataset: Dataset, version: DatasetVersion, filename: str) -> str:
-        pass
+    def get_identify(
+        self, dataset: Dataset, version: DatasetVersion, filename: str
+    ) -> str:
+        return str(Path(dataset.dataset_id) / filename)

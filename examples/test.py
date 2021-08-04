@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from email.utils import format_datetime, parsedate
 from io import BytesIO
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import requests
 from domain.models import DatasetVersion
-from infra.store.local_file_store import LocalFileStore
+from infra.store import LocalFileRepository, LocalDatasetRepository
 
 from ingestify import source_factory
 from ingestify.source_base import (
@@ -16,27 +16,33 @@ from ingestify.source_base import (
     File,
     DatasetIdentifier,
     DatasetSelector,
-    DraftFile, FileNotModified,
+    DraftFile,
+    FileNotModified,
     Source,
+    Store,
 )
 from utils import utcnow
 
 
-def retrieve(url, current_file: Optional[File] = None) -> DraftFile:
+def retrieve(
+    url, current_file: Optional[File] = None
+) -> Union[DraftFile, FileNotModified]:
     headers = {}
     if current_file:
         headers = {
-            "if-modified-since": format_datetime(
-                current_file.modified_at, usegmt=True
-            )
+            "if-modified-since": format_datetime(current_file.modified_at, usegmt=True),
+            "if-none-match": current_file.tag,
         }
     response = requests.get(url, headers=headers)
+    if response.status_code == 304:
+        return FileNotModified()
+
     # ('ETag', 'W/"82587c5a4f85a76d68b26ed1278645b0a7f18441ee2e2a10f457f0f46b24e8e8"')
 
     if "last-modified" in response.headers:
         modified_at = parsedate(response.headers["last-modified"])
     else:
-        modified_at = datetime.utcnow()
+        modified_at = utcnow()
 
     tag = response.headers.get("etag")
     content_length = response.headers.get("content-length", 0)
@@ -54,7 +60,7 @@ BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
 
 class StatsbombGithub(Source):
-    def fetch_dataset_identifiers(
+    def discover_datasets(
         self, dataset_selector: DatasetSelector
     ) -> List[DatasetIdentifier]:
         url = dataset_selector.format_string(
@@ -69,32 +75,26 @@ class StatsbombGithub(Source):
             for match in matches
         ]
 
-    def fetch_dataset_version(
+    def fetch_dataset_files(
         self,
         dataset_identifier: DatasetIdentifier,
         current_version: Optional[DatasetVersion],
-    ) -> DatasetVersion:
+    ) -> Dict[str, DraftFile]:
         current_files = current_version.files if current_version else {}
         files = {}
         for file_name, url in [
             ("lineups.json", f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json"),
             ("events.json", f"{BASE_URL}/events/{dataset_identifier.match_id}.json"),
         ]:
-            files[file_name] = retrieve(
-                url, current_files.get(file_name)
-            )
+            files[file_name] = retrieve(url, current_files.get(file_name))
 
-        return DatasetVersion(
-            created_at=utcnow(),
-            description="Fetch",
-            files=files
-        )
+        return files
 
 
 class FetchPolicy:
     def __init__(self):
         # refresh all data that changed less than a day ago
-        self.min_age = datetime.utcnow() - timedelta(days=1)
+        self.min_age = utcnow() - timedelta(days=1)
 
     def should_fetch(self, dataset_identifier: DatasetIdentifier) -> bool:
         # this is called when dataset does not exist yet
@@ -112,28 +112,35 @@ class FetchPolicy:
 def main():
     source = source_factory.build("StatsbombGithub")
 
-    store = LocalFileStore("/tmp/blaat")
+    file_repository = LocalFileRepository("/tmp/blaat/files")
+    dataset_repository = LocalDatasetRepository("/tmp/blaat/datasets")
+
+    store = Store(
+        dataset_repository=dataset_repository, file_repository=file_repository
+    )
 
     fetch_policy = FetchPolicy()
 
     selector = DatasetSelector(competition_id=11, season_id=1)
 
-    dataset_identifiers = source.fetch_dataset_identifiers(selector)
+    dataset_identifiers = source.discover_datasets(selector)
     dataset_collection = store.get_dataset_collection(selector)
 
     for dataset_identifier in dataset_identifiers:
         if dataset := dataset_collection.get(dataset_identifier):
             if fetch_policy.should_refetch(dataset):
                 print(f"Updating {dataset_identifier}")
-                draft_dataset_version = source.fetch_dataset_version(
-                    dataset_identifier,
-                    current_version=dataset.current_version
+                files = source.fetch_dataset_files(
+                    dataset_identifier, current_version=dataset.current_version
                 )
-                store.add_version(dataset, draft_dataset_version)
+                store.add_version(dataset, files)
         else:
             if fetch_policy.should_fetch(dataset_identifier):
-                draft_dataset_version = source.fetch_dataset_version(dataset_identifier)
-                store.create_dataset(dataset_identifier, draft_dataset_version)
+                print(f"Fetching {dataset_identifier}")
+                files = source.fetch_dataset_files(
+                    dataset_identifier, current_version=None
+                )
+                store.create_dataset(dataset_identifier, files)
 
 
 if __name__ == "__main__":

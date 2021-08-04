@@ -1,15 +1,26 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
+from utils import utcnow
 from .identifier import DatasetIdentifier
 from .version import DatasetVersion
-from .. import FileNotModified, DraftFile
+from .file import FileNotModified, DraftFile
 
 
 @dataclass
 class Dataset:
+    dataset_id: str
     identifier: DatasetIdentifier
-    versions: List[DatasetVersion]
+    current_version_id: int = 0
+    versions: List[DatasetVersion] = field(default_factory=list)
+
+    def next_version_id(self):
+        version_id = self.current_version_id
+        self.current_version_id += 1
+        return version_id
+
+    def add_version(self, version: DatasetVersion):
+        self.versions.append(version)
 
     @property
     def current_version(self) -> Optional[DatasetVersion]:
@@ -34,6 +45,7 @@ class Dataset:
                         files[filename] = file
 
             return DatasetVersion(
+                version_id=self.versions[-1].version_id,
                 created_at=utcnow(),
                 description="Squashed version",
                 is_squashed=True,
