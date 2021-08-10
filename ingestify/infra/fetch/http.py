@@ -3,13 +3,13 @@ from io import BytesIO
 from typing import Optional, Union
 
 import requests
-from domain.models import DraftFile, File, FileNotModified
+from domain.models import DraftFile, File
 from utils import utcnow
 
 
 def retrieve_http(
     url, current_file: Optional[File] = None
-) -> Union[DraftFile, FileNotModified]:
+) -> Optional[DraftFile]:
     headers = {}
     if current_file:
         headers = {
@@ -18,7 +18,8 @@ def retrieve_http(
         }
     response = requests.get(url, headers=headers)
     if response.status_code == 304:
-        return FileNotModified()
+        # Not modified
+        return None
 
     if "last-modified" in response.headers:
         modified_at = parsedate(response.headers["last-modified"])
@@ -33,5 +34,5 @@ def retrieve_http(
         tag=tag,
         size=int(content_length) if content_length else None,
         content_type=response.headers.get("content-type"),
-        stream=BytesIO(response.content),
+        stream=BytesIO(response.content)
     )

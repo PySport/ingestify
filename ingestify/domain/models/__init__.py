@@ -1,28 +1,21 @@
-from .dataset import (
-    Dataset,
-    DatasetCollection,
-    DatasetIdentifier,
-    DatasetRepository,
-    DatasetSelector,
-    DatasetVersion,
-    DraftFile,
-    File,
-    FileNotModified,
-    FileRepository,
-)
+from .dataset import (Dataset, DatasetCollection, Identifier,
+                      DatasetRepository, Selector, Version,
+                      DraftFile, File, FileRepository)
 from .source import Source, source_factory
+from .task import Task, TaskSet
 
 __all__ = [
-    "DatasetSelector",
-    "DatasetIdentifier",
+    "Selector",
+    "Identifier",
     "Source",
-    "DatasetVersion",
+    "Version",
     "Dataset",
     "DatasetCollection",
     "File",
     "DraftFile",
-    "FileNotModified",
     "FileRepository",
     "DatasetRepository",
     "source_factory",
+    "TaskSet",
+    "Task"
 ]

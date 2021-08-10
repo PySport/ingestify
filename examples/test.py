@@ -1,29 +1,30 @@
 import json
 import sys
-from io import BytesIO
+from os import environ
 from typing import Dict, List, Optional
 
 import requests
-from application.syncer import sync_store
-from domain.models import DatasetVersion
+from application.syncer import Syncer
+from domain.models import Version
 from infra import retrieve_http
 
-from ingestify.source_base import DatasetIdentifier, DatasetSelector, DraftFile, Source
+from ingestify.source_base import (Identifier, Selector,
+                                   DraftFile, Source)
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
 
 class StatsbombGithub(Source):
     def discover_datasets(
-        self, dataset_selector: DatasetSelector
-    ) -> List[DatasetIdentifier]:
+        self, dataset_selector: Selector
+    ) -> List[Identifier]:
         url = dataset_selector.format_string(
             f"{BASE_URL}/matches/$competition_id/$season_id.json"
         )
 
         matches = requests.get(url).json()
         return [
-            DatasetIdentifier(
+            Identifier(
                 selector=dataset_selector, match_id=match["match_id"], _match=match
             )
             for match in matches
@@ -31,16 +32,16 @@ class StatsbombGithub(Source):
 
     def fetch_dataset_files(
         self,
-        dataset_identifier: DatasetIdentifier,
-        current_version: Optional[DatasetVersion],
+        dataset_identifier: Identifier,
+        current_version: Optional[Version],
     ) -> Dict[str, DraftFile]:
-        current_files = current_version.files if current_version else {}
+        current_files = current_version.modified_files_map if current_version else {}
         files = {}
-        for file_name, url in [
+        for filename, url in [
             ("lineups.json", f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json"),
             ("events.json", f"{BASE_URL}/events/{dataset_identifier.match_id}.json"),
         ]:
-            files[file_name] = retrieve_http(url, current_files.get(file_name))
+            files[filename] = retrieve_http(url, current_files.get(filename))
 
         files["match.json"] = json.dumps(dataset_identifier._match)
 
@@ -51,14 +52,28 @@ def main():
     import logging
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    sync_store(
-        "StatsbombGithub", dataset_selector=dict(competition_id=37, season_id=42)
+    data = requests.get('https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json').json()
+
+    syncer = Syncer(
+        database_url=environ['DATABASE_URL']
     )
+    for competition in data:
+        syncer.add_selector(
+            source_name='StatsbombGithub',
+            selector=dict(
+                competition_id=competition['competition_id'],
+                season_id=competition['season_id']
+            )
+        )
+        break
+    #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
+    #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
+    syncer.collect_and_run()
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Union, Dict
 
 from utils import ComponentFactory, ComponentRegistry
+from . import DraftFile
 
-from .dataset import DatasetIdentifier, DatasetSelector, DatasetVersion
+from .dataset import Identifier, Selector, Version
 
 source_registry = ComponentRegistry()
 
@@ -11,17 +12,20 @@ source_registry = ComponentRegistry()
 class Source(ABC, metaclass=source_registry.metaclass):
     @abstractmethod
     def discover_datasets(
-        self, dataset_selector: DatasetSelector
-    ) -> List[DatasetIdentifier]:
+        self, selector: Selector
+    ) -> List[Identifier]:
         pass
 
     @abstractmethod
     def fetch_dataset_files(
         self,
-        dataset_identifier: DatasetIdentifier,
-        current_version: Optional[DatasetVersion],
-    ) -> DatasetVersion:
+        dataset_identifier: Identifier,
+        current_version: Optional[Version],
+    ) -> Dict[str, Optional[DraftFile]]:
         pass
+
+    def __repr__(self):
+        return self.__class__.__name__
 
 
 source_factory = ComponentFactory.build_factory(Source, source_registry)

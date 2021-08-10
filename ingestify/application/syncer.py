@@ -1,10 +1,11 @@
 import logging
-
 from datetime import timedelta
-from typing import Dict
+from typing import Dict, List, Tuple
 
-from domain.models import Dataset, DatasetIdentifier, DatasetSelector, source_factory
+from domain.models import (Dataset, Identifier, Selector,
+                           source_factory, TaskSet, Task, Source)
 from infra.store import LocalDatasetRepository, LocalFileRepository
+from infra.store.dataset import SqlAlchemyDatasetRepository
 from utils import utcnow
 
 from .store import Store
@@ -18,7 +19,7 @@ class FetchPolicy:
         self.min_age = utcnow() - timedelta(days=2)
         self.last_change = utcnow() - timedelta(days=1)
 
-    def should_fetch(self, dataset_identifier: DatasetIdentifier) -> bool:
+    def should_fetch(self, dataset_identifier: Identifier) -> bool:
         # this is called when dataset does not exist yet
         return True
 
@@ -33,39 +34,99 @@ class FetchPolicy:
             return False
 
 
-def sync_store(source_name: str, dataset_selector: Dict):
-    source = source_factory.build(source_name)
+class UpdateDatasetTask(Task):
+    def __init__(self, source: Source, dataset: Dataset, store: Store):
+        self.source = source
+        self.dataset = dataset
+        self.store = store
 
-    file_repository = LocalFileRepository("/tmp/blaat/files")
-    dataset_repository = LocalDatasetRepository("/tmp/blaat/datasets")
+    def run(self):
+        files = self.source.fetch_dataset_files(
+            self.dataset.identifier, current_version=self.dataset.current_version
+        )
+        self.store.add_version(self.dataset, files)
 
-    store = Store(
-        dataset_repository=dataset_repository, file_repository=file_repository
-    )
+    def __repr__(self):
+        return f"UpdateDatasetTask({self.source} -> {self.dataset.identifier})"
 
-    fetch_policy = FetchPolicy()
 
-    selector = DatasetSelector(**dataset_selector)
+class CreateDatasetTask(Task):
+    def __init__(self, source: Source, dataset_identifier: Identifier, store: Store):
+        self.source = source
+        self.dataset_identifier = dataset_identifier
+        self.store = store
 
-    logger.info(f"Discovering datasets")
-    dataset_identifiers = source.discover_datasets(selector)
-    logger.info(f"Found {len(dataset_identifiers)} datasets")
-    dataset_collection = store.get_dataset_collection(selector)
+    def run(self):
+        files = self.source.fetch_dataset_files(
+            self.dataset_identifier, current_version=None
+        )
+        self.store.create_dataset(self.dataset_identifier, files)
 
-    for dataset_identifier in dataset_identifiers:
-        if dataset := dataset_collection.get(dataset_identifier):
-            if fetch_policy.should_refetch(dataset):
-                logger.debug(f"Going to update {dataset_identifier}")
-                files = source.fetch_dataset_files(
-                    dataset_identifier, current_version=dataset.current_version
-                )
-                store.add_version(dataset, files)
-            else:
-                logger.debug(f"Skipping to update {dataset_identifier}")
-        else:
-            if fetch_policy.should_fetch(dataset_identifier):
-                logger.debug(f"Fetching {dataset_identifier}")
-                files = source.fetch_dataset_files(
-                    dataset_identifier, current_version=None
-                )
-                store.create_dataset(dataset_identifier, files)
+    def __repr__(self):
+        return f"CreateDatasetTask({self.source} -> {self.dataset_identifier})"
+
+
+class Syncer:
+    def __init__(self, database_url: str):
+        file_repository = LocalFileRepository('/tmp/blaat/files')
+        #dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
+        dataset_repository = SqlAlchemyDatasetRepository(database_url)
+
+        self.store = Store(
+            dataset_repository=dataset_repository, file_repository=file_repository
+        )
+
+        self.fetch_policy = FetchPolicy()
+
+        self.selectors: List[Tuple[str, Selector]] = []
+
+    def add_selector(self, source_name: str, selector: Dict):
+        self.selectors.append(
+            (source_name, Selector(**selector))
+        )
+
+    def collect_and_run(self):
+        task_set = TaskSet()
+
+        for source_name, selector in self.selectors:
+            source = source_factory.build(source_name)
+
+            logger.info(f"Discovering datasets from {source_name} using selector {selector}")
+            dataset_identifiers = source.discover_datasets(selector)
+            logger.info(f"Found {len(dataset_identifiers)} datasets")
+
+            task_subset = TaskSet()
+
+            dataset_collection = self.store.get_dataset_collection(selector)
+
+            for dataset_identifier in dataset_identifiers:
+                if dataset := dataset_collection.get(dataset_identifier):
+                    if self.fetch_policy.should_refetch(dataset):
+                        task_subset.add(
+                            UpdateDatasetTask(
+                                source=source,
+                                dataset=dataset,
+                                store=self.store
+                            )
+                        )
+                else:
+                    if self.fetch_policy.should_fetch(dataset_identifier):
+                        task_subset.add(
+                            CreateDatasetTask(
+                                source=source,
+                                dataset_identifier=dataset_identifier,
+                                store=self.store
+                            )
+                        )
+
+            logger.info(f"Created {len(task_subset)} tasks")
+
+            task_set += task_subset
+
+        logger.info(f"Found {len(task_set)} tasks")
+
+        for task in task_set:
+            logger.info(f"Running task {task}")
+            task.run()
+
+

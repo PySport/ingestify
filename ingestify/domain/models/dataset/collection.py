@@ -1,7 +1,7 @@
 from typing import List
 
 from .dataset import Dataset
-from .identifier import DatasetIdentifier
+from .identifier import Identifier
 
 
 class DatasetCollection:
@@ -10,5 +10,5 @@ class DatasetCollection:
 
         self.datasets = {dataset.identifier.key: dataset for dataset in datasets}
 
-    def get(self, dataset_identifier: DatasetIdentifier) -> Dataset:
+    def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)

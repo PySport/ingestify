@@ -1,21 +1,20 @@
 from .collection import DatasetCollection
 from .dataset import Dataset
 from .dataset_repository import DatasetRepository
-from .file import DraftFile, File, FileNotModified
+from .file import DraftFile, File
 from .file_repository import FileRepository
-from .identifier import DatasetIdentifier
-from .selector import DatasetSelector
-from .version import DatasetVersion
+from .identifier import Identifier
+from .selector import Selector
+from .version import Version
 
 __all__ = [
-    "DatasetSelector",
-    "DatasetVersion",
+    "Selector",
+    "Version",
     "Dataset",
-    "DatasetIdentifier",
+    "Identifier",
     "DatasetCollection",
     "File",
     "DraftFile",
-    "FileNotModified",
     "DatasetRepository",
     "FileRepository",
 ]

@@ -2,13 +2,13 @@ from abc import ABC, abstractmethod
 
 from .collection import DatasetCollection
 from .dataset import Dataset
-from .selector import DatasetSelector
+from .selector import Selector
 
 
 class DatasetRepository(ABC):
     @abstractmethod
     def get_dataset_collection(
-        self, dataset_selector: DatasetSelector
+        self, selector: Selector
     ) -> DatasetCollection:
         pass
 

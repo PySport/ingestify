@@ -1,10 +1,11 @@
 import glob
 import os
 import pickle
+import uuid
 from pathlib import Path
 
-import shortuuid
-from domain.models import Dataset, DatasetCollection, DatasetRepository, DatasetSelector
+from domain.models import (Dataset, DatasetCollection, DatasetRepository,
+                           Selector)
 
 
 def parse_value(v):
@@ -19,7 +20,7 @@ class LocalDatasetRepository(DatasetRepository):
         self.base_dir = Path(base_dir)
 
     def get_dataset_collection(
-        self, dataset_selector: DatasetSelector
+        self, selector: Selector
     ) -> DatasetCollection:
 
         datasets = []
@@ -30,7 +31,7 @@ class LocalDatasetRepository(DatasetRepository):
                     part.split("=") for part in os.path.basename(dir_name).split("__")
                 ]
             }
-            if dataset_selector.matches(attributes):
+            if selector.matches(attributes):
                 with open(dir_name + "/dataset.pickle", "rb") as fp:
                     dataset = pickle.load(fp)
                 datasets.append(dataset)
@@ -46,4 +47,4 @@ class LocalDatasetRepository(DatasetRepository):
             pickle.dump(dataset, fp)
 
     def next_identity(self):
-        return shortuuid.uuid()
+        return str(uuid.uuid4())

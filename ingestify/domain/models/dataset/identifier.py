@@ -1,10 +1,10 @@
 from utils import key_from_dict
 
-from .selector import DatasetSelector
+from .selector import Selector
 
 
-class DatasetIdentifier:
-    def __init__(self, selector: DatasetSelector, **kwargs):
+class Identifier:
+    def __init__(self, selector: Selector, **kwargs):
         # TODO: decide if we should keep track of the selector. Probaly
         # should create a classmethod `from_selector` and ditch the
         # reference to the selector

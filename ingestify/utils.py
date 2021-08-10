@@ -47,7 +47,6 @@ class ComponentFactory(Generic[T]):
         return cls[component_cls](registry)
 
     def build(self, cls_name, **kwargs) -> T:
-        print(cls_name, kwargs)
         component_cls = self.registry.get_component(cls_name)
         try:
             return component_cls.from_dict(**kwargs)

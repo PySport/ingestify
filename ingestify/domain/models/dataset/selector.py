@@ -1,10 +1,10 @@
-from typing import Dict
 from string import Template
+from typing import Dict
 
 from utils import key_from_dict
 
 
-class DatasetSelector:
+class Selector:
     def __init__(self, **kwargs):
         self.attributes = kwargs
         self.key = key_from_dict(self.attributes)
@@ -26,5 +26,4 @@ class DatasetSelector:
         return True
 
     def __repr__(self):
-        attributes = {k: v for k, v in self.attributes.items() if not k.startswith("_")}
-        return f"DatasetSelector(attributes={attributes})"
+        return f"DatasetSelector({', '.join([f'{k}={v}' for k, v in self.attributes.items() if not k.startswith('_')])})"

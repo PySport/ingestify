@@ -1,22 +1,12 @@
+import codecs
 import hashlib
 import mimetypes
 from io import BytesIO, StringIO
-import codecs
+from typing import Dict, Union, Optional, List
 
-from typing import Dict, Union
-
-from domain.models import (
-    Dataset,
-    DatasetCollection,
-    DatasetIdentifier,
-    DatasetRepository,
-    DatasetSelector,
-    DatasetVersion,
-    DraftFile,
-    File,
-    FileRepository,
-    FileNotModified,
-)
+from domain.models import (Dataset, DatasetCollection, Identifier,
+                           DatasetRepository, Selector, Version,
+                           DraftFile, File, FileRepository)
 from utils import utcnow
 
 
@@ -30,21 +20,21 @@ class Store:
         self.file_repository = file_repository
 
     def get_dataset_collection(
-        self, dataset_selector: DatasetSelector
+        self, selector: Selector
     ) -> DatasetCollection:
-        return self.dataset_repository.get_dataset_collection(dataset_selector)
+        return self.dataset_repository.get_dataset_collection(selector)
 
     def _persist_files(
         self,
         dataset: Dataset,
-        version_id: str,
-        files: Dict[str, Union[DraftFile, FileNotModified]],
-    ) -> Dict[str, Union[File, FileNotModified]]:
-        files_ = {}
+        version_id: int,
+        modified_files: Dict[str, Optional[DraftFile]],
+    ) -> List[File]:
+        modified_files_ = []
 
         current_version = dataset.current_version
 
-        for filename, file_ in files.items():
+        for filename, file_ in modified_files.items():
             if isinstance(file_, (str, bytes, BytesIO, StringIO)):
                 if isinstance(file_, str):
                     stream = BytesIO(file_.encode("utf-8"))
@@ -62,9 +52,8 @@ class Store:
                 tag = hashlib.sha1(data).hexdigest()
                 stream.seek(0)
 
-                current_file = current_version.files.get(filename)
-                if current_file and current_file.tag == tag:
-                    file_ = FileNotModified()
+                if current_version and (current_file := current_version.modified_files_map.get(filename)) and current_file.tag == tag:
+                    file_ = None
                 else:
                     file_ = DraftFile(
                         modified_at=utcnow(),
@@ -82,18 +71,16 @@ class Store:
                 # For example S3FileRepository can use a full key as file_id,
                 # while some database storage can use an uuid. It's up to the
                 # repository to define the file_id
-                file_id = self.file_repository.get_identify(
+                file_key = self.file_repository.get_key(
                     dataset, version_id, filename
                 )
-                file = File.from_draft(file_, file_id)
+                file = File.from_draft(file_, file_key, filename)
 
-                self.file_repository.save_content(file_id, file_.stream)
+                self.file_repository.save_content(file_key, file_.stream)
 
-                files_[filename] = file
-            else:
-                files_[filename] = file_
+                modified_files_.append(file)
 
-        return files_
+        return modified_files_
 
     def add_version(
         self, dataset: Dataset, files: Dict[str, DraftFile], description: str = "Update"
@@ -107,11 +94,11 @@ class Store:
 
         persisted_files_ = self._persist_files(dataset, version_id, files)
         dataset.add_version(
-            DatasetVersion(
+            Version(
                 version_id=version_id,
                 created_at=created_at,
                 description=description,
-                files=persisted_files_,
+                modified_files=persisted_files_,
             )
         )
 
@@ -119,7 +106,7 @@ class Store:
 
     def create_dataset(
         self,
-        dataset_identifier: DatasetIdentifier,
+        dataset_identifier: Identifier,
         files: Dict[str, DraftFile],
         description: str = "Update",
     ):

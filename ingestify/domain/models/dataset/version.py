@@ -1,14 +1,21 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Union
+from typing import Union, Dict, List
 
-from .file import DraftFile, File, FileNotModified
+from .file import DraftFile, File
 
 
 @dataclass
-class DatasetVersion:
+class Version:
     version_id: int
     created_at: datetime
     description: str
-    files: Dict[str, Union[DraftFile, File, FileNotModified]]
+    modified_files: List[Union[DraftFile, File]]
     is_squashed: bool = False
+
+    @property
+    def modified_files_map(self) -> Dict[str, File]:
+        return {
+            file.filename: file
+            for file in self.modified_files
+        }
