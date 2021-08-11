@@ -1,6 +1,6 @@
 from application.store import Store
-from domain.models import (Dataset, Identifier, Selector,
-                           DraftFile, File, Source)
+from domain.models import (Dataset, DraftFile, File, Identifier, Selector,
+                           Source)
 
 __all__ = [
     "Selector",

@@ -8,8 +8,7 @@ from application.syncer import Syncer
 from domain.models import Version
 from infra import retrieve_http
 
-from ingestify.source_base import (Identifier, Selector,
-                                   DraftFile, Source)
+from ingestify.source_base import DraftFile, Identifier, Selector, Source
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 

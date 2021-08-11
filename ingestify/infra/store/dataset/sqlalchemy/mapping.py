@@ -1,15 +1,8 @@
 
-from sqlalchemy import Column, JSON, BigInteger, ForeignKeyConstraint
-from sqlalchemy import ForeignKey
-from sqlalchemy import Integer
-from sqlalchemy import MetaData
-from sqlalchemy import String
-from sqlalchemy import Table
-from sqlalchemy import DateTime
-from sqlalchemy.orm import registry
-from sqlalchemy.orm import relationship
-
-from domain.models import Dataset, Version, File
+from domain.models import Dataset, File, Version
+from sqlalchemy import (JSON, BigInteger, Column, DateTime, ForeignKey,
+                        ForeignKeyConstraint, Integer, MetaData, String, Table)
+from sqlalchemy.orm import registry, relationship
 
 mapper_registry = registry()
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Union, Dict, List
+from typing import Dict, List, Union
 
 from .file import DraftFile, File
 

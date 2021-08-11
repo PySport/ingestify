@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union, Dict
+from typing import Dict, List, Optional, Union
 
 from utils import ComponentFactory, ComponentRegistry
-from . import DraftFile
 
+from . import DraftFile
 from .dataset import Identifier, Selector, Version
 
 source_registry = ComponentRegistry()

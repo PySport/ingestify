@@ -2,8 +2,8 @@ import logging
 from datetime import timedelta
 from typing import Dict, List, Tuple
 
-from domain.models import (Dataset, Identifier, Selector,
-                           source_factory, TaskSet, Task, Source)
+from domain.models import (Dataset, Identifier, Selector, Source, Task,
+                           TaskSet, source_factory)
 from infra.store import LocalDatasetRepository, LocalFileRepository
 from infra.store.dataset import SqlAlchemyDatasetRepository
 from utils import utcnow

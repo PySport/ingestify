@@ -2,11 +2,11 @@ import codecs
 import hashlib
 import mimetypes
 from io import BytesIO, StringIO
-from typing import Dict, Union, Optional, List
+from typing import Dict, List, Optional, Union
 
-from domain.models import (Dataset, DatasetCollection, Identifier,
-                           DatasetRepository, Selector, Version,
-                           DraftFile, File, FileRepository)
+from domain.models import (Dataset, DatasetCollection, DatasetRepository,
+                           DraftFile, File, FileRepository, Identifier,
+                           Selector, Version)
 from utils import utcnow
 
 

@@ -1,6 +1,5 @@
-from .dataset import (Dataset, DatasetCollection, Identifier,
-                      DatasetRepository, Selector, Version,
-                      DraftFile, File, FileRepository)
+from .dataset import (Dataset, DatasetCollection, DatasetRepository, DraftFile,
+                      File, FileRepository, Identifier, Selector, Version)
 from .source import Source, source_factory
 from .task import Task, TaskSet
 

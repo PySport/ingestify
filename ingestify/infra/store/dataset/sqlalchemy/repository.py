@@ -3,15 +3,14 @@ import json
 import os
 import pickle
 import uuid
-from sqlalchemy import create_engine, DateTime
-from sqlalchemy import func
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.orm import sessionmaker, joinedload
 
 from domain.models import (Dataset, DatasetCollection, DatasetRepository,
-                           Selector, Version, Identifier)
+                           Identifier, Selector, Version)
+from sqlalchemy import DateTime, create_engine, func
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import joinedload, sessionmaker
 
-from .mapping import metadata, dataset_table
+from .mapping import dataset_table, metadata
 
 
 def parse_value(v):

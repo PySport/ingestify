@@ -3,7 +3,7 @@ import inspect
 import time
 from datetime import datetime, timezone
 from string import Template
-from typing import Generic, Type, TypeVar, Dict
+from typing import Dict, Generic, Type, TypeVar
 
 
 class ComponentRegistry:
