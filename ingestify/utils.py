@@ -2,7 +2,8 @@ import abc
 import inspect
 import time
 from datetime import datetime, timezone
-from typing import Generic, Type, TypeVar
+from string import Template
+from typing import Generic, Type, TypeVar, Dict
 
 
 class ComponentRegistry:
@@ -65,3 +66,44 @@ def key_from_dict(d: dict) -> str:
 
 def utcnow() -> datetime:
     return datetime.fromtimestamp(time.time(), timezone.utc)
+
+
+class AttributeBag:
+    def __init__(self, **kwargs):
+        self.attributes = kwargs
+        self.key = key_from_dict(self.attributes)
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        if "attributes" in self.__dict__ and item in self.attributes:
+            return self.attributes[item]
+        raise AttributeError
+
+    def format_string(self, string: str):
+        return Template(string).substitute(**self.attributes)
+
+    def matches(self, attributes: Dict) -> bool:
+        for k, v in self.attributes.items():
+            if attributes.get(k) != v:
+                return False
+        return True
+
+    @property
+    def filtered_attributes(self):
+        return {k: v for k, v in self.attributes.items() if not k.startswith("_")}
+
+    def __hash__(self):
+        return hash(self.key)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({', '.join([f'{k}={v}' for k, v in self.filtered_attributes.items()])})"
+
+    @classmethod
+    def create_from(cls, other: 'AttributeBag', **kwargs):
+        _args = dict(**other.attributes)
+        _args.update(kwargs)
+
+        return cls(
+            **_args
+        )

@@ -8,7 +8,7 @@ from .selector import Selector
 class DatasetRepository(ABC):
     @abstractmethod
     def get_dataset_collection(
-        self, selector: Selector
+        self, dataset_type: str, provider: str, selector: Selector,
     ) -> DatasetCollection:
         pass
 

@@ -20,9 +20,13 @@ class Store:
         self.file_repository = file_repository
 
     def get_dataset_collection(
-        self, selector: Selector
+        self, dataset_type: str, provider: str, selector: Selector
     ) -> DatasetCollection:
-        return self.dataset_repository.get_dataset_collection(selector)
+        return self.dataset_repository.get_dataset_collection(
+            dataset_type=dataset_type,
+            provider=provider,
+            selector=selector
+        )
 
     def _persist_files(
         self,
@@ -106,12 +110,17 @@ class Store:
 
     def create_dataset(
         self,
+        dataset_type: str,
+        provider: str,
         dataset_identifier: Identifier,
         files: Dict[str, DraftFile],
+
         description: str = "Update",
     ):
         dataset = Dataset(
             dataset_id=self.dataset_repository.next_identity(),
             identifier=dataset_identifier,
+            dataset_type=dataset_type,
+            provider=provider
         )
         self.add_version(dataset, files, description)

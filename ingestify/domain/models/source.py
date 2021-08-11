@@ -10,6 +10,16 @@ source_registry = ComponentRegistry()
 
 
 class Source(ABC, metaclass=source_registry.metaclass):
+    @property
+    @abstractmethod
+    def dataset_type(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def provider(self) -> str:
+        pass
+
     @abstractmethod
     def discover_datasets(
         self, selector: Selector

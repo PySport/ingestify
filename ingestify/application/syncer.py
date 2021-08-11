@@ -60,7 +60,12 @@ class CreateDatasetTask(Task):
         files = self.source.fetch_dataset_files(
             self.dataset_identifier, current_version=None
         )
-        self.store.create_dataset(self.dataset_identifier, files)
+        self.store.create_dataset(
+            dataset_type=self.source.dataset_type,
+            provider=self.source.provider,
+            dataset_identifier=self.dataset_identifier,
+            files=files
+        )
 
     def __repr__(self):
         return f"CreateDatasetTask({self.source} -> {self.dataset_identifier})"
@@ -97,8 +102,13 @@ class Syncer:
 
             task_subset = TaskSet()
 
-            dataset_collection = self.store.get_dataset_collection(selector)
+            dataset_collection = self.store.get_dataset_collection(
+                dataset_type=source.dataset_type,
+                provider=source.provider,
+                selector=selector
+            )
 
+            skip_count = 0
             for dataset_identifier in dataset_identifiers:
                 if dataset := dataset_collection.get(dataset_identifier):
                     if self.fetch_policy.should_refetch(dataset):
@@ -109,6 +119,8 @@ class Syncer:
                                 store=self.store
                             )
                         )
+                    else:
+                        skip_count += 1
                 else:
                     if self.fetch_policy.should_fetch(dataset_identifier):
                         task_subset.add(
@@ -118,8 +130,11 @@ class Syncer:
                                 store=self.store
                             )
                         )
+                    else:
+                        skip_count += 1
 
             logger.info(f"Created {len(task_subset)} tasks")
+            logger.info(f"Skipping {skip_count} datasets due to fetch policy")
 
             task_set += task_subset
 

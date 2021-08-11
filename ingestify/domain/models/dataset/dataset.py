@@ -11,7 +11,12 @@ from .version import Version
 @dataclass
 class Dataset:
     dataset_id: str
+
+    dataset_type: str
+    provider: str
+
     identifier: Identifier
+
     current_version_id: int = 0
     versions: List[Version] = field(default_factory=list)
 

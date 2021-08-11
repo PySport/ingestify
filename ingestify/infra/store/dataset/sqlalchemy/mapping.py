@@ -19,6 +19,8 @@ dataset_table = Table(
     'dataset',
     metadata,
     Column('dataset_id', String(255), primary_key=True),
+    Column('provider', String(255)),
+    Column('dataset_type', String(255)),
     Column('identifier', JSON)
 )
 

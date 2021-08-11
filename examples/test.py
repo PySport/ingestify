@@ -15,35 +15,40 @@ BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
 
 class StatsbombGithub(Source):
+    provider = "statsbomb"
+    dataset_type = "event"
+
     def discover_datasets(
-        self, dataset_selector: Selector
+        self, selector: Selector
     ) -> List[Identifier]:
-        url = dataset_selector.format_string(
+        url = selector.format_string(
             f"{BASE_URL}/matches/$competition_id/$season_id.json"
         )
 
         matches = requests.get(url).json()
         return [
-            Identifier(
-                selector=dataset_selector, match_id=match["match_id"], _match=match
+            Identifier.create_from(
+                selector,
+                match_id=match["match_id"],
+                _match=match
             )
             for match in matches
         ]
 
     def fetch_dataset_files(
         self,
-        dataset_identifier: Identifier,
+        identifier: Identifier,
         current_version: Optional[Version],
     ) -> Dict[str, DraftFile]:
         current_files = current_version.modified_files_map if current_version else {}
         files = {}
         for filename, url in [
-            ("lineups.json", f"{BASE_URL}/lineups/{dataset_identifier.match_id}.json"),
-            ("events.json", f"{BASE_URL}/events/{dataset_identifier.match_id}.json"),
+            ("lineups.json", f"{BASE_URL}/lineups/{identifier.match_id}.json"),
+            ("events.json", f"{BASE_URL}/events/{identifier.match_id}.json"),
         ]:
             files[filename] = retrieve_http(url, current_files.get(filename))
 
-        files["match.json"] = json.dumps(dataset_identifier._match)
+        files["match.json"] = json.dumps(identifier._match)
 
         return files
 
@@ -70,7 +75,7 @@ def main():
                 season_id=competition['season_id']
             )
         )
-        #break
+        break
     #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
     #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
     syncer.collect_and_run()

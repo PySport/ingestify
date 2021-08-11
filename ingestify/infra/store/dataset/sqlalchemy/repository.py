@@ -23,20 +23,16 @@ def parse_value(v):
 
 def json_serializer(o):
     if isinstance(o, Identifier):
-        o = dict(
-            selector=o.selector.attributes,
-            attributes=o.filtered_attributes
-        )
+        o = o.filtered_attributes
     return json.dumps(o)
 
 
 def json_deserializer(o):
     o = json.loads(o)
-    if 'selector' in o:
-        o = Identifier(
-            selector=Selector(**o['selector']),
-            **o['attributes']
-        )
+    # THIS BREAKS WHEN USING OTHER JSON COLUMNS!!
+    o = Identifier(
+        **o
+    )
     return o
 
 
@@ -53,27 +49,29 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             json_serializer=json_serializer,
             json_deserializer=json_deserializer
         )
-        Session = sessionmaker(bind=self.engine)
-        self.session = Session()
+        self.session = sessionmaker(bind=self.engine)()
 
         metadata.create_all(self.engine)
 
     def get_dataset_collection(
-        self, selector: Selector
+        self, dataset_type: str, provider: str, selector: Selector,
     ) -> DatasetCollection:
-        datasets = []
         query = (
             self.session
             .query(Dataset)
             .options(
                 joinedload(Dataset.versions)
             )
+            .filter(
+                Dataset.dataset_type == dataset_type,
+                Dataset.provider == provider
+            )
         )
 
         for k, v in selector.attributes.items():
             query = query.filter(
                 func.json_extract(
-                    Dataset.identifier, f'$.selector.{k}'
+                    Dataset.identifier, f'$.{k}'
                 ) == v
             )
 
