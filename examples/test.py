@@ -70,7 +70,7 @@ def main():
                 season_id=competition['season_id']
             )
         )
-        break
+        #break
     #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
     #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
     syncer.collect_and_run()

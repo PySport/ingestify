@@ -57,7 +57,7 @@ class Store:
                 else:
                     file_ = DraftFile(
                         modified_at=utcnow(),
-                        content_type=mimetypes.guess_type(filename),
+                        content_type=mimetypes.guess_type(filename)[0],
                         tag=tag,
                         size=size,
                         stream=stream

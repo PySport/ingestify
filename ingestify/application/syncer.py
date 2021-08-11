@@ -28,8 +28,8 @@ class FetchPolicy:
 
         if not dataset.versions:
             return True
-        elif self.last_change > current_version.created_at > self.min_age:
-            return True
+        #elif self.last_change > current_version.created_at > self.min_age:
+        #    return True
         else:
             return False
 

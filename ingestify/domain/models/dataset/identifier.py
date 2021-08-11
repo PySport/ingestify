@@ -23,6 +23,10 @@ class Identifier:
     def __hash__(self):
         return hash(self.key)
 
+    @property
+    def filtered_attributes(self):
+        return {k: v for k, v in self.attributes.items() if not k.startswith("_")}
+
     def __repr__(self):
-        attributes = {k: v for k, v in self.attributes.items() if not k.startswith("_")}
+        attributes = self.filtered_attributes
         return f"DatasetIdentifier(selector={self.selector}, attributes={attributes})"
