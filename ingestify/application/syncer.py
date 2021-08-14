@@ -97,7 +97,10 @@ class Syncer:
             source = source_factory.build(source_name)
 
             logger.info(f"Discovering datasets from {source_name} using selector {selector}")
-            dataset_identifiers = source.discover_datasets(selector)
+            dataset_identifiers = [
+                Identifier.create_from(selector, **identifier)
+                for identifier in source.discover_datasets(**selector.filtered_attributes)
+            ]
             logger.info(f"Found {len(dataset_identifiers)} datasets")
 
             task_subset = TaskSet()

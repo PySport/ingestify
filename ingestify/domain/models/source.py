@@ -22,8 +22,8 @@ class Source(ABC, metaclass=source_registry.metaclass):
 
     @abstractmethod
     def discover_datasets(
-        self, selector: Selector
-    ) -> List[Identifier]:
+        self, **kwargs
+    ) -> List[Dict]:
         pass
 
     @abstractmethod

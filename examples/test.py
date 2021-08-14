@@ -18,16 +18,11 @@ class StatsbombGithub(Source):
     dataset_type = "event"
 
     def discover_datasets(
-        self, selector: Selector
-    ) -> List[Identifier]:
-        url = selector.format_string(
-            f"{BASE_URL}/matches/$competition_id/$season_id.json"
-        )
-
-        matches = requests.get(url).json()
+        self, competition_id: str, season_id: str
+    ) -> List[Dict]:
+        matches = requests.get(f"{BASE_URL}/matches/{competition_id}/{season_id}.json").json()
         return [
-            Identifier.create_from(
-                selector,
+            dict(
                 match_id=match["match_id"],
                 _match=match
             )
@@ -74,7 +69,6 @@ def main():
                 season_id=competition['season_id']
             )
         )
-        break
     #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
     #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
     syncer.collect_and_run()
