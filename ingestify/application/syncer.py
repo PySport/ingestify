@@ -85,7 +85,7 @@ class Syncer:
 
         self.selectors: List[Tuple[str, Selector]] = []
 
-    def add_selector(self, source_name: str, selector: Dict):
+    def add_selector(self, source_name: str, **selector: Dict):
         self.selectors.append(
             (source_name, Selector(**selector))
         )

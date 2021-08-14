@@ -64,10 +64,9 @@ def main():
     for competition in data:
         syncer.add_selector(
             source_name='StatsbombGithub',
-            selector=dict(
-                competition_id=competition['competition_id'],
-                season_id=competition['season_id']
-            )
+
+            competition_id=competition['competition_id'],
+            season_id=competition['season_id']
         )
     #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
     #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
