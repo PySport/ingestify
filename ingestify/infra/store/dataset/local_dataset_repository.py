@@ -16,11 +16,15 @@ def parse_value(v):
 
 
 class LocalDatasetRepository(DatasetRepository):
+    @classmethod
+    def supports(cls, url: str) -> bool:
+        return url.startswith("file://")
+
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
 
     def get_dataset_collection(
-        self, selector: Selector
+        self, dataset_type: str, provider: str, selector: Selector
     ) -> DatasetCollection:
 
         datasets = []

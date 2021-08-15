@@ -1,6 +1,6 @@
 from email.utils import format_datetime, parsedate
 from io import BytesIO
-from typing import Optional, Union
+from typing import Optional
 
 import requests
 from domain.models import DraftFile, File

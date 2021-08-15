@@ -1,16 +1,16 @@
-import glob
 import json
-import os
-import pickle
 import uuid
 
-from domain.models import (Dataset, DatasetCollection, DatasetRepository,
-                           Identifier, Selector, Version)
-from sqlalchemy import DateTime, create_engine, func
-from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.orm import joinedload, sessionmaker
+from sqlalchemy.engine import URL
+from sqlalchemy.exc import NoSuchModuleError
 
-from .mapping import dataset_table, metadata
+from domain.models import (Dataset, DatasetCollection, DatasetRepository,
+                           Identifier, Selector)
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import joinedload, sessionmaker
+from sqlalchemy.engine import make_url
+
+from .mapping import metadata
 
 
 def parse_value(v):
@@ -41,9 +41,18 @@ def json_deserializer(o):
 
 
 class SqlAlchemyDatasetRepository(DatasetRepository):
-    def __init__(self, database_url: str):
+    @classmethod
+    def supports(cls, url: str) -> bool:
+        _url = make_url(url)
+        try:
+            _url.get_dialect()
+        except NoSuchModuleError:
+            return False
+        return True
+
+    def __init__(self, url: str):
         self.engine = create_engine(
-            database_url,
+            url,
             isolation_level="READ COMMITTED",
             json_serializer=json_serializer,
             json_deserializer=json_deserializer

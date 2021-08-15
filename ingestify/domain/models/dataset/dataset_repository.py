@@ -4,8 +4,12 @@ from .collection import DatasetCollection
 from .dataset import Dataset
 from .selector import Selector
 
+from utils import ComponentFactory, ComponentRegistry
 
-class DatasetRepository(ABC):
+dataset_repository_registry = ComponentRegistry()
+
+
+class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
     @abstractmethod
     def get_dataset_collection(
         self, dataset_type: str, provider: str, selector: Selector,
@@ -19,3 +23,11 @@ class DatasetRepository(ABC):
     @abstractmethod
     def next_identity(self):
         pass
+
+    @classmethod
+    @abstractmethod
+    def supports(cls, url: str) -> bool:
+        pass
+
+
+dataset_repository_factory = ComponentFactory.build_factory(DatasetRepository, dataset_repository_registry)

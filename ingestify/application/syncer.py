@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple
 
 from domain.models import (Dataset, Identifier, Selector, Source, Task,
                            TaskSet, source_factory)
+from domain.models.dataset.dataset_repository import dataset_repository_factory
 from infra.store import LocalDatasetRepository, LocalFileRepository
 from infra.store.dataset import SqlAlchemyDatasetRepository
 from utils import utcnow
@@ -72,13 +73,16 @@ class CreateDatasetTask(Task):
 
 
 class Syncer:
-    def __init__(self, database_url: str):
+    def __init__(self, dataset_url: str, file_url: str):
         file_repository = LocalFileRepository('/tmp/blaat/files')
         #dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
-        dataset_repository = SqlAlchemyDatasetRepository(database_url)
+        dataset_repository = dataset_repository_factory.build_if_supports(
+            url=dataset_url
+        )
 
         self.store = Store(
-            dataset_repository=dataset_repository, file_repository=file_repository
+            dataset_repository=dataset_repository,
+            file_repository=file_repository
         )
 
         self.fetch_policy = FetchPolicy()

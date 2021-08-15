@@ -59,7 +59,8 @@ def main():
     data = requests.get('https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json').json()
 
     syncer = Syncer(
-        database_url=environ['DATABASE_URL']
+        dataset_url=environ['DATABASE_URL'],
+        file_url=''
     )
     for competition in data:
         syncer.add_selector(

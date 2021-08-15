@@ -1,6 +1,7 @@
 import abc
 import inspect
 import time
+import warnings
 from datetime import datetime, timezone
 from string import Template
 from typing import Dict, Generic, Type, TypeVar
@@ -18,6 +19,11 @@ class ComponentRegistry:
                 )
                 if not inspect.isabstract(component_cls):
                     self.register_component(cls_name, component_cls)
+                else:
+                    if bases[0] != abc.ABC:
+                        warnings.warn(
+                            f"Class '{cls_name}' seems to be an concrete class, but missing some abstract methods"
+                        )
                 return component_cls
 
         self.__metaclass = _Registered
@@ -31,6 +37,12 @@ class ComponentRegistry:
 
     def get_component(self, cls_name: str):
         return self.__registered_components[cls_name]
+
+    def get_supporting_component(self, **kwargs) -> str:
+        for cls_name, class_ in self.__registered_components.items():
+            if class_.supports(**kwargs):
+                return cls_name
+        raise Exception("No supporting class found")
 
 
 T = TypeVar("T")
@@ -58,6 +70,10 @@ class ComponentFactory(Generic[T]):
         except TypeError as e:
             raise e
             # raise TypeError(f"Could not initialize {cls_name}")
+
+    def build_if_supports(self, **kwargs) -> T:
+        cls_name = self.registry.get_supporting_component(**kwargs)
+        return self.build(cls_name, **kwargs)
 
 
 def key_from_dict(d: dict) -> str:
