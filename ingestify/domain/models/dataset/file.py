@@ -30,7 +30,7 @@ class File:
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
             size=draft_file.size,
-            content_type=draft_file.content_type
+            content_type=draft_file.content_type,
         )
 
 

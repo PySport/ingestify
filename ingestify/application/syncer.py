@@ -3,10 +3,8 @@ from datetime import timedelta
 from typing import Dict, List, Tuple
 
 from domain.models import (Dataset, Identifier, Selector, Source, Task,
-                           TaskSet, source_factory)
-from domain.models.dataset.dataset_repository import dataset_repository_factory
-from infra.store import LocalDatasetRepository, LocalFileRepository
-from infra.store.dataset import SqlAlchemyDatasetRepository
+                           TaskSet, dataset_repository_factory,
+                           file_repository_factory, source_factory)
 from utils import utcnow
 
 from .store import Store
@@ -29,7 +27,7 @@ class FetchPolicy:
 
         if not dataset.versions:
             return True
-        #elif self.last_change > current_version.created_at > self.min_age:
+        # elif self.last_change > current_version.created_at > self.min_age:
         #    return True
         else:
             return False
@@ -65,7 +63,7 @@ class CreateDatasetTask(Task):
             dataset_type=self.source.dataset_type,
             provider=self.source.provider,
             dataset_identifier=self.dataset_identifier,
-            files=files
+            files=files,
         )
 
     def __repr__(self):
@@ -74,15 +72,16 @@ class CreateDatasetTask(Task):
 
 class Syncer:
     def __init__(self, dataset_url: str, file_url: str):
-        file_repository = LocalFileRepository('/tmp/blaat/files')
-        #dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
+        file_repository = file_repository_factory.build_if_supports(
+            url=file_url
+        )
+        # dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
         dataset_repository = dataset_repository_factory.build_if_supports(
             url=dataset_url
         )
 
         self.store = Store(
-            dataset_repository=dataset_repository,
-            file_repository=file_repository
+            dataset_repository=dataset_repository, file_repository=file_repository
         )
 
         self.fetch_policy = FetchPolicy()
@@ -90,9 +89,7 @@ class Syncer:
         self.selectors: List[Tuple[str, Selector]] = []
 
     def add_selector(self, source_name: str, **selector: Dict):
-        self.selectors.append(
-            (source_name, Selector(**selector))
-        )
+        self.selectors.append((source_name, Selector(**selector)))
 
     def collect_and_run(self):
         task_set = TaskSet()
@@ -100,10 +97,14 @@ class Syncer:
         for source_name, selector in self.selectors:
             source = source_factory.build(source_name)
 
-            logger.info(f"Discovering datasets from {source_name} using selector {selector}")
+            logger.info(
+                f"Discovering datasets from {source_name} using selector {selector}"
+            )
             dataset_identifiers = [
                 Identifier.create_from(selector, **identifier)
-                for identifier in source.discover_datasets(**selector.filtered_attributes)
+                for identifier in source.discover_datasets(
+                    **selector.filtered_attributes
+                )
             ]
             logger.info(f"Found {len(dataset_identifiers)} datasets")
 
@@ -112,7 +113,7 @@ class Syncer:
             dataset_collection = self.store.get_dataset_collection(
                 dataset_type=source.dataset_type,
                 provider=source.provider,
-                selector=selector
+                selector=selector,
             )
 
             skip_count = 0
@@ -121,9 +122,7 @@ class Syncer:
                     if self.fetch_policy.should_refetch(dataset):
                         task_subset.add(
                             UpdateDatasetTask(
-                                source=source,
-                                dataset=dataset,
-                                store=self.store
+                                source=source, dataset=dataset, store=self.store
                             )
                         )
                     else:
@@ -134,7 +133,7 @@ class Syncer:
                             CreateDatasetTask(
                                 source=source,
                                 dataset_identifier=dataset_identifier,
-                                store=self.store
+                                store=self.store,
                             )
                         )
                     else:
@@ -150,5 +149,3 @@ class Syncer:
         for task in task_set:
             logger.info(f"Running task {task}")
             task.run()
-
-

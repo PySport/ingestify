@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 
+from utils import ComponentFactory, ComponentRegistry
+
 from .collection import DatasetCollection
 from .dataset import Dataset
 from .selector import Selector
-
-from utils import ComponentFactory, ComponentRegistry
 
 dataset_repository_registry = ComponentRegistry()
 
@@ -12,7 +12,10 @@ dataset_repository_registry = ComponentRegistry()
 class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
     @abstractmethod
     def get_dataset_collection(
-        self, dataset_type: str, provider: str, selector: Selector,
+        self,
+        dataset_type: str,
+        provider: str,
+        selector: Selector,
     ) -> DatasetCollection:
         pass
 
@@ -30,4 +33,6 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
         pass
 
 
-dataset_repository_factory = ComponentFactory.build_factory(DatasetRepository, dataset_repository_registry)
+dataset_repository_factory = ComponentFactory.build_factory(
+    DatasetRepository, dataset_repository_registry
+)

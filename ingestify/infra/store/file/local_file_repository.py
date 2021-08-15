@@ -7,8 +7,12 @@ from domain.models import Dataset, FileRepository
 
 
 class LocalFileRepository(FileRepository):
-    def __init__(self, base_dir: str):
-        self.base_dir = Path(base_dir)
+    @classmethod
+    def supports(cls, url: str) -> bool:
+        return url.startswith("file://")
+
+    def __init__(self, url: str):
+        self.base_dir = Path(url[7:])
 
     def save_content(self, file_key: str, stream: IO[AnyStr]):
         full_path = self.base_dir / file_key

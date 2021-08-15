@@ -17,17 +17,11 @@ class StatsbombGithub(Source):
     provider = "statsbomb"
     dataset_type = "event"
 
-    def discover_datasets(
-        self, competition_id: str, season_id: str
-    ) -> List[Dict]:
-        matches = requests.get(f"{BASE_URL}/matches/{competition_id}/{season_id}.json").json()
-        return [
-            dict(
-                match_id=match["match_id"],
-                _match=match
-            )
-            for match in matches
-        ]
+    def discover_datasets(self, competition_id: str, season_id: str) -> List[Dict]:
+        matches = requests.get(
+            f"{BASE_URL}/matches/{competition_id}/{season_id}.json"
+        ).json()
+        return [dict(match_id=match["match_id"], _match=match) for match in matches]
 
     def fetch_dataset_files(
         self,
@@ -53,24 +47,22 @@ def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        stream=sys.stdout,
     )
 
-    data = requests.get('https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json').json()
+    data = requests.get(
+        "https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json"
+    ).json()
 
-    syncer = Syncer(
-        dataset_url=environ['DATABASE_URL'],
-        file_url=''
-    )
+    syncer = Syncer(dataset_url=environ["DATABASE_URL"], file_url="file:///tmp/blaat/")
     for competition in data:
         syncer.add_selector(
-            source_name='StatsbombGithub',
-
-            competition_id=competition['competition_id'],
-            season_id=competition['season_id']
+            source_name="StatsbombGithub",
+            competition_id=competition["competition_id"],
+            season_id=competition["season_id"],
         )
-    #syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
-    #syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
+    # syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
+    # syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
     syncer.collect_and_run()
 
 

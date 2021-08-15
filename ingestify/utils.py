@@ -21,7 +21,7 @@ class ComponentRegistry:
                     self.register_component(cls_name, component_cls)
                 else:
                     if bases[0] != abc.ABC:
-                        warnings.warn(
+                        raise Exception(
                             f"Class '{cls_name}' seems to be an concrete class, but missing some abstract methods"
                         )
                 return component_cls
@@ -40,9 +40,12 @@ class ComponentRegistry:
 
     def get_supporting_component(self, **kwargs) -> str:
         for cls_name, class_ in self.__registered_components.items():
+            if not hasattr(class_, 'supports'):
+                raise Exception(f"Class '{cls_name}' does not implemented a 'supports' classmethod. This is required when using 'get_supporting_component'.")
+
             if class_.supports(**kwargs):
                 return cls_name
-        raise Exception("No supporting class found")
+        raise Exception(f"No supporting class found for {kwargs}")
 
 
 T = TypeVar("T")
@@ -116,10 +119,8 @@ class AttributeBag:
         return f"{self.__class__.__name__}({', '.join([f'{k}={v}' for k, v in self.filtered_attributes.items()])})"
 
     @classmethod
-    def create_from(cls, other: 'AttributeBag', **kwargs):
+    def create_from(cls, other: "AttributeBag", **kwargs):
         _args = dict(**other.attributes)
         _args.update(kwargs)
 
-        return cls(
-            **_args
-        )
+        return cls(**_args)

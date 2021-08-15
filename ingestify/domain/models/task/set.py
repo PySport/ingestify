@@ -14,5 +14,5 @@ class TaskSet:
     def __iter__(self):
         return iter(self.tasks)
 
-    def __add__(self, other: 'TaskSet'):
+    def __add__(self, other: "TaskSet"):
         return TaskSet(self.tasks + other.tasks)

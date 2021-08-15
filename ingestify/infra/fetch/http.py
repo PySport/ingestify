@@ -7,9 +7,7 @@ from domain.models import DraftFile, File
 from utils import utcnow
 
 
-def retrieve_http(
-    url, current_file: Optional[File] = None
-) -> Optional[DraftFile]:
+def retrieve_http(url, current_file: Optional[File] = None) -> Optional[DraftFile]:
     headers = {}
     if current_file:
         headers = {
@@ -34,5 +32,5 @@ def retrieve_http(
         tag=tag,
         size=int(content_length) if content_length else None,
         content_type=response.headers.get("content-type"),
-        stream=BytesIO(response.content)
+        stream=BytesIO(response.content),
     )

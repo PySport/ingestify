@@ -1,14 +1,12 @@
 import json
 import uuid
 
-from sqlalchemy.engine import URL
-from sqlalchemy.exc import NoSuchModuleError
-
 from domain.models import (Dataset, DatasetCollection, DatasetRepository,
                            Identifier, Selector)
 from sqlalchemy import create_engine, func
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import joinedload, sessionmaker
-from sqlalchemy.engine import make_url
 
 from .mapping import metadata
 
@@ -29,9 +27,7 @@ def json_serializer(o):
 def json_deserializer(o):
     o = json.loads(o)
     # THIS BREAKS WHEN USING OTHER JSON COLUMNS!!
-    o = Identifier(
-        **o
-    )
+    o = Identifier(**o)
     return o
 
 
@@ -55,33 +51,26 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             url,
             isolation_level="READ COMMITTED",
             json_serializer=json_serializer,
-            json_deserializer=json_deserializer
+            json_deserializer=json_deserializer,
         )
         self.session = sessionmaker(bind=self.engine)()
 
         metadata.create_all(self.engine)
 
     def get_dataset_collection(
-        self, dataset_type: str, provider: str, selector: Selector,
+        self,
+        dataset_type: str,
+        provider: str,
+        selector: Selector,
     ) -> DatasetCollection:
         query = (
-            self.session
-            .query(Dataset)
-            .options(
-                joinedload(Dataset.versions)
-            )
-            .filter(
-                Dataset.dataset_type == dataset_type,
-                Dataset.provider == provider
-            )
+            self.session.query(Dataset)
+            .options(joinedload(Dataset.versions))
+            .filter(Dataset.dataset_type == dataset_type, Dataset.provider == provider)
         )
 
         for k, v in selector.attributes.items():
-            query = query.filter(
-                func.json_extract(
-                    Dataset.identifier, f'$.{k}'
-                ) == v
-            )
+            query = query.filter(func.json_extract(Dataset.identifier, f"$.{k}") == v)
 
         return DatasetCollection(list(query))
 

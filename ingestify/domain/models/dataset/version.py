@@ -15,7 +15,4 @@ class Version:
 
     @property
     def modified_files_map(self) -> Dict[str, File]:
-        return {
-            file.filename: file
-            for file in self.modified_files
-        }
+        return {file.filename: file for file in self.modified_files}

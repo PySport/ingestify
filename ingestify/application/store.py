@@ -23,9 +23,7 @@ class Store:
         self, dataset_type: str, provider: str, selector: Selector
     ) -> DatasetCollection:
         return self.dataset_repository.get_dataset_collection(
-            dataset_type=dataset_type,
-            provider=provider,
-            selector=selector
+            dataset_type=dataset_type, provider=provider, selector=selector
         )
 
     def _persist_files(
@@ -56,7 +54,13 @@ class Store:
                 tag = hashlib.sha1(data).hexdigest()
                 stream.seek(0)
 
-                if current_version and (current_file := current_version.modified_files_map.get(filename)) and current_file.tag == tag:
+                if (
+                    current_version
+                    and (
+                        current_file := current_version.modified_files_map.get(filename)
+                    )
+                    and current_file.tag == tag
+                ):
                     file_ = None
                 else:
                     file_ = DraftFile(
@@ -64,7 +68,7 @@ class Store:
                         content_type=mimetypes.guess_type(filename)[0],
                         tag=tag,
                         size=size,
-                        stream=stream
+                        stream=stream,
                     )
 
             if isinstance(file_, DraftFile):
@@ -75,9 +79,7 @@ class Store:
                 # For example S3FileRepository can use a full key as file_id,
                 # while some database storage can use an uuid. It's up to the
                 # repository to define the file_id
-                file_key = self.file_repository.get_key(
-                    dataset, version_id, filename
-                )
+                file_key = self.file_repository.get_key(dataset, version_id, filename)
                 file = File.from_draft(file_, file_key, filename)
 
                 self.file_repository.save_content(file_key, file_.stream)
@@ -114,13 +116,12 @@ class Store:
         provider: str,
         dataset_identifier: Identifier,
         files: Dict[str, DraftFile],
-
         description: str = "Update",
     ):
         dataset = Dataset(
             dataset_id=self.dataset_repository.next_identity(),
             identifier=dataset_identifier,
             dataset_type=dataset_type,
-            provider=provider
+            provider=provider,
         )
         self.add_version(dataset, files, description)
