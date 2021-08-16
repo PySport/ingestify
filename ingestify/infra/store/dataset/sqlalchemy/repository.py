@@ -3,12 +3,12 @@ import uuid
 
 from domain.models import (Dataset, DatasetCollection, DatasetRepository,
                            Identifier, Selector)
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, Integer, Float
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import joinedload, sessionmaker
 
-from .mapping import metadata
+from .mapping import metadata, dataset_table
 
 
 def parse_value(v):
@@ -34,6 +34,23 @@ def json_deserializer(o):
 # @compiles(DateTime, "mysql")
 # def compile_datetime_mysql(type_, compiler, **kw):
 #     return "DATETIME(6)"
+
+def isfloat(x):
+    try:
+        a = float(x)
+    except (TypeError, ValueError):
+        return False
+    else:
+        return True
+
+def isint(x):
+    try:
+        a = float(x)
+        b = int(a)
+    except (TypeError, ValueError):
+        return False
+    else:
+        return a == b
 
 
 class SqlAlchemyDatasetRepository(DatasetRepository):
@@ -69,8 +86,19 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             .filter(Dataset.dataset_type == dataset_type, Dataset.provider == provider)
         )
 
+        dialect = self.session.bind.dialect.name
+
         for k, v in selector.attributes.items():
-            query = query.filter(func.json_extract(Dataset.identifier, f"$.{k}") == v)
+            if dialect == 'postgresql':
+                column = dataset_table.c.identifier[k].as_string()
+                if isint(v):
+                    column = column.cast(Integer)
+                elif isfloat(v):
+                    column = column.cast(Float)
+
+                query = query.filter(column == v)
+            elif dialect == 'mysql':
+                query = query.filter(func.json_extract(Dataset.identifier, f"$.{k}") == v)
 
         return DatasetCollection(list(query))
 

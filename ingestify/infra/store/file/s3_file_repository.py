@@ -6,7 +6,14 @@ from typing import IO, AnyStr
 from domain.models import Dataset, FileRepository
 
 
-class LocalFileRepository(FileRepository):
+class S3FileRepository(FileRepository):
+    def get_key(self, dataset: Dataset, version_id: int, filename: str) -> str:
+        pass
+
+    @classmethod
+    def supports(cls, url: str) -> bool:
+        return url.startswith("s3://")
+
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
 
@@ -19,6 +26,3 @@ class LocalFileRepository(FileRepository):
 
     def load_content(self, file_id: str) -> IO[AnyStr]:
         pass
-
-    def get_identify(self, dataset: Dataset, version_id: str, filename: str) -> str:
-        return str(Path(dataset.dataset_id) / filename)
