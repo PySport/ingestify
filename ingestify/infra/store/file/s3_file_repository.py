@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from typing import IO, AnyStr
 
-from domain.models import Dataset, FileRepository
+from ingestify.domain.models import Dataset, FileRepository
 
 
 class S3FileRepository(FileRepository):

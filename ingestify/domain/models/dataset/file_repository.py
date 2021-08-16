@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import IO, AnyStr
 
-from utils import ComponentFactory, ComponentRegistry
+from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from .dataset import Dataset
 

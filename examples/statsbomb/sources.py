@@ -2,10 +2,9 @@ import json
 from typing import Dict, List, Optional
 
 import requests
-from domain.models import Version
-from infra import retrieve_http
 
-from ingestify.source_base import DraftFile, Identifier, Source
+from ingestify.infra import retrieve_http
+from ingestify.source_base import DraftFile, Identifier, Source, Version
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 

@@ -1,17 +1,13 @@
 import json
 import uuid
 
-from domain.models import (
-    Dataset,
-    DatasetCollection,
-    DatasetRepository,
-    Identifier,
-    Selector,
-)
-from sqlalchemy import Float, Integer, create_engine, func
-from sqlalchemy.engine import URL, make_url
+from sqlalchemy import create_engine, func
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import joinedload, sessionmaker
+
+from ingestify.domain.models import (Dataset, DatasetCollection,
+                                     DatasetRepository, Identifier, Selector)
 
 from .mapping import dataset_table, metadata
 

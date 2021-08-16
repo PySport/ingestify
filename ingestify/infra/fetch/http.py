@@ -3,8 +3,9 @@ from io import BytesIO
 from typing import Optional
 
 import requests
-from domain.models import DraftFile, File
-from utils import utcnow
+
+from ingestify.domain.models import DraftFile, File
+from ingestify.utils import utcnow
 
 
 def retrieve_http(url, current_file: Optional[File] = None) -> Optional[DraftFile]:

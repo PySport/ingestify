@@ -1,21 +1,13 @@
-import codecs
 import hashlib
 import mimetypes
 from io import BytesIO, StringIO
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-from domain.models import (
-    Dataset,
-    DatasetCollection,
-    DatasetRepository,
-    DraftFile,
-    File,
-    FileRepository,
-    Identifier,
-    Selector,
-    Version,
-)
-from utils import utcnow
+from ingestify.domain.models import (Dataset, DatasetCollection,
+                                     DatasetRepository, DraftFile, File,
+                                     FileRepository, Identifier, Selector,
+                                     Version)
+from ingestify.utils import utcnow
 
 
 class Store:

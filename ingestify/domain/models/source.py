@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from utils import ComponentFactory, ComponentRegistry
+from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from . import DraftFile
 from .dataset import Identifier, Version

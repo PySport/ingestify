@@ -1,17 +1,8 @@
-from domain.models import Dataset, File, Version
-from sqlalchemy import (
-    JSON,
-    BigInteger,
-    Column,
-    DateTime,
-    ForeignKey,
-    ForeignKeyConstraint,
-    Integer,
-    MetaData,
-    String,
-    Table,
-)
+from sqlalchemy import (JSON, BigInteger, Column, DateTime, ForeignKey,
+                        ForeignKeyConstraint, Integer, MetaData, String, Table)
 from sqlalchemy.orm import registry, relationship
+
+from ingestify.domain.models import Dataset, File, Version
 
 mapper_registry = registry()
 

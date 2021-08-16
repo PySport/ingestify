@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from utils import utcnow
+from ingestify.utils import utcnow
 
 from .file import DraftFile
 from .identifier import Identifier

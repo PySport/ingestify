@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from utils import ComponentFactory, ComponentRegistry
+from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from .collection import DatasetCollection
 from .dataset import Dataset

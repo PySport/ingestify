@@ -2,18 +2,10 @@ import logging
 from datetime import timedelta
 from typing import Dict, List, Tuple
 
-from domain.models import (
-    Dataset,
-    Identifier,
-    Selector,
-    Source,
-    Task,
-    TaskSet,
-    dataset_repository_factory,
-    file_repository_factory,
-    source_factory,
-)
-from utils import utcnow
+from ingestify.domain.models import (Dataset, Identifier, Selector, Source,
+                                     Task, TaskSet, dataset_repository_factory,
+                                     file_repository_factory, source_factory)
+from ingestify.utils import utcnow
 
 from .store import Store
 

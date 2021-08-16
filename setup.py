@@ -11,6 +11,7 @@ def setup_package():
         author_email="info@koenvossen.nl",
         license="AGPL",
         packages=setuptools.find_packages(exclude=["tests"]),
+        entry_points={"console_scripts": ["ingestify = ingestify.cmdline:main"]},
     )
 
 

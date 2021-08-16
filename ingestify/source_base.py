@@ -1,5 +1,6 @@
-from application.store import Store
-from domain.models import Dataset, DraftFile, File, Identifier, Selector, Source
+from ingestify.application.store import Store
+from ingestify.domain.models import (Dataset, DraftFile, File, Identifier,
+                                     Selector, Source, Version)
 
 __all__ = [
     "Selector",
@@ -7,6 +8,7 @@ __all__ = [
     "Source",
     "Store",
     "Dataset",
+    "Version",
     "File",
     "DraftFile",
 ]

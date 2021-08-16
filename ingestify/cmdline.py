@@ -4,10 +4,11 @@ from importlib.machinery import SourceFileLoader
 from itertools import product
 
 import click
-from application.ingestion_engine import IngestionEngine
-from domain.models.source import source_factory
 from dotenv import load_dotenv
 from pyaml_env import parse_config
+
+from ingestify.application.ingestion_engine import IngestionEngine
+from ingestify.domain.models.source import source_factory
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def run(sources_file: str, config_file: str):
     ingestion_engine.collect_and_run()
 
 
-if __name__ == "__main__":
+def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -86,5 +87,8 @@ if __name__ == "__main__":
 
     cli(obj={})
 
+
+if __name__ == "__main__":
+    main()
 # if __name__ == "__main__":
 # importlib.import_module
