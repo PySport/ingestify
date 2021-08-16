@@ -3,12 +3,12 @@ import uuid
 
 from domain.models import (Dataset, DatasetCollection, DatasetRepository,
                            Identifier, Selector)
-from sqlalchemy import create_engine, func, Integer, Float
+from sqlalchemy import Float, Integer, create_engine, func
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import joinedload, sessionmaker
 
-from .mapping import metadata, dataset_table
+from .mapping import dataset_table, metadata
 
 
 def parse_value(v):
@@ -90,12 +90,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         for k, v in selector.attributes.items():
             if dialect == 'postgresql':
-                column = dataset_table.c.identifier[k].as_string()
+                column = dataset_table.c.identifier[k]
                 if isint(v):
-                    column = column.cast(Integer)
+                    column = column.as_integer()
                 elif isfloat(v):
-                    column = column.cast(Float)
-
+                    column = column.as_float()
+                else:
+                    column = column.as_string()
                 query = query.filter(column == v)
             elif dialect == 'mysql':
                 query = query.filter(func.json_extract(Dataset.identifier, f"$.{k}") == v)
