@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from pyaml_env import parse_config
 
 from ingestify.application.ingestion_engine import IngestionEngine
-from ingestify.domain.models.source import source_factory
+from ingestify.domain.models import Source, source_factory
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,12 @@ def _load_sources(path):
     Since the `Source` base class is wired with a registry all sources defined in the file
     are registered by default and therefore we don't need to return the result of the load_module()
     """
-    SourceFileLoader("sources", path).load_module()
+    logger.info("Loading custom sources")
+    module = SourceFileLoader("sources", path).load_module()
+    # TODO: fix why this is not working...
+    # for k, v in module.__dict__.items():
+    #     if isinstance(v, Source):
+    #         logger.info(f"Found source '{k}'")
 
 
 def _product_selectors(selector_args):
@@ -53,19 +58,24 @@ def cli():
     type=click.Path(exists=True),
 )
 def run(sources_file: str, config_file: str):
-    if sources_file:
-        _load_sources(sources_file)
-
     config = parse_config(config_file)
 
+    logger.info("Initializing IngestionEngine")
     ingestion_engine = IngestionEngine(
         dataset_url=config["main"]["dataset_url"], file_url=config["main"]["file_url"]
     )
+
+    if sources_file:
+        _load_sources(sources_file)
+
+    logger.info("Initializing sources")
 
     sources = {
         name: source_factory.build(source["type"], **source.get("configuration", {}))
         for name, source in config["sources"].items()
     }
+
+    logger.info("Determining tasks")
 
     for task in config["ingestion_tasks"]:
         source = sources[task["source"]]
@@ -74,6 +84,8 @@ def run(sources_file: str, config_file: str):
                 ingestion_engine.add_selector(source, **selector)
 
     ingestion_engine.collect_and_run()
+
+    logger.info("Done")
 
 
 def main():

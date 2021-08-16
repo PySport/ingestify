@@ -92,10 +92,9 @@ class IngestionEngine:
     def collect_and_run(self):
         task_set = TaskSet()
 
-        total_skip_count = 0
         total_dataset_count = 0
         for source, selector in self.selectors:
-            logger.info(
+            logger.debug(
                 f"Discovering datasets from {source.__class__.__name__} using selector {selector}"
             )
             dataset_identifiers = [
@@ -104,7 +103,6 @@ class IngestionEngine:
                     **selector.filtered_attributes
                 )
             ]
-            logger.debug(f"Found {len(dataset_identifiers)} datasets")
 
             task_subset = TaskSet()
 
@@ -139,20 +137,14 @@ class IngestionEngine:
                     else:
                         skip_count += 1
 
-            logger.debug(f"Created {len(task_subset)} tasks")
-            logger.debug(f"Skipping {skip_count} datasets due to fetch policy")
+            logger.info(f"Discovered {len(dataset_identifiers)} datasets from {source.__class__.__name__} using selector {selector} => {len(task_set)} tasks. {skip_count} skipped.")
 
             task_set += task_subset
-            total_skip_count += skip_count
 
-        logger.info(
-            f"Found {total_dataset_count} datasets. "
-            f"Will skip {total_skip_count} datasets. "
-            f"Resulting in {len(task_set)} tasks."
-        )
-
-        for task in task_set:
-            logger.info(f"Running task {task}")
-            task.run()
-
-        logger.info("Done")
+        if len(task_set):
+            logger.info(f"Scheduled {len(task_set)} tasks")
+            for task in task_set:
+                logger.info(f"Running task {task}")
+                task.run()
+        else:
+            logger.info("Nothing to do.")
