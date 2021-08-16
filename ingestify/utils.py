@@ -40,8 +40,10 @@ class ComponentRegistry:
 
     def get_supporting_component(self, **kwargs) -> str:
         for cls_name, class_ in self.__registered_components.items():
-            if not hasattr(class_, 'supports'):
-                raise Exception(f"Class '{cls_name}' does not implemented a 'supports' classmethod. This is required when using 'get_supporting_component'.")
+            if not hasattr(class_, "supports"):
+                raise Exception(
+                    f"Class '{cls_name}' does not implemented a 'supports' classmethod. This is required when using 'get_supporting_component'."
+                )
 
             if class_.supports(**kwargs):
                 return cls_name

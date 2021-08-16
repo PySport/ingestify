@@ -1,8 +1,13 @@
 import json
 import uuid
 
-from domain.models import (Dataset, DatasetCollection, DatasetRepository,
-                           Identifier, Selector)
+from domain.models import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    Identifier,
+    Selector,
+)
 from sqlalchemy import Float, Integer, create_engine, func
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import NoSuchModuleError
@@ -35,6 +40,7 @@ def json_deserializer(o):
 # def compile_datetime_mysql(type_, compiler, **kw):
 #     return "DATETIME(6)"
 
+
 def isfloat(x):
     try:
         a = float(x)
@@ -42,6 +48,7 @@ def isfloat(x):
         return False
     else:
         return True
+
 
 def isint(x):
     try:
@@ -89,7 +96,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dialect = self.session.bind.dialect.name
 
         for k, v in selector.attributes.items():
-            if dialect == 'postgresql':
+            if dialect == "postgresql":
                 column = dataset_table.c.identifier[k]
                 if isint(v):
                     column = column.as_integer()
@@ -98,8 +105,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 else:
                     column = column.as_string()
                 query = query.filter(column == v)
-            elif dialect == 'mysql':
-                query = query.filter(func.json_extract(Dataset.identifier, f"$.{k}") == v)
+            elif dialect == "mysql":
+                query = query.filter(
+                    func.json_extract(Dataset.identifier, f"$.{k}") == v
+                )
 
         return DatasetCollection(list(query))
 

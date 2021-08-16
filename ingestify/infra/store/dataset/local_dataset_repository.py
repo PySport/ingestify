@@ -4,8 +4,7 @@ import pickle
 import uuid
 from pathlib import Path
 
-from domain.models import (Dataset, DatasetCollection, DatasetRepository,
-                           Selector)
+from domain.models import Dataset, DatasetCollection, DatasetRepository, Selector
 
 
 def parse_value(v):

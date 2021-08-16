@@ -1,14 +1,11 @@
 import json
-import sys
-from os import environ
 from typing import Dict, List, Optional
 
 import requests
-from application.syncer import Syncer
 from domain.models import Version
 from infra import retrieve_http
 
-from ingestify.source_base import DraftFile, Identifier, Selector, Source
+from ingestify.source_base import DraftFile, Identifier, Source
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
@@ -39,33 +36,3 @@ class StatsbombGithub(Source):
         files["match.json"] = json.dumps(identifier._match)
 
         return files
-
-
-def main():
-    import logging
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        stream=sys.stdout,
-    )
-
-    data = requests.get(
-        "https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json"
-    ).json()
-
-    syncer = Syncer(dataset_url=environ["DATABASE_URL"], file_url="file:///tmp/blaat/")
-    for competition in data:
-        syncer.add_selector(
-            source_name="StatsbombGithub",
-            competition_id=competition["competition_id"],
-            season_id=competition["season_id"],
-        )
-        break
-    # syncer.add_job("StatsbombGithub", dict(competition_id=37, season_id=42))
-    # syncer.add_job("StatsbombGithub", dict(competition_id=11, season_id=1))
-    syncer.collect_and_run()
-
-
-if __name__ == "__main__":
-    main()

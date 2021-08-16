@@ -1,8 +1,9 @@
 # ingestify
 
 ```yaml
-config:
-  collection_db_url: ${DATABASE_URL}/collection
+main:
+  dataset_url: !ENV ${DATABASE_URL}
+  file_url: file:///tmp/blaat2
   
 sources:
   wyscout:
@@ -19,12 +20,11 @@ sinks:
   
 tasks:
   - source: statsbomb
-    configuration:
+    selectors:
       season_id: 42
         competition_id: [9, 78, 10]
-      type: ["lineup", "events"]
     target: 
-      sink: database
+      type: database
       table: statsbomb_lineup
 
 

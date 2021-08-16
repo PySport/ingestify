@@ -2,9 +2,17 @@ import logging
 from datetime import timedelta
 from typing import Dict, List, Tuple
 
-from domain.models import (Dataset, Identifier, Selector, Source, Task,
-                           TaskSet, dataset_repository_factory,
-                           file_repository_factory, source_factory)
+from domain.models import (
+    Dataset,
+    Identifier,
+    Selector,
+    Source,
+    Task,
+    TaskSet,
+    dataset_repository_factory,
+    file_repository_factory,
+    source_factory,
+)
 from utils import utcnow
 
 from .store import Store
@@ -70,11 +78,9 @@ class CreateDatasetTask(Task):
         return f"CreateDatasetTask({self.source} -> {self.dataset_identifier})"
 
 
-class Syncer:
+class IngestionEngine:
     def __init__(self, dataset_url: str, file_url: str):
-        file_repository = file_repository_factory.build_if_supports(
-            url=file_url
-        )
+        file_repository = file_repository_factory.build_if_supports(url=file_url)
         # dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
         dataset_repository = dataset_repository_factory.build_if_supports(
             url=dataset_url
@@ -86,19 +92,19 @@ class Syncer:
 
         self.fetch_policy = FetchPolicy()
 
-        self.selectors: List[Tuple[str, Selector]] = []
+        self.selectors: List[Tuple[Source, Selector]] = []
 
-    def add_selector(self, source_name: str, **selector: Dict):
-        self.selectors.append((source_name, Selector(**selector)))
+    def add_selector(self, source: Source, **selector: Dict):
+        self.selectors.append((source, Selector(**selector)))
 
     def collect_and_run(self):
         task_set = TaskSet()
 
-        for source_name, selector in self.selectors:
-            source = source_factory.build(source_name)
-
+        total_skip_count = 0
+        total_dataset_count = 0
+        for source, selector in self.selectors:
             logger.info(
-                f"Discovering datasets from {source_name} using selector {selector}"
+                f"Discovering datasets from {source.__class__.__name__} using selector {selector}"
             )
             dataset_identifiers = [
                 Identifier.create_from(selector, **identifier)
@@ -106,7 +112,7 @@ class Syncer:
                     **selector.filtered_attributes
                 )
             ]
-            logger.info(f"Found {len(dataset_identifiers)} datasets")
+            logger.debug(f"Found {len(dataset_identifiers)} datasets")
 
             task_subset = TaskSet()
 
@@ -117,6 +123,8 @@ class Syncer:
             )
 
             skip_count = 0
+            total_dataset_count += len(dataset_identifiers)
+
             for dataset_identifier in dataset_identifiers:
                 if dataset := dataset_collection.get(dataset_identifier):
                     if self.fetch_policy.should_refetch(dataset):
@@ -139,13 +147,20 @@ class Syncer:
                     else:
                         skip_count += 1
 
-            logger.info(f"Created {len(task_subset)} tasks")
-            logger.info(f"Skipping {skip_count} datasets due to fetch policy")
+            logger.debug(f"Created {len(task_subset)} tasks")
+            logger.debug(f"Skipping {skip_count} datasets due to fetch policy")
 
             task_set += task_subset
+            total_skip_count += skip_count
 
-        logger.info(f"Found {len(task_set)} tasks")
+        logger.info(
+            f"Found {total_dataset_count} datasets. "
+            f"Will skip {total_skip_count} datasets. "
+            f"Resulting in {len(task_set)} tasks."
+        )
 
         for task in task_set:
             logger.info(f"Running task {task}")
             task.run()
+
+        logger.info("Done")

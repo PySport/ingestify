@@ -4,9 +4,17 @@ import mimetypes
 from io import BytesIO, StringIO
 from typing import Dict, List, Optional, Union
 
-from domain.models import (Dataset, DatasetCollection, DatasetRepository,
-                           DraftFile, File, FileRepository, Identifier,
-                           Selector, Version)
+from domain.models import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    DraftFile,
+    File,
+    FileRepository,
+    Identifier,
+    Selector,
+    Version,
+)
 from utils import utcnow
 
 

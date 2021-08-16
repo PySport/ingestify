@@ -1,0 +1,16 @@
+main:
+  dataset_url: !ENV ${DATABASE_URL}
+  file_url: file:///tmp/blaat2
+
+sources:
+  statsbomb:
+    type: StatsbombGithub
+
+# "https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json"
+ingestion_tasks:
+  - source: statsbomb
+    selectors:
+      - season_id: [21, 42]
+        competition_id: 16
+      - season_id: [40, 41, 42]
+        competition_id: 11

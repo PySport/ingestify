@@ -18,5 +18,5 @@ __all__ = [
     "DraftFile",
     "DatasetRepository",
     "FileRepository",
-    "file_repository_factory"
+    "file_repository_factory",
 ]
