@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import IO, AnyStr, BinaryIO
+from typing import BinaryIO
 
 
 @dataclass
@@ -10,7 +10,7 @@ class DraftFile:
     size: int
     content_type: str
 
-    stream: IO[AnyStr]
+    stream: BinaryIO
 
 
 @dataclass

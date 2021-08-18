@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import IO, AnyStr
+from typing import IO, AnyStr, BinaryIO
 
 from ingestify.utils import ComponentFactory, ComponentRegistry
 
@@ -10,11 +10,11 @@ file_repository_registry = ComponentRegistry()
 
 class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
     @abstractmethod
-    def save_content(self, file_key: str, stream: IO[AnyStr]):
+    def save_content(self, file_key: str, stream: BinaryIO):
         pass
 
     @abstractmethod
-    def load_content(self, file_key: str) -> IO[AnyStr]:
+    def load_content(self, file_key: str) -> BinaryIO:
         pass
 
     @abstractmethod

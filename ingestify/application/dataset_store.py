@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (Dataset, DatasetCollection,
-                                     DatasetRepository, DraftFile, File,
+                                     DatasetRepository, DraftFile, File, LoadedFile,
                                      FileRepository, Identifier, Selector,
                                      Version, DatasetCreated)
 from ingestify.utils import utcnow
@@ -134,3 +134,13 @@ class DatasetStore:
                 dataset=dataset
             )
         )
+
+    def load_files(self, dataset: Dataset) -> List[LoadedFile]:
+        current_version = dataset.current_version
+        files = []
+        for file in current_version.modified_files:
+            loaded_file = LoadedFile(
+                **file.to_dict(),
+                stream=self.file_repository.load_content(file.file_key)
+            )
+

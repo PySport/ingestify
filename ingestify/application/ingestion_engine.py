@@ -24,6 +24,8 @@ class IngestionEngine:
             url=dataset_url
         )
 
+        # Note: disconnect event from loading. Event should only be used for
+        #       metadata and 'loaded_files' for the actual data.
         event_bus = EventBus()
         event_repository = EventRepository()
         event_bus.register(EventWriter(event_repository))
