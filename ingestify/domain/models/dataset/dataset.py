@@ -54,5 +54,5 @@ class Dataset:
                 created_at=utcnow(),
                 description="Squashed version",
                 is_squashed=True,
-                files=files,
+                modified_files=list(files.values()),
             )

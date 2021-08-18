@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import IO, AnyStr
+from typing import IO, AnyStr, BinaryIO
 
 
 @dataclass
@@ -34,4 +34,9 @@ class File:
         )
 
 
-__all__ = ["File", "DraftFile"]
+@dataclass
+class LoadedFile(File):
+    stream: BinaryIO
+
+
+__all__ = ["File", "DraftFile", "LoadedFile"]

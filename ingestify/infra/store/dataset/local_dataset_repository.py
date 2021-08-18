@@ -20,8 +20,8 @@ class LocalDatasetRepository(DatasetRepository):
     def supports(cls, url: str) -> bool:
         return url.startswith("file://")
 
-    def __init__(self, base_dir: str):
-        self.base_dir = Path(base_dir)
+    def __init__(self, url: str):
+        self.base_dir = Path(url[7:])
 
     def get_dataset_collection(
         self, dataset_type: str, provider: str, selector: Selector

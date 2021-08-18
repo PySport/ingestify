@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import create_engine, func
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
-from sqlalchemy.orm import joinedload, sessionmaker
+from sqlalchemy.orm import joinedload, Session
 
 from ingestify.domain.models import (Dataset, DatasetCollection,
                                      DatasetRepository, Identifier, Selector)
@@ -73,7 +73,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             json_serializer=json_serializer,
             json_deserializer=json_deserializer,
         )
-        self.session = sessionmaker(bind=self.engine)()
+        self.session = Session(bind=self.engine)
 
         metadata.create_all(self.engine)
 
