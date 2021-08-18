@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import create_engine, func
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
-from sqlalchemy.orm import joinedload, Session
+from sqlalchemy.orm import Session, joinedload
 
 from ingestify.domain.models import (Dataset, DatasetCollection,
                                      DatasetRepository, Identifier, Selector)

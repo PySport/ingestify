@@ -1,150 +1,44 @@
 import logging
-from datetime import timedelta
-from typing import Dict, List, Tuple
+from typing import Dict
 
-from ingestify.domain.models import (Dataset, Identifier, Selector, Source,
-                                     Task, TaskSet, dataset_repository_factory,
-                                     file_repository_factory, source_factory)
-from ingestify.utils import utcnow
+from ingestify.domain.models.event import EventBus, EventRepository, EventWriter
+from ingestify.domain.models import (Source, dataset_repository_factory,
+                                     file_repository_factory)
 
-from .store import Store
+from .loader import Loader
+from .dataset_store import DatasetStore
 
 logger = logging.getLogger(__name__)
 
 
-class FetchPolicy:
-    def __init__(self):
-        # refresh all data that changed less than two day ago
-        self.min_age = utcnow() - timedelta(days=2)
-        self.last_change = utcnow() - timedelta(days=1)
-
-    def should_fetch(self, dataset_identifier: Identifier) -> bool:
-        # this is called when dataset does not exist yet
-        return True
-
-    def should_refetch(self, dataset: Dataset) -> bool:
-        current_version = dataset.current_version
-
-        if not dataset.versions:
-            return True
-        # elif self.last_change > current_version.created_at > self.min_age:
-        #    return True
-        else:
-            return False
-
-
-class UpdateDatasetTask(Task):
-    def __init__(self, source: Source, dataset: Dataset, store: Store):
-        self.source = source
-        self.dataset = dataset
-        self.store = store
-
-    def run(self):
-        files = self.source.fetch_dataset_files(
-            self.dataset.identifier, current_version=self.dataset.current_version
-        )
-        self.store.add_version(self.dataset, files)
-
-    def __repr__(self):
-        return f"UpdateDatasetTask({self.source} -> {self.dataset.identifier})"
-
-
-class CreateDatasetTask(Task):
-    def __init__(self, source: Source, dataset_identifier: Identifier, store: Store):
-        self.source = source
-        self.dataset_identifier = dataset_identifier
-        self.store = store
-
-    def run(self):
-        files = self.source.fetch_dataset_files(
-            self.dataset_identifier, current_version=None
-        )
-        self.store.create_dataset(
-            dataset_type=self.source.dataset_type,
-            provider=self.source.provider,
-            dataset_identifier=self.dataset_identifier,
-            files=files,
-        )
-
-    def __repr__(self):
-        return f"CreateDatasetTask({self.source} -> {self.dataset_identifier})"
+class EventLogger:
+    def dispatch(self, event):
+        logger.info(f"Got event: {event}")
 
 
 class IngestionEngine:
-    def __init__(self, dataset_url: str, file_url: str):
+    def __init__(self, dataset_url: str, file_url: str, sources: Dict[str, Source]):
         file_repository = file_repository_factory.build_if_supports(url=file_url)
         # dataset_repository = SqlAlchemyDatasetRepository("sqlite:///:memory:")
         dataset_repository = dataset_repository_factory.build_if_supports(
             url=dataset_url
         )
 
-        self.store = Store(
-            dataset_repository=dataset_repository, file_repository=file_repository
+        event_bus = EventBus()
+        event_repository = EventRepository()
+        event_bus.register(EventWriter(event_repository))
+        event_bus.register(EventLogger())
+
+        store = DatasetStore(
+            dataset_repository=dataset_repository,
+            file_repository=file_repository,
+            event_bus=event_bus
         )
 
-        self.fetch_policy = FetchPolicy()
+        self.loader = Loader(sources, store)
 
-        self.selectors: List[Tuple[Source, Selector]] = []
+    def add_selector(self, source: str, selector: Dict):
+        self.loader.add_selector(source, selector)
 
-    def add_selector(self, source: Source, **selector: Dict):
-        self.selectors.append((source, Selector(**selector)))
-
-    def collect_and_run(self):
-        task_set = TaskSet()
-
-        total_dataset_count = 0
-        for source, selector in self.selectors:
-            logger.debug(
-                f"Discovering datasets from {source.__class__.__name__} using selector {selector}"
-            )
-            dataset_identifiers = [
-                Identifier.create_from(selector, **identifier)
-                for identifier in source.discover_datasets(
-                    **selector.filtered_attributes
-                )
-            ]
-
-            task_subset = TaskSet()
-
-            dataset_collection = self.store.get_dataset_collection(
-                dataset_type=source.dataset_type,
-                provider=source.provider,
-                selector=selector,
-            )
-
-            skip_count = 0
-            total_dataset_count += len(dataset_identifiers)
-
-            for dataset_identifier in dataset_identifiers:
-                if dataset := dataset_collection.get(dataset_identifier):
-                    if self.fetch_policy.should_refetch(dataset):
-                        task_subset.add(
-                            UpdateDatasetTask(
-                                source=source, dataset=dataset, store=self.store
-                            )
-                        )
-                    else:
-                        skip_count += 1
-                else:
-                    if self.fetch_policy.should_fetch(dataset_identifier):
-                        task_subset.add(
-                            CreateDatasetTask(
-                                source=source,
-                                dataset_identifier=dataset_identifier,
-                                store=self.store,
-                            )
-                        )
-                    else:
-                        skip_count += 1
-
-            logger.info(f"Discovered {len(dataset_identifiers)} datasets from {source.__class__.__name__} using selector {selector} => {len(task_set)} tasks. {skip_count} skipped.")
-
-            task_set += task_subset
-
-        if len(task_set):
-            logger.info(f"Scheduled {len(task_set)} tasks")
-            for task in task_set:
-                logger.info(f"Running task {task}")
-                task.run()
-        else:
-            logger.info("Nothing to do.")
+    def load(self):
+        self.loader.collect_and_run()

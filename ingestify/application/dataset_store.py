@@ -3,21 +3,24 @@ import mimetypes
 from io import BytesIO, StringIO
 from typing import Dict, List, Optional
 
+from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (Dataset, DatasetCollection,
                                      DatasetRepository, DraftFile, File,
                                      FileRepository, Identifier, Selector,
-                                     Version)
+                                     Version, DatasetCreated)
 from ingestify.utils import utcnow
 
 
-class Store:
+class DatasetStore:
     def __init__(
         self,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
+        event_bus: EventBus
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
+        self.event_bus = event_bus
 
     def get_dataset_collection(
         self, dataset_type: str, provider: str, selector: Selector
@@ -125,3 +128,9 @@ class Store:
             provider=provider,
         )
         self.add_version(dataset, files, description)
+
+        self.event_bus.dispatch(
+            DatasetCreated(
+                dataset=dataset
+            )
+        )

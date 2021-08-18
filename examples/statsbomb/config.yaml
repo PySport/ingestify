@@ -9,17 +9,17 @@ sources:
 sinks:
   postgres_warehouse:
     type: postgresql
-    url: !ENV ${DATABASE_SINK_URL}
-
+    kwargs:
+      url: !ENV ${DATABASE_SINK_URL}
 
 
 extract_jobs:
   - source: statsbomb
     selectors:
-      - season_id: [21, 42]
+      - season_id: 21 #[21, 42]
         competition_id: 16
-      - season_id: [40, 41, 42]
-        competition_id: 11
+      #- season_id: [40, 41, 42]
+      #  competition_id: 11
 
 load_jobs:
   - on: ["DatasetCreated", "VersionAdded"]
@@ -28,7 +28,20 @@ load_jobs:
     transformer: KloppyToPandas
     target:
       sink: postgres_warehouse
-      table: ${dataset.platform}_events
+      method: upsert
+      kwargs:
+        table_name: ${dataset.platform}_events
+#  - on: ["DatasetCreated", "VersionAdded"]
+#    filter:
+#      dataset_type: event
+#    transformer:
+#      kloppy_ds = kloppy_autoload(dataset)
+#    target:
+#      sink: xml_storage
+#      method: overwrite
+#      args:
+#        filename: ${dataset.identifier.match_id}.xml
 
 
 # "https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json"
+

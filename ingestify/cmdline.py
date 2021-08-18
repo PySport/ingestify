@@ -4,7 +4,7 @@ from importlib.machinery import SourceFileLoader
 from itertools import product
 
 import click
-from dotenv import load_dotenv, find_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pyaml_env import parse_config
 
 from ingestify.application.ingestion_engine import IngestionEngine
@@ -60,11 +60,6 @@ def cli():
 def run(sources_file: str, config_file: str):
     config = parse_config(config_file)
 
-    logger.info("Initializing IngestionEngine")
-    ingestion_engine = IngestionEngine(
-        dataset_url=config["main"]["dataset_url"], file_url=config["main"]["file_url"]
-    )
-
     if sources_file:
         _load_sources(sources_file)
 
@@ -75,15 +70,22 @@ def run(sources_file: str, config_file: str):
         for name, source in config["sources"].items()
     }
 
+    logger.info("Initializing IngestionEngine")
+    ingestion_engine = IngestionEngine(
+        dataset_url=config["main"]["dataset_url"],
+        file_url=config["main"]["file_url"],
+        sources=sources
+    )
+
+
     logger.info("Determining tasks")
 
     for job in config["extract_jobs"]:
-        source = sources[job["source"]]
         for selector_args in job["selectors"]:
             for selector in _product_selectors(selector_args):
-                ingestion_engine.add_selector(source, **selector)
+                ingestion_engine.add_selector(job["source"], selector)
 
-    ingestion_engine.collect_and_run()
+    ingestion_engine.load()
 
     logger.info("Done")
 
