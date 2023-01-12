@@ -35,7 +35,13 @@ class File:
 
 
 @dataclass
-class LoadedFile(File):
+class LoadedFile:
+    filename: str
+    file_key: str
+    modified_at: datetime
+    tag: str
+    size: int
+    content_type: str
     stream: BinaryIO
 
 

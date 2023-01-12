@@ -1,9 +1,20 @@
-from .dataset import (Dataset, DatasetCollection, DatasetRepository, DatasetCreated, DraftFile,
-                      File, FileRepository, Identifier, LoadedFile, Selector,
-                      Version, dataset_repository_factory,
-                      file_repository_factory)
+from .dataset import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    DatasetCreated,
+    DraftFile,
+    File,
+    FileRepository,
+    Identifier,
+    LoadedFile,
+    Selector,
+    Version,
+    dataset_repository_factory,
+    file_repository_factory,
+)
 from .sink import Sink, sink_factory
-from .source import Source, source_factory
+from .source import Source
 from .task import Task, TaskSet
 
 __all__ = [
@@ -19,11 +30,10 @@ __all__ = [
     "LoadedFile",
     "FileRepository",
     "DatasetRepository",
-    "source_factory",
     "dataset_repository_factory",
     "file_repository_factory",
     "TaskSet",
     "Task",
     "Sink",
-    "sink_factory"
+    "sink_factory",
 ]

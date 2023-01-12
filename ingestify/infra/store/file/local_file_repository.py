@@ -22,7 +22,8 @@ class LocalFileRepository(FileRepository):
             shutil.copyfileobj(stream, fp)
 
     def load_content(self, file_key: str) -> IO[AnyStr]:
-        pass
+        full_path = self.base_dir / file_key
+        return open(full_path, 'rb')
 
     def get_key(self, dataset: Dataset, version_id: int, filename: str) -> str:
         return str(Path(dataset.dataset_id) / str(version_id) / filename)

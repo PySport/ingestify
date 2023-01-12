@@ -1,15 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from ingestify.utils import ComponentFactory, ComponentRegistry
+#from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from . import DraftFile
 from .dataset import Identifier, Version
 
-source_registry = ComponentRegistry()
 
-
-class Source(ABC, metaclass=source_registry.metaclass):
+class Source(ABC):
     @property
     @abstractmethod
     def dataset_type(self) -> str:
@@ -35,5 +33,3 @@ class Source(ABC, metaclass=source_registry.metaclass):
     def __repr__(self):
         return self.__class__.__name__
 
-
-source_factory = ComponentFactory.build_factory(Source, source_registry)

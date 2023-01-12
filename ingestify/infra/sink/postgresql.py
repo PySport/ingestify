@@ -35,9 +35,11 @@ class PostgresSQLSink(Sink):
 
     def upsert(self, dataset: Dataset, data, params: dict):
         if not isinstance(data, pd.DataFrame):
-            raise TypeError(f"Data {type(data)} is not supported by the PostgresSQLSink")
+            raise TypeError(
+                f"Data {type(data)} is not supported by the PostgresSQLSink"
+            )
 
-        table_name = params['table_name']
+        table_name = params["table_name"]
 
         with self.engine.begin() as conn:
             conn.query(

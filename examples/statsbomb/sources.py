@@ -15,7 +15,15 @@ class StatsbombGithub(Source):
         matches = requests.get(
             f"{BASE_URL}/matches/{competition_id}/{season_id}.json"
         ).json()
-        return [dict(match_id=match["match_id"], _match=match) for match in matches]
+        datasets = []
+        for match in matches:
+            dataset = dict(
+                match_id=match["match_id"],
+                _match=match,
+                _metadata=match
+            )
+            datasets.append(dataset)
+        return datasets
 
     def fetch_dataset_files(self, identifier, current_version):
         current_files = current_version.modified_files_map if current_version else {}

@@ -1,41 +1,28 @@
 import logging
 import sys
 from importlib.machinery import SourceFileLoader
-from itertools import product
 
 import click
 from dotenv import find_dotenv, load_dotenv
-from pyaml_env import parse_config
-
-from ingestify.application.ingestion_engine import IngestionEngine
-from ingestify.domain.models import Source, source_factory
+from ingestify.main import get_engine
 
 logger = logging.getLogger(__name__)
-
-
-def _load_sources(path):
-    """
-    Load sources from a python file pointed at by `path`. This file should only contain
-    `Source` classes.
-
-    Since the `Source` base class is wired with a registry all sources defined in the file
-    are registered by default and therefore we don't need to return the result of the load_module()
-    """
-    logger.info("Loading custom sources")
-    module = SourceFileLoader("sources", path).load_module()
-    # TODO: fix why this is not working...
-    # for k, v in module.__dict__.items():
-    #     if isinstance(v, Source):
-    #         logger.info(f"Found source '{k}'")
-
-
-def _product_selectors(selector_args):
-    selector_args_ = {
-        k: v if isinstance(v, list) else [v] for k, v in selector_args.items()
-    }
-    keys, values = zip(*selector_args_.items())
-    for bundle in product(*values):
-        yield dict(zip(keys, bundle))
+#
+#
+# def _load_sources(path):
+#     """
+#     Load sources from a python file pointed at by `path`. This file should only contain
+#     `Source` classes.
+#
+#     Since the `Source` base class is wired with a registry all sources defined in the file
+#     are registered by default and therefore we don't need to return the result of the load_module()
+#     """
+#     logger.info("Loading custom sources")
+#     module = SourceFileLoader("sources", path).load_module()
+#     # TODO: fix why this is not working...
+#     # for k, v in module.__dict__.items():
+#     #     if isinstance(v, Source):
+#     #         logger.info(f"Found source '{k}'")
 
 
 @click.group()
@@ -45,49 +32,44 @@ def cli():
 
 @cli.command()
 @click.option(
-    "--sources",
-    "sources_file",
-    help="Module containing extra sources to load",
-    type=click.Path(exists=True),
-)
-@click.option(
     "--config",
     "config_file",
     required=True,
     help="Yaml config file",
     type=click.Path(exists=True),
 )
-def run(sources_file: str, config_file: str):
-    config = parse_config(config_file)
-
-    if sources_file:
-        _load_sources(sources_file)
-
-    logger.info("Initializing sources")
-
-    sources = {
-        name: source_factory.build(source["type"], **source.get("configuration", {}))
-        for name, source in config["sources"].items()
-    }
-
-    logger.info("Initializing IngestionEngine")
-    ingestion_engine = IngestionEngine(
-        dataset_url=config["main"]["dataset_url"],
-        file_url=config["main"]["file_url"],
-        sources=sources
-    )
-
-
-    logger.info("Determining tasks")
-
-    for job in config["extract_jobs"]:
-        for selector_args in job["selectors"]:
-            for selector in _product_selectors(selector_args):
-                ingestion_engine.add_selector(job["source"], selector)
-
-    ingestion_engine.load()
+def run(config_file: str):
+    engine = get_engine(config_file)
+    engine.load()
 
     logger.info("Done")
+
+#
+# @cli.command("list")
+# @click.option(
+#     "--config",
+#     "config_file",
+#     required=True,
+#     help="Yaml config file",
+#     type=click.Path(exists=True),
+# )
+# def list_datastore(config_file: str):
+#     engine = get_engine(config_file)
+#
+#     dataset_collection = engine.get_dataset_collection(
+#         where="""
+#         metadata->>'$.home_team.home_team_name' == 'Barcelona' OR
+#         metadata->>'$.away_team.away_team_name' == 'Barcelona'
+#         """
+#     )
+#     for dataset in dataset_collection:
+#         kloppy_dataset = engine.load_with_kloppy(dataset)
+#         goals = kloppy_dataset.filter("shot.goal")
+#         for goal in goals:
+#             print(goal)
+#
+
+
 
 
 def main():

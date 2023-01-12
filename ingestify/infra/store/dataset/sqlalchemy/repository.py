@@ -1,13 +1,19 @@
 import json
 import uuid
+from typing import Optional
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, joinedload
 
-from ingestify.domain.models import (Dataset, DatasetCollection,
-                                     DatasetRepository, Identifier, Selector)
+from ingestify.domain.models import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    Identifier,
+    Selector,
+)
 
 from .mapping import dataset_table, metadata
 
@@ -69,7 +75,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def __init__(self, url: str):
         self.engine = create_engine(
             url,
-            isolation_level="READ COMMITTED",
+            isolation_level="SERIALIZABLE",
             json_serializer=json_serializer,
             json_deserializer=json_deserializer,
         )
@@ -79,32 +85,38 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def get_dataset_collection(
         self,
-        dataset_type: str,
-        provider: str,
-        selector: Selector,
+        dataset_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        selector: Optional[Selector] = None,
+        where: Optional[str] = None,
+        **kwargs
     ) -> DatasetCollection:
-        query = (
-            self.session.query(Dataset)
-            .options(joinedload(Dataset.versions))
-            .filter(Dataset.dataset_type == dataset_type, Dataset.provider == provider)
-        )
+        query = self.session.query(Dataset).options(joinedload(Dataset.versions))
+        if dataset_type:
+            query = query.filter(Dataset.dataset_type == dataset_type)
+        if provider:
+            query = query.filter(Dataset.provider == provider)
 
         dialect = self.session.bind.dialect.name
 
-        for k, v in selector.attributes.items():
-            if dialect == "postgresql":
-                column = dataset_table.c.identifier[k]
-                if isint(v):
-                    column = column.as_integer()
-                elif isfloat(v):
-                    column = column.as_float()
+        if selector:
+            for k, v in selector.attributes.items():
+                if dialect == "postgresql":
+                    column = dataset_table.c.identifier[k]
+                    if isint(v):
+                        column = column.as_integer()
+                    elif isfloat(v):
+                        column = column.as_float()
+                    else:
+                        column = column.as_string()
+                    query = query.filter(column == v)
                 else:
-                    column = column.as_string()
-                query = query.filter(column == v)
-            elif dialect == "mysql":
-                query = query.filter(
-                    func.json_extract(Dataset.identifier, f"$.{k}") == v
-                )
+                    query = query.filter(
+                        func.json_extract(Dataset.identifier, f"$.{k}") == v
+                    )
+
+        if where:
+            query = query.filter(text(where))
 
         return DatasetCollection(list(query))
 

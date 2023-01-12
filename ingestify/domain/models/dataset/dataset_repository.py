@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from ingestify.utils import ComponentFactory, ComponentRegistry
 
@@ -14,8 +15,9 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
     def get_dataset_collection(
         self,
         dataset_type: str,
-        provider: str,
-        selector: Selector,
+        provider: Optional[str] = None,
+        selector: Optional[Selector] = None,
+        **kwargs
     ) -> DatasetCollection:
         pass
 

@@ -12,3 +12,9 @@ class DatasetCollection:
 
     def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)
+
+    def __len__(self):
+        return len(self.datasets)
+
+    def __iter__(self):
+        return iter(self.datasets.values())

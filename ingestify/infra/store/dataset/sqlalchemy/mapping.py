@@ -1,5 +1,15 @@
-from sqlalchemy import (JSON, BigInteger, Column, DateTime, ForeignKey,
-                        ForeignKeyConstraint, Integer, MetaData, String, Table)
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Column,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    MetaData,
+    String,
+    Table,
+)
 from sqlalchemy.orm import registry, relationship
 
 from ingestify.domain.models import Dataset, File, Version
@@ -15,6 +25,7 @@ dataset_table = Table(
     Column("provider", String(255)),
     Column("dataset_type", String(255)),
     Column("identifier", JSON),
+    Column("metadata", JSON),
 )
 
 version_table = Table(

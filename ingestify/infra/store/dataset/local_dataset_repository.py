@@ -3,9 +3,14 @@ import os
 import pickle
 import uuid
 from pathlib import Path
+from typing import Optional
 
-from ingestify.domain.models import (Dataset, DatasetCollection,
-                                     DatasetRepository, Selector)
+from ingestify.domain.models import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    Selector,
+)
 
 
 def parse_value(v):
@@ -24,7 +29,11 @@ class LocalDatasetRepository(DatasetRepository):
         self.base_dir = Path(url[7:])
 
     def get_dataset_collection(
-        self, dataset_type: str, provider: str, selector: Selector
+        self,
+        dataset_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        selector: Optional[Selector] = None,
+        **kwargs
     ) -> DatasetCollection:
 
         datasets = []
@@ -35,7 +44,7 @@ class LocalDatasetRepository(DatasetRepository):
                     part.split("=") for part in os.path.basename(dir_name).split("__")
                 ]
             }
-            if selector.matches(attributes):
+            if not selector or selector.matches(attributes):
                 with open(dir_name + "/dataset.pickle", "rb") as fp:
                     dataset = pickle.load(fp)
                 datasets.append(dataset)

@@ -2,8 +2,7 @@ import logging
 from datetime import timedelta
 from typing import Dict, List, Tuple
 
-from ingestify.domain.models import (Dataset, Identifier, Selector, Source,
-                                     Task, TaskSet)
+from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
 from ingestify.utils import utcnow
 
 from .dataset_store import DatasetStore
@@ -49,7 +48,9 @@ class UpdateDatasetTask(Task):
 
 
 class CreateDatasetTask(Task):
-    def __init__(self, source: Source, dataset_identifier: Identifier, store: DatasetStore):
+    def __init__(
+        self, source: Source, dataset_identifier: Identifier, store: DatasetStore
+    ):
         self.source = source
         self.dataset_identifier = dataset_identifier
         self.store = store

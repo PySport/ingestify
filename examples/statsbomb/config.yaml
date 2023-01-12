@@ -1,47 +1,13 @@
 main:
-  dataset_url: !ENV ${DATABASE_URL}/ingestify
-  file_url: file:///tmp/blaat2
+  dataset_url: sqlite:////tmp/ingestify-demo/dataset.db
+  file_url: file:///tmp/ingestify-demo/data/
 
 sources:
   statsbomb:
-    type: StatsbombGithub
-
-sinks:
-  postgres_warehouse:
-    type: postgresql
-    kwargs:
-      url: !ENV ${DATABASE_SINK_URL}
-
+    type: sources.StatsbombGithub
 
 extract_jobs:
   - source: statsbomb
     selectors:
-      - season_id: 21 #[21, 42]
-        competition_id: 16
-      #- season_id: [40, 41, 42]
-      #  competition_id: 11
-
-load_jobs:
-  - on: ["DatasetCreated", "VersionAdded"]
-    filter:
-      dataset_type: event
-    transformer: KloppyToPandas
-    target:
-      sink: postgres_warehouse
-      method: upsert
-      kwargs:
-        table_name: ${dataset.platform}_events
-#  - on: ["DatasetCreated", "VersionAdded"]
-#    filter:
-#      dataset_type: event
-#    transformer:
-#      kloppy_ds = kloppy_autoload(dataset)
-#    target:
-#      sink: xml_storage
-#      method: overwrite
-#      args:
-#        filename: ${dataset.identifier.match_id}.xml
-
-
-# "https://raw.githubusercontent.com/statsbomb/open-data/master/data/competitions.json"
-
+      - competition_id: 11
+        season_id: [42, 90]

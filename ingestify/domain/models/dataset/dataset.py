@@ -16,6 +16,7 @@ class Dataset:
     provider: str
 
     identifier: Identifier
+    metadata: dict
 
     current_version_id: int = 0
     versions: List[Version] = field(default_factory=list)

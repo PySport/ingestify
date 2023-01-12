@@ -1,13 +1,23 @@
 import hashlib
 import mimetypes
+from dataclasses import asdict
 from io import BytesIO, StringIO
 from typing import Dict, List, Optional
 
 from ingestify.domain.models.event import EventBus
-from ingestify.domain.models import (Dataset, DatasetCollection,
-                                     DatasetRepository, DraftFile, File, LoadedFile,
-                                     FileRepository, Identifier, Selector,
-                                     Version, DatasetCreated)
+from ingestify.domain.models import (
+    Dataset,
+    DatasetCollection,
+    DatasetRepository,
+    DraftFile,
+    File,
+    LoadedFile,
+    FileRepository,
+    Identifier,
+    Selector,
+    Version,
+    DatasetCreated,
+)
 from ingestify.utils import utcnow
 
 
@@ -16,17 +26,21 @@ class DatasetStore:
         self,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
-        event_bus: EventBus
+        event_bus: EventBus,
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
         self.event_bus = event_bus
 
     def get_dataset_collection(
-        self, dataset_type: str, provider: str, selector: Selector
+        self,
+        dataset_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        selector: Optional[Selector] = None,
+        **kwargs
     ) -> DatasetCollection:
         return self.dataset_repository.get_dataset_collection(
-            dataset_type=dataset_type, provider=provider, selector=selector
+            dataset_type=dataset_type, provider=provider, selector=selector, **kwargs
         )
 
     def _persist_files(
@@ -126,21 +140,19 @@ class DatasetStore:
             identifier=dataset_identifier,
             dataset_type=dataset_type,
             provider=provider,
+            metadata=getattr(dataset_identifier, '_metadata', {})
         )
         self.add_version(dataset, files, description)
 
-        self.event_bus.dispatch(
-            DatasetCreated(
-                dataset=dataset
-            )
-        )
+        self.event_bus.dispatch(DatasetCreated(dataset=dataset))
 
-    def load_files(self, dataset: Dataset) -> List[LoadedFile]:
+    def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
         current_version = dataset.current_version
-        files = []
+        files = {}
         for file in current_version.modified_files:
             loaded_file = LoadedFile(
-                **file.to_dict(),
-                stream=self.file_repository.load_content(file.file_key)
+                stream=self.file_repository.load_content(file.file_key),
+                **asdict(file)
             )
-
+            files[file.filename] = loaded_file
+        return files
