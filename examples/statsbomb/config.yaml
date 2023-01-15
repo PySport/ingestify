@@ -1,6 +1,8 @@
 main:
-  dataset_url: sqlite:////tmp/ingestify-demo/dataset.db
-  file_url: file:///tmp/ingestify-demo/data/
+  #dataset_url: sqlite:////tmp/ingestify-demo/dataset.db
+  #file_url: file:///tmp/ingestify-demo/data/
+  dataset_url: teamtv://test-bucket
+  file_url: teamtv://test-bucket
 
 sources:
   statsbomb:

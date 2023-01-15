@@ -14,7 +14,8 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
     @abstractmethod
     def get_dataset_collection(
         self,
-        dataset_type: str,
+        bucket: Optional[str] = None,
+        dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
         **kwargs

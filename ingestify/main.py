@@ -6,7 +6,12 @@ from itertools import product
 
 from pyaml_env import parse_config
 
+from ingestify.application.dataset_store import DatasetStore
 from ingestify.application.ingestion_engine import IngestionEngine
+from ingestify.domain.models import (
+    dataset_repository_factory,
+    file_repository_factory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,35 @@ def import_cls(name):
     return mod
 
 
+def get_dataset_store_by_urls(dataset_url: str, file_url: str) -> DatasetStore:
+    """
+    Initialize a DatasetStore by a DatasetRepository and a FileRepository
+    """
+    file_repository = file_repository_factory.build_if_supports(url=file_url)
+    dataset_repository = dataset_repository_factory.build_if_supports(
+        url=dataset_url
+    )
+    return DatasetStore(
+        dataset_repository=dataset_repository,
+        file_repository=file_repository
+    )
+
+
+def get_datastore(config_file) -> DatasetStore:
+    config = parse_config(config_file)
+    return get_dataset_store_by_urls(
+        dataset_url=config["main"]["dataset_url"],
+        file_url=config["main"]["file_url"],
+    )
+
+
+def get_remote_datastore(url: str, **kwargs) -> DatasetStore:
+    return get_dataset_store_by_urls(
+        dataset_url=url,
+        file_url=url
+    )
+
+
 def get_engine(config_file) -> IngestionEngine:
     config = parse_config(config_file)
 
@@ -39,9 +73,12 @@ def get_engine(config_file) -> IngestionEngine:
         sources[name] = source_cls(**source.get("configuration", {}))
 
     logger.info("Initializing IngestionEngine")
-    ingestion_engine = IngestionEngine(
+    store = get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
         file_url=config["main"]["file_url"],
+    )
+    ingestion_engine = IngestionEngine(
+        store=store,
         sources=sources,
     )
 

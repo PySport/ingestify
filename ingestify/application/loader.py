@@ -130,7 +130,7 @@ class Loader:
                         skip_count += 1
 
             logger.info(
-                f"Discovered {len(dataset_identifiers)} datasets from {source.__class__.__name__} using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
+                f"Discovered {len(dataset_identifiers)} datasets from {source.__class__.__name__} using selector {selector} => {len(task_subset)} tasks. {skip_count} skipped."
             )
 
             task_set += task_subset

@@ -1,2 +1,4 @@
 from .local_dataset_repository import LocalDatasetRepository
 from .sqlalchemy import SqlAlchemyDatasetRepository
+from .http_dataset_repository import HTTPDatasetRepository
+from .teamtv_dataset_repository import TeamTVDatasetRepository

@@ -26,11 +26,17 @@ class DatasetStore:
         self,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
-        event_bus: EventBus,
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
+        self.event_bus: Optional[EventBus] = None
+
+    def set_event_bus(self, event_bus: EventBus):
         self.event_bus = event_bus
+
+    def dispatch(self, event):
+        if self.event_bus:
+            self.event_bus.dispatch(event)
 
     def get_dataset_collection(
         self,
@@ -96,10 +102,14 @@ class DatasetStore:
                 # For example S3FileRepository can use a full key as file_id,
                 # while some database storage can use an uuid. It's up to the
                 # repository to define the file_id
-                file_key = self.file_repository.get_key(dataset, version_id, filename)
-                file = File.from_draft(file_, file_key, filename)
+                file = File.from_draft(file_, filename)
 
-                self.file_repository.save_content(file_key, file_.stream)
+                self.file_repository.save_content(
+                    dataset,
+                    version_id,
+                    filename,
+                    file_.stream
+                )
 
                 modified_files_.append(file)
 
@@ -144,15 +154,29 @@ class DatasetStore:
         )
         self.add_version(dataset, files, description)
 
-        self.event_bus.dispatch(DatasetCreated(dataset=dataset))
+        self.dispatch(DatasetCreated(dataset=dataset))
 
     def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
         current_version = dataset.current_version
         files = {}
         for file in current_version.modified_files:
             loaded_file = LoadedFile(
-                stream=self.file_repository.load_content(file.file_key),
+                stream=self.file_repository.load_content(
+                    dataset=dataset,
+                    version_id=current_version.version_id,
+                    filename=file.filename
+                ),
                 **asdict(file)
             )
             files[file.filename] = loaded_file
         return files
+
+    def load_with_kloppy(self, dataset: Dataset, **kwargs):
+        files = self.load_files(dataset)
+        if dataset.provider == "statsbomb":
+            from kloppy import statsbomb
+            return statsbomb.load(
+                event_data=files['events.json'].stream,
+                lineup_data=files['lineups.json'].stream,
+                **kwargs
+            )

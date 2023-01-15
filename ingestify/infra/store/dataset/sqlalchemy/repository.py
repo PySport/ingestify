@@ -85,6 +85,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def get_dataset_collection(
         self,
+        bucket: Optional[str] = None,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
@@ -92,6 +93,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         **kwargs
     ) -> DatasetCollection:
         query = self.session.query(Dataset).options(joinedload(Dataset.versions))
+        if bucket:
+            query = query.filter(Dataset.bucket == bucket)
         if dataset_type:
             query = query.filter(Dataset.dataset_type == dataset_type)
         if provider:

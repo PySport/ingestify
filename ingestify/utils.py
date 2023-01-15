@@ -89,9 +89,15 @@ def utcnow() -> datetime:
     return datetime.fromtimestamp(time.time(), timezone.utc)
 
 
+NOT_SET = object()
+
+
 class AttributeBag:
-    def __init__(self, **kwargs):
-        self.attributes = kwargs
+    def __init__(self, attributes=NOT_SET, **kwargs):
+        if attributes is not NOT_SET:
+            self.attributes = attributes
+        else:
+            self.attributes = kwargs
         self.key = key_from_dict(self.attributes)
 
     def __getattr__(self, item):
@@ -99,7 +105,10 @@ class AttributeBag:
             return self.__dict__[item]
         if "attributes" in self.__dict__ and item in self.attributes:
             return self.attributes[item]
-        raise AttributeError
+        raise AttributeError(f"{item} not found")
+
+    def items(self):
+        return self.attributes.items()
 
     def format_string(self, string: str):
         return Template(string).substitute(**self.attributes)

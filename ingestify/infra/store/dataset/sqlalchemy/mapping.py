@@ -21,6 +21,7 @@ metadata = MetaData()
 dataset_table = Table(
     "dataset",
     metadata,
+    Column("bucket", String(255), default=None),
     Column("dataset_id", String(255), primary_key=True),
     Column("provider", String(255)),
     Column("dataset_type", String(255)),
@@ -42,16 +43,15 @@ version_table = Table(
 file_table = Table(
     "file",
     metadata,
-    Column("dataset_id", String(255)),
-    Column("version_id", Integer),
-    Column("filename", String(255)),
-    Column("file_key", String(255), primary_key=True),
+    Column("dataset_id", String(255), primary_key=True),
+    Column("version_id", Integer, primary_key=True),
+    Column("filename", String(255), primary_key=True),
     Column("modified_at", DateTime(6)),
     Column("tag", String(255)),
     Column("content_type", String(255)),
     Column("size", BigInteger),
     ForeignKeyConstraint(
-        ["dataset_id", "version_id"],
+        ("dataset_id", "version_id"),
         [version_table.c.dataset_id, version_table.c.version_id],
         ondelete="CASCADE",
     ),

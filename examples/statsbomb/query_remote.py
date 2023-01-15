@@ -1,8 +1,10 @@
-from ingestify.main import get_datastore, get_remote_datastore
+from ingestify.main import get_remote_datastore
 
 
 def main():
-    store = get_datastore("config.yaml")
+    store = get_remote_datastore(
+        "teamtv://test-bucket"
+    )
 
     dataset_collection = store.get_dataset_collection(
         where="""

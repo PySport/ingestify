@@ -16,16 +16,14 @@ class DraftFile:
 @dataclass
 class File:
     filename: str
-    file_key: str
     modified_at: datetime
     tag: str
     size: int
     content_type: str
 
     @classmethod
-    def from_draft(cls, draft_file: DraftFile, file_key: str, filename: str) -> "File":
+    def from_draft(cls, draft_file: DraftFile, filename: str) -> "File":
         return cls(
-            file_key=file_key,
             filename=filename,
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
@@ -37,7 +35,6 @@ class File:
 @dataclass
 class LoadedFile:
     filename: str
-    file_key: str
     modified_at: datetime
     tag: str
     size: int

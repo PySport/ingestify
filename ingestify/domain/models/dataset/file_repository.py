@@ -10,15 +10,11 @@ file_repository_registry = ComponentRegistry()
 
 class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
     @abstractmethod
-    def save_content(self, file_key: str, stream: BinaryIO):
+    def save_content(self, dataset: Dataset, version_id: int, filename: str, stream: BinaryIO):
         pass
 
     @abstractmethod
-    def load_content(self, file_key: str) -> BinaryIO:
-        pass
-
-    @abstractmethod
-    def get_key(self, dataset: Dataset, version_id: int, filename: str) -> str:
+    def load_content(self, dataset: Dataset, version_id: int, filename: str) -> BinaryIO:
         pass
 
     @classmethod

@@ -14,16 +14,15 @@ class LocalFileRepository(FileRepository):
     def __init__(self, url: str):
         self.base_dir = Path(url[7:])
 
-    def save_content(self, file_key: str, stream: IO[AnyStr]):
-        full_path = self.base_dir / file_key
+    def save_content(self, dataset: Dataset, version_id: int, filename: str, stream: IO[AnyStr]):
+        full_path = self._get_path(dataset, version_id, filename)
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(full_path, "wb") as fp:
             shutil.copyfileobj(stream, fp)
 
-    def load_content(self, file_key: str) -> IO[AnyStr]:
-        full_path = self.base_dir / file_key
-        return open(full_path, 'rb')
+    def load_content(self, dataset: Dataset, version_id: int, filename: str) -> IO[AnyStr]:
+        return open(self._get_path(dataset, version_id, filename), 'rb')
 
-    def get_key(self, dataset: Dataset, version_id: int, filename: str) -> str:
-        return str(Path(dataset.dataset_id) / str(version_id) / filename)
+    def _get_path(self, dataset: Dataset, version_id: int, filename: str) -> Path:
+        return self.base_dir / Path(dataset.dataset_id) / str(version_id) / filename
