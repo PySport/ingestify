@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from itertools import product
+from typing import Optional
 
 from pyaml_env import parse_config
 
@@ -33,36 +34,45 @@ def import_cls(name):
     return mod
 
 
-def get_dataset_store_by_urls(dataset_url: str, file_url: str) -> DatasetStore:
+def get_dataset_store_by_urls(dataset_url: str, file_url: str, bucket: str) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
     """
-    file_repository = file_repository_factory.build_if_supports(url=file_url)
+    if not bucket:
+        raise Exception("Bucket is not specified")
+
+    file_repository = file_repository_factory.build_if_supports(
+        url=file_url
+    )
     dataset_repository = dataset_repository_factory.build_if_supports(
         url=dataset_url
     )
     return DatasetStore(
         dataset_repository=dataset_repository,
-        file_repository=file_repository
+        file_repository=file_repository,
+        bucket=bucket
     )
 
 
-def get_datastore(config_file) -> DatasetStore:
+def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
     config = parse_config(config_file)
+
     return get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
         file_url=config["main"]["file_url"],
+        bucket=bucket or config["main"].get("default_bucket")
     )
 
 
-def get_remote_datastore(url: str, **kwargs) -> DatasetStore:
+def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
     return get_dataset_store_by_urls(
         dataset_url=url,
-        file_url=url
+        file_url=url,
+        bucket=bucket
     )
 
 
-def get_engine(config_file) -> IngestionEngine:
+def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     config = parse_config(config_file)
 
     logger.info("Initializing sources")
@@ -76,6 +86,7 @@ def get_engine(config_file) -> IngestionEngine:
     store = get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
         file_url=config["main"]["file_url"],
+        bucket=bucket or config["main"].get("default_bucket")
     )
     ingestion_engine = IngestionEngine(
         store=store,

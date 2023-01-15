@@ -50,7 +50,7 @@ class LocalDatasetRepository(DatasetRepository):
                 datasets.append(dataset)
         return DatasetCollection(datasets)
 
-    def save(self, dataset: Dataset):
+    def save(self, bucket: str, dataset: Dataset):
         full_path = (
             self.base_dir / dataset.identifier.key.replace("/", "__") / "dataset.pickle"
         )

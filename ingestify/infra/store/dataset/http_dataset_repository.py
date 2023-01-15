@@ -28,11 +28,11 @@ class HTTPDatasetRepository(DatasetRepository):
         return url.startswith("https://") or url.startswith("http://")
 
     def __init__(self, url: str, headers: Optional[dict] = None):
-        self.url = url
+        self.base_url = url
         self.headers = headers
 
     def _get(self, bucket: str, params: dict):
-        url = self.url.replace("{bucket}", bucket)
+        url = self.base_url + f"/buckets/{bucket}/datasets"
         response = requests.get(
             url,
             params=params,
@@ -42,7 +42,7 @@ class HTTPDatasetRepository(DatasetRepository):
         return response.json()
 
     def _patch(self, bucket: str, path: str, body: dict):
-        url = self.url.replace("{bucket}", bucket)
+        url = self.base_url + f"/buckets/{bucket}/datasets"
         response = requests.patch(
             url + path,
             json=body
@@ -51,7 +51,7 @@ class HTTPDatasetRepository(DatasetRepository):
 
     def get_dataset_collection(
         self,
-        bucket: Optional[str] = None,
+        bucket: str,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
@@ -79,9 +79,9 @@ class HTTPDatasetRepository(DatasetRepository):
 
         return DatasetCollection(datasets)
 
-    def save(self, dataset: Dataset):
+    def save(self, bucket: str, dataset: Dataset):
         self._patch(
-            dataset.bucket,
+            bucket,
             dataset.dataset_id,
             serialize(dataset)
         )

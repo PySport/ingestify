@@ -18,3 +18,9 @@ class DatasetCollection:
 
     def __iter__(self):
         return iter(self.datasets.values())
+
+    def get_dataset_by_id(self, dataset_id):
+        for dataset in self:
+            if dataset.dataset_id == dataset_id:
+                return dataset
+        return None

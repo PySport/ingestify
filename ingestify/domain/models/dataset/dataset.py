@@ -10,6 +10,8 @@ from .version import Version
 
 @dataclass
 class Dataset:
+    bucket: str  # This must be set by the DatasetRepository
+
     dataset_id: str
 
     dataset_type: str
@@ -20,9 +22,6 @@ class Dataset:
 
     current_version_id: int = 0
     versions: List[Version] = field(default_factory=list)
-
-    # This can be used to organise your datasets
-    bucket: Optional[str] = None
 
     def next_version_id(self):
         version_id = self.current_version_id

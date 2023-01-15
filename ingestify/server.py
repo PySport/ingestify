@@ -18,9 +18,16 @@ def create_server(config_file: str):
     #     resp.headers.extend(headers or {})
     #     return resp
 
-    datastore = get_datastore(
-        config_file
-    )
+    datastore_cache = {}
+    def get_datastore_by_bucket(bucket: str):
+        try:
+            return datastore_cache[bucket]
+        except KeyError:
+            datastore_cache[bucket] = get_datastore(
+                config_file,
+                bucket=bucket
+            )
+            return datastore_cache[bucket]
 
     class DatasetResource(Resource):
         def patch(self, bucket: str, dataset_id: str):
@@ -33,26 +40,22 @@ def create_server(config_file: str):
     class DatasetListResource(Resource):
         def get(self, bucket: str):
             return serialize(
-                datastore.get_dataset_collection(
-                    #bucket=bucket
-                )
+                get_datastore_by_bucket(bucket).get_dataset_collection()
             )
 
     class FileResource(Resource):
-        def get(self, bucket, dataset_id: str, version: str, filename: str):
+        def get(self, bucket, dataset_id: str, version: int, filename: str):
             return Response(
-                datastore.load_content(
-                    bucket,
+                get_datastore_by_bucket(bucket).load_content(
                     dataset_id,
                     version,
                     filename
                 ).read()
             )
 
-        def put(self, bucket, dataset_id: str, version: str, filename: str):
+        def put(self, bucket, dataset_id: str, version: int, filename: str):
             return Response(
-                datastore.save_content(
-                    bucket,
+                get_datastore_by_bucket(bucket).save_content(
                     dataset_id,
                     version,
                     filename,

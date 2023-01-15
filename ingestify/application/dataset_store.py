@@ -26,9 +26,11 @@ class DatasetStore:
         self,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
+        bucket: str
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
+        self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
 
     def set_event_bus(self, event_bus: EventBus):
@@ -46,7 +48,11 @@ class DatasetStore:
         **kwargs
     ) -> DatasetCollection:
         return self.dataset_repository.get_dataset_collection(
-            dataset_type=dataset_type, provider=provider, selector=selector, **kwargs
+            bucket=self.bucket,
+            dataset_type=dataset_type,
+            provider=provider,
+            selector=selector,
+            **kwargs
         )
 
     def _persist_files(
@@ -105,10 +111,11 @@ class DatasetStore:
                 file = File.from_draft(file_, filename)
 
                 self.file_repository.save_content(
-                    dataset,
-                    version_id,
-                    filename,
-                    file_.stream
+                    bucket=self.bucket,
+                    dataset=dataset,
+                    version_id=version_id,
+                    filename=filename,
+                    stream=file_.stream
                 )
 
                 modified_files_.append(file)
@@ -135,7 +142,10 @@ class DatasetStore:
             )
         )
 
-        self.dataset_repository.save(dataset)
+        self.dataset_repository.save(
+            bucket=self.bucket,
+            dataset=dataset
+        )
 
     def create_dataset(
         self,
@@ -146,6 +156,7 @@ class DatasetStore:
         description: str = "Update",
     ):
         dataset = Dataset(
+            bucket=self.bucket,
             dataset_id=self.dataset_repository.next_identity(),
             identifier=dataset_identifier,
             dataset_type=dataset_type,
@@ -162,6 +173,7 @@ class DatasetStore:
         for file in current_version.modified_files:
             loaded_file = LoadedFile(
                 stream=self.file_repository.load_content(
+                    bucket=self.bucket,
                     dataset=dataset,
                     version_id=current_version.version_id,
                     filename=file.filename
@@ -180,3 +192,20 @@ class DatasetStore:
                 lineup_data=files['lineups.json'].stream,
                 **kwargs
             )
+
+    def load_content(self, dataset_id: str, version_id: int, filename: str):
+        datasets = self.dataset_repository.get_dataset_collection(
+            bucket=self.bucket,
+            dataset_id=dataset_id
+        )
+        if not len(datasets):
+            raise Exception("Not found")
+        else:
+            dataset = datasets.get_dataset_by_id(dataset_id)
+
+        return self.file_repository.load_content(
+            bucket=self.bucket,
+            dataset=dataset,
+            version_id=version_id,
+            filename=filename
+        )

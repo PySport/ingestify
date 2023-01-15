@@ -1,6 +1,7 @@
 import logging
 import sys
 from importlib.machinery import SourceFileLoader
+from typing import Optional
 
 import click
 from dotenv import find_dotenv, load_dotenv
@@ -38,8 +39,15 @@ def cli():
     help="Yaml config file",
     type=click.Path(exists=True),
 )
-def run(config_file: str):
-    engine = get_engine(config_file)
+@click.option(
+    "--bucket",
+    "bucket",
+    required=False,
+    help="bucket",
+    type=str,
+)
+def run(config_file: str, bucket: Optional[str]):
+    engine = get_engine(config_file, bucket)
     engine.load()
 
     logger.info("Done")

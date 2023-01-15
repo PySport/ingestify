@@ -3,7 +3,8 @@ from ingestify.main import get_remote_datastore
 
 def main():
     store = get_remote_datastore(
-        "teamtv://test-bucket"
+        "teamtv://PSV 1",
+        bucket="main2"
     )
 
     dataset_collection = store.get_dataset_collection(

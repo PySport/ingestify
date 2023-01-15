@@ -13,19 +13,23 @@ class TeamTVFileRepository(FileRepository):
         return url.startswith("teamtv://")
 
     def __init__(self, url: str):
-        self.bucket = url[9:]
+        self.resource_group = url[9:]
         self.http_repository = HTTPFileRepository(
-            url=f"http://127.0.0.1:8080/api/buckets/{self.bucket}/datasets" +
-                "/{dataset_id}/files/{version_id}/{filename}"
+            url="http://127.0.0.1:8080/api"
         )
 
-    def save_content(self, dataset: Dataset, version_id: int, filename: str, stream: BinaryIO):
+    def save_content(self, bucket: str, dataset: Dataset, version_id: int, filename: str, stream: BinaryIO):
         self.http_repository.save_content(
-            dataset, version_id, filename, stream
+            bucket,
+            dataset,
+            version_id,
+            filename,
+            stream
         )
 
-    def load_content(self, dataset: Dataset, version_id: int, filename: str) -> IO[AnyStr]:
+    def load_content(self, bucket: str, dataset: Dataset, version_id: int, filename: str) -> IO[AnyStr]:
         return self.http_repository.load_content(
+            bucket,
             dataset,
             version_id,
             filename

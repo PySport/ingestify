@@ -14,7 +14,7 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
     @abstractmethod
     def get_dataset_collection(
         self,
-        bucket: Optional[str] = None,
+        bucket: str,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
@@ -23,7 +23,7 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
         pass
 
     @abstractmethod
-    def save(self, dataset: Dataset):
+    def save(self, bucket: str, dataset: Dataset):
         pass
 
     @abstractmethod
