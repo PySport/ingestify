@@ -8,14 +8,17 @@ from ingestify.domain.models import DraftFile, File
 from ingestify.utils import utcnow
 
 
-def retrieve_http(url, current_file: Optional[File] = None) -> Optional[DraftFile]:
-    headers = {}
+def retrieve_http(
+    url, current_file: Optional[File] = None, headers: Optional[dict] = None, **kwargs
+) -> Optional[DraftFile]:
+    headers = headers or {}
     if current_file:
-        headers = {
-            "if-modified-since": format_datetime(current_file.modified_at, usegmt=True),
-            "if-none-match": current_file.tag,
-        }
-    response = requests.get(url, headers=headers)
+        headers["if-modified-since"] = (
+            format_datetime(current_file.modified_at, usegmt=True),
+        )
+        headers["if-none-match"] = (current_file.tag,)
+
+    response = requests.get(url, headers=headers, **kwargs)
     if response.status_code == 304:
         # Not modified
         return None

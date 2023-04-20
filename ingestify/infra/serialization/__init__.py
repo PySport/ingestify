@@ -6,16 +6,14 @@ from dataclass_factory import Schema, Factory, NameStyle
 
 isotime_schema = Schema(
     parser=lambda x: datetime.fromisoformat(x.replace("Z", "+00:00")),  # type: ignore
-    serializer=lambda x: datetime.isoformat(x).replace("+00:00", "Z")
+    serializer=lambda x: datetime.isoformat(x).replace("+00:00", "Z"),
 )
 
 factory = Factory(
     schemas={
         datetime: isotime_schema,
     },
-    default_schema=Schema(
-        name_style=NameStyle.camel_lower
-    )
+    default_schema=Schema(name_style=NameStyle.camel_lower),
 )
 
 T = TypeVar("T")

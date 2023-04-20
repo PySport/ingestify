@@ -14,23 +14,19 @@ class TeamTVFileRepository(FileRepository):
 
     def __init__(self, url: str):
         self.resource_group = url[9:]
-        self.http_repository = HTTPFileRepository(
-            url="http://127.0.0.1:8080/api"
-        )
+        self.http_repository = HTTPFileRepository(url="http://127.0.0.1:8080/api")
 
-    def save_content(self, bucket: str, dataset: Dataset, version_id: int, filename: str, stream: BinaryIO):
-        self.http_repository.save_content(
-            bucket,
-            dataset,
-            version_id,
-            filename,
-            stream
-        )
+    def save_content(
+        self,
+        bucket: str,
+        dataset: Dataset,
+        version_id: int,
+        filename: str,
+        stream: BinaryIO,
+    ):
+        self.http_repository.save_content(bucket, dataset, version_id, filename, stream)
 
-    def load_content(self, bucket: str, dataset: Dataset, version_id: int, filename: str) -> IO[AnyStr]:
-        return self.http_repository.load_content(
-            bucket,
-            dataset,
-            version_id,
-            filename
-        )
+    def load_content(
+        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+    ) -> IO[AnyStr]:
+        return self.http_repository.load_content(bucket, dataset, version_id, filename)

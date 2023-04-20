@@ -130,7 +130,7 @@ class AttributeBag:
         return f"{self.__class__.__name__}({', '.join([f'{k}={v}' for k, v in self.filtered_attributes.items()])})"
 
     def __str__(self):
-        return '/'.join([f'{k}={v}' for k, v in self.filtered_attributes.items()])
+        return "/".join([f"{k}={v}" for k, v in self.filtered_attributes.items()])
 
     @classmethod
     def create_from(cls, other: "AttributeBag", **kwargs):

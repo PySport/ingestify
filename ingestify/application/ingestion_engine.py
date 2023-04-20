@@ -14,12 +14,11 @@ logger = logging.getLogger(__name__)
 class EventLogger:
     def dispatch(self, event):
         pass
-        #logger.info(f"Got event: {event}")
+        # logger.info(f"Got event: {event}")
 
 
 class IngestionEngine:
     def __init__(self, store: DatasetStore, sources: Dict[str, Source]):
-
 
         # Note: disconnect event from loading. Event should only be used for
         #       metadata and 'loaded_files' for the actual data.
@@ -37,5 +36,3 @@ class IngestionEngine:
 
     def load(self):
         self.loader.collect_and_run()
-
-

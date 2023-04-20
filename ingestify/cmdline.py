@@ -52,6 +52,7 @@ def run(config_file: str, bucket: Optional[str]):
 
     logger.info("Done")
 
+
 #
 # @cli.command("list")
 # @click.option(
@@ -76,8 +77,6 @@ def run(config_file: str, bucket: Optional[str]):
 #         for goal in goals:
 #             print(goal)
 #
-
-
 
 
 def main():

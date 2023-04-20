@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-#from ingestify.utils import ComponentFactory, ComponentRegistry
+# from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from . import DraftFile
 from .dataset import Identifier, Version
@@ -25,11 +25,10 @@ class Source(ABC):
     @abstractmethod
     def fetch_dataset_files(
         self,
-        dataset_identifier: Identifier,
+        identifier: Identifier,
         current_version: Optional[Version],
     ) -> Dict[str, Optional[DraftFile]]:
         pass
 
     def __repr__(self):
         return self.__class__.__name__
-

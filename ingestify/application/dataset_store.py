@@ -2,6 +2,8 @@ import hashlib
 import mimetypes
 from dataclasses import asdict
 from io import BytesIO, StringIO
+from multiprocessing import Pool, reduction, get_start_method, cpu_count
+
 from typing import Dict, List, Optional
 
 from ingestify.domain.models.event import EventBus
@@ -20,18 +22,25 @@ from ingestify.domain.models import (
 )
 from ingestify.utils import utcnow
 
+import cloudpickle
+
+reduction.ForkingPickler = cloudpickle
+
 
 class DatasetStore:
     def __init__(
         self,
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
-        bucket: str
+        bucket: str,
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
+
+    def __getstate__(self):
+        return {"file_repository": self.file_repository, "bucket": self.bucket}
 
     def set_event_bus(self, event_bus: EventBus):
         self.event_bus = event_bus
@@ -45,14 +54,14 @@ class DatasetStore:
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
-        **kwargs
+        **kwargs,
     ) -> DatasetCollection:
         return self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
             dataset_type=dataset_type,
             provider=provider,
             selector=selector,
-            **kwargs
+            **kwargs,
         )
 
     def _persist_files(
@@ -115,7 +124,7 @@ class DatasetStore:
                     dataset=dataset,
                     version_id=version_id,
                     filename=filename,
-                    stream=file_.stream
+                    stream=file_.stream,
                 )
 
                 modified_files_.append(file)
@@ -142,10 +151,7 @@ class DatasetStore:
             )
         )
 
-        self.dataset_repository.save(
-            bucket=self.bucket,
-            dataset=dataset
-        )
+        self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
 
     def create_dataset(
         self,
@@ -161,7 +167,7 @@ class DatasetStore:
             identifier=dataset_identifier,
             dataset_type=dataset_type,
             provider=provider,
-            metadata=getattr(dataset_identifier, '_metadata', {})
+            metadata=getattr(dataset_identifier, "_metadata", {}),
         )
         self.add_version(dataset, files, description)
 
@@ -176,9 +182,9 @@ class DatasetStore:
                     bucket=self.bucket,
                     dataset=dataset,
                     version_id=current_version.version_id,
-                    filename=file.filename
+                    filename=file.filename,
                 ),
-                **asdict(file)
+                **asdict(file),
             )
             files[file.filename] = loaded_file
         return files
@@ -187,16 +193,24 @@ class DatasetStore:
         files = self.load_files(dataset)
         if dataset.provider == "statsbomb":
             from kloppy import statsbomb
+
             return statsbomb.load(
-                event_data=files['events.json'].stream,
-                lineup_data=files['lineups.json'].stream,
-                **kwargs
+                event_data=files["events.json"].stream,
+                lineup_data=files["lineups.json"].stream,
+                **kwargs,
             )
+        elif dataset.provider == "wyscout":
+            from kloppy import wyscout
+
+            return wyscout.load(
+                event_data=files["events.json"].stream, data_version="V3", **kwargs
+            )
+        else:
+            raise Exception(f"Don't know how to load a '{dataset.provider}' dataset")
 
     def load_content(self, dataset_id: str, version_id: int, filename: str):
         datasets = self.dataset_repository.get_dataset_collection(
-            bucket=self.bucket,
-            dataset_id=dataset_id
+            bucket=self.bucket, dataset_id=dataset_id
         )
         if not len(datasets):
             raise Exception("Not found")
@@ -207,5 +221,16 @@ class DatasetStore:
             bucket=self.bucket,
             dataset=dataset,
             version_id=version_id,
-            filename=filename
+            filename=filename,
         )
+
+    def map_kloppy(
+        self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
+    ):
+        assert get_start_method() == "fork"
+
+        def wrapper(dataset):
+            return fn(self.load_with_kloppy(dataset), dataset.identifier)
+
+        with Pool(processes or cpu_count()) as pool:
+            return pool.map(wrapper, dataset_collection)

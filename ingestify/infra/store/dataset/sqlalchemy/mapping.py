@@ -62,7 +62,10 @@ mapper_registry.map_imperatively(
     dataset_table,
     properties={
         "versions": relationship(
-            Version, backref="dataset", order_by=version_table.c.version_id
+            Version,
+            backref="dataset",
+            order_by=version_table.c.version_id,
+            lazy="joined",
         ),
     },
 )
@@ -75,6 +78,7 @@ mapper_registry.map_imperatively(
             File,
             order_by=file_table.c.filename,
             primaryjoin="and_(Version.version_id==File.version_id, Version.dataset_id==File.dataset_id)",
+            lazy="joined",
         )
     },
 )

@@ -27,30 +27,28 @@ def _product_selectors(selector_args):
 
 
 def import_cls(name):
-    components = name.split('.')
+    components = name.split(".")
     mod = importlib.import_module(components[0])
     for comp in components[1:]:
         mod = getattr(mod, comp)
     return mod
 
 
-def get_dataset_store_by_urls(dataset_url: str, file_url: str, bucket: str) -> DatasetStore:
+def get_dataset_store_by_urls(
+    dataset_url: str, file_url: str, bucket: str
+) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
     """
     if not bucket:
         raise Exception("Bucket is not specified")
 
-    file_repository = file_repository_factory.build_if_supports(
-        url=file_url
-    )
-    dataset_repository = dataset_repository_factory.build_if_supports(
-        url=dataset_url
-    )
+    file_repository = file_repository_factory.build_if_supports(url=file_url)
+    dataset_repository = dataset_repository_factory.build_if_supports(url=dataset_url)
     return DatasetStore(
         dataset_repository=dataset_repository,
         file_repository=file_repository,
-        bucket=bucket
+        bucket=bucket,
     )
 
 
@@ -60,16 +58,12 @@ def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
     return get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
         file_url=config["main"]["file_url"],
-        bucket=bucket or config["main"].get("default_bucket")
+        bucket=bucket or config["main"].get("default_bucket"),
     )
 
 
 def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
-    return get_dataset_store_by_urls(
-        dataset_url=url,
-        file_url=url,
-        bucket=bucket
-    )
+    return get_dataset_store_by_urls(dataset_url=url, file_url=url, bucket=bucket)
 
 
 def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
@@ -86,7 +80,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     store = get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
         file_url=config["main"]["file_url"],
-        bucket=bucket or config["main"].get("default_bucket")
+        bucket=bucket or config["main"].get("default_bucket"),
     )
     ingestion_engine = IngestionEngine(
         store=store,

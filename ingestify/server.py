@@ -19,14 +19,12 @@ def create_server(config_file: str):
     #     return resp
 
     datastore_cache = {}
+
     def get_datastore_by_bucket(bucket: str):
         try:
             return datastore_cache[bucket]
         except KeyError:
-            datastore_cache[bucket] = get_datastore(
-                config_file,
-                bucket=bucket
-            )
+            datastore_cache[bucket] = get_datastore(config_file, bucket=bucket)
             return datastore_cache[bucket]
 
     class DatasetResource(Resource):
@@ -39,46 +37,42 @@ def create_server(config_file: str):
 
     class DatasetListResource(Resource):
         def get(self, bucket: str):
-            return serialize(
-                get_datastore_by_bucket(bucket).get_dataset_collection()
-            )
+            return serialize(get_datastore_by_bucket(bucket).get_dataset_collection())
 
     class FileResource(Resource):
         def get(self, bucket, dataset_id: str, version: int, filename: str):
             return Response(
-                get_datastore_by_bucket(bucket).load_content(
-                    dataset_id,
-                    version,
-                    filename
-                ).read()
+                get_datastore_by_bucket(bucket)
+                .load_content(dataset_id, version, filename)
+                .read()
             )
 
         def put(self, bucket, dataset_id: str, version: int, filename: str):
             return Response(
                 get_datastore_by_bucket(bucket).save_content(
-                    dataset_id,
-                    version,
-                    filename,
-                    request.stream
+                    dataset_id, version, filename, request.stream
                 )
             )
 
-    api.add_resource(DatasetListResource, "/buckets/<string:bucket>/datasets", methods=["GET"])
-    api.add_resource(DatasetResource, "/buckets/<string:bucket>/datasets/<string:dataset_id>",
-                     methods=["PATCH", "DELETE"])
-    api.add_resource(FileResource, "/buckets/<string:bucket>/"
-                                   "datasets/<string:dataset_id>/files/"
-                                   "<string:version>/<string:filename>",
-                     methods=["GET", "PUT"])
+    api.add_resource(
+        DatasetListResource, "/buckets/<string:bucket>/datasets", methods=["GET"]
+    )
+    api.add_resource(
+        DatasetResource,
+        "/buckets/<string:bucket>/datasets/<string:dataset_id>",
+        methods=["PATCH", "DELETE"],
+    )
+    api.add_resource(
+        FileResource,
+        "/buckets/<string:bucket>/"
+        "datasets/<string:dataset_id>/files/"
+        "<string:version>/<string:filename>",
+        methods=["GET", "PUT"],
+    )
 
     return app
 
 
 if __name__ == "__main__":
-    app = create_server(
-        config_file="../examples/statsbomb/config_local.yaml"
-    )
-    app.run(
-        host='0.0.0.0',
-        port=8080
-    )
+    app = create_server(config_file="../examples/statsbomb/config_local.yaml")
+    app.run(host="0.0.0.0", port=8080)

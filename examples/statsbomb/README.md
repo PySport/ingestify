@@ -1,5 +1,5 @@
 # Statsbomb Open-data ingestion
 
 ```shell script
-ingestify run --config config.yaml --sources sources.py
+ingestify run --config config_local.yaml
 ```

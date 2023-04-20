@@ -25,7 +25,7 @@ class TeamTVDatasetRepository(DatasetRepository):
     def __init__(self, url: str):
         self.resource_group = url[9:]
         self.http_repository = HTTPDatasetRepository(
-            #url=f"https://api.teamtvsport.com/api/ingestify/{bucket}"
+            # url=f"https://api.teamtvsport.com/api/ingestify/{bucket}"
             url="http://127.0.0.1:8080/api"
         )
 
@@ -42,7 +42,6 @@ class TeamTVDatasetRepository(DatasetRepository):
             dataset_type=dataset_type,
             provider=provider,
             selector=selector,
-
             **kwargs
         )
 

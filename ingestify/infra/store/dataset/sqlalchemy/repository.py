@@ -90,11 +90,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
         where: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> DatasetCollection:
         query = (
-            self.session
-            .query(Dataset)
+            self.session.query(Dataset)
             .options(joinedload(Dataset.versions))
             .filter(Dataset.bucket == bucket)
         )

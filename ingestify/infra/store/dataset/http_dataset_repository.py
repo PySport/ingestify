@@ -33,20 +33,13 @@ class HTTPDatasetRepository(DatasetRepository):
 
     def _get(self, bucket: str, params: dict):
         url = self.base_url + f"/buckets/{bucket}/datasets"
-        response = requests.get(
-            url,
-            params=params,
-            headers=self.headers
-        )
+        response = requests.get(url, params=params, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
     def _patch(self, bucket: str, path: str, body: dict):
         url = self.base_url + f"/buckets/{bucket}/datasets"
-        response = requests.patch(
-            url + path,
-            json=body
-        )
+        response = requests.patch(url + path, json=body)
         response.raise_for_status()
 
     def get_dataset_collection(
@@ -55,36 +48,26 @@ class HTTPDatasetRepository(DatasetRepository):
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
-        **kwargs
+        **kwargs,
     ) -> DatasetCollection:
         params = {}
         if dataset_type:
-            params['dataset_type'] = dataset_type
+            params["dataset_type"] = dataset_type
         if provider:
-            params['provider'] = provider
+            params["provider"] = provider
         if selector:
-            params['selector'] = str(selector)
+            params["selector"] = str(selector)
 
-        data = self._get(
-            bucket,
-            params=params
-        )
+        data = self._get(bucket, params=params)
         datasets = []
         for row in data:
-            dataset = unserialize(
-                row,
-                Dataset
-            )
+            dataset = unserialize(row, Dataset)
             datasets.append(dataset)
 
         return DatasetCollection(datasets)
 
     def save(self, bucket: str, dataset: Dataset):
-        self._patch(
-            bucket,
-            dataset.dataset_id,
-            serialize(dataset)
-        )
+        self._patch(bucket, dataset.dataset_id, serialize(dataset))
 
     def next_identity(self):
         return str(uuid.uuid4())

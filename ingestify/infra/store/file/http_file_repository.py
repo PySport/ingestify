@@ -17,29 +17,25 @@ class HTTPFileRepository(FileRepository):
     def __init__(self, url: str):
         self.url = url
 
-    def save_content(self,  bucket: str, dataset: Dataset, version_id: int, filename: str, stream: BinaryIO):
-        url = self._get_url(
-            bucket,
-            dataset,
-            version_id,
-            filename
-        )
+    def save_content(
+        self,
+        bucket: str,
+        dataset: Dataset,
+        version_id: int,
+        filename: str,
+        stream: BinaryIO,
+    ):
+        url = self._get_url(bucket, dataset, version_id, filename)
 
-        response = requests.put(
-            url,
-            data=stream
-        )
+        response = requests.put(url, data=stream)
         response.raise_for_status()
 
-    def load_content(self, bucket: str, dataset: Dataset, version_id: int, filename: str) -> IO[AnyStr]:
+    def load_content(
+        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+    ) -> IO[AnyStr]:
         fp = io.BytesIO()
 
-        url = self._get_url(
-            bucket,
-            dataset,
-            version_id,
-            filename
-        )
+        url = self._get_url(bucket, dataset, version_id, filename)
 
         with requests.get(url, stream=True) as response:
             response.raise_for_status()
@@ -50,9 +46,10 @@ class HTTPFileRepository(FileRepository):
         fp.seek(0)
         return fp
 
-    def _get_url(self,  bucket: str, dataset: Dataset, version_id: int, filename: str) -> str:
+    def _get_url(
+        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+    ) -> str:
         return (
             self.url + f"/buckets/{bucket}/datasets"
             f"/{dataset.dataset_id}/files/{version_id}/{filename}"
         )
-

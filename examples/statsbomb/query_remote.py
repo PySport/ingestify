@@ -2,10 +2,7 @@ from ingestify.main import get_remote_datastore
 
 
 def main():
-    store = get_remote_datastore(
-        "teamtv://PSV 1",
-        bucket="main2"
-    )
+    store = get_remote_datastore("teamtv://PSV 1", bucket="main2")
 
     dataset_collection = store.get_dataset_collection(
         where="""
@@ -15,7 +12,9 @@ def main():
     )
     for dataset in dataset_collection:
         kloppy_dataset = store.load_with_kloppy(dataset)
-        print(f"{kloppy_dataset.metadata.teams[0]} - {kloppy_dataset.metadata.teams[1]}")
+        print(
+            f"{kloppy_dataset.metadata.teams[0]} - {kloppy_dataset.metadata.teams[1]}"
+        )
         goals = kloppy_dataset.filter("shot.goal")
         for goal in goals:
             print(goal)
