@@ -1,11 +1,8 @@
-import base64
 import json
-from typing import Optional, Dict
 
 import requests
 
 from ingestify import Source, retrieve_http
-from ingestify.domain import Identifier, Version, DraftFile
 
 BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
@@ -14,14 +11,36 @@ class StatsbombGithub(Source):
     provider = "statsbomb"
     dataset_type = "event"
 
-    def discover_datasets(self, competition_id: str, season_id: str):
-        matches = requests.get(
-            f"{BASE_URL}/matches/{competition_id}/{season_id}.json"
-        ).json()
+    def discover_datasets(self, competition_id: str = None, season_id: str = None):
         datasets = []
-        for match in matches:
-            dataset = dict(match_id=match["match_id"], _match=match, _metadata=match)
-            datasets.append(dataset)
+
+        if not competition_id:
+            competitions = requests.get(
+                f"{BASE_URL}/competitions.json"
+            ).json()
+            seasons = [
+                (competition['competition_id'], competition['season_id'])
+                for competition in competitions
+            ]
+        else:
+            seasons = [
+                (competition_id, season_id)
+            ]
+
+        for competition_id, season_id in seasons:
+            matches = requests.get(
+                f"{BASE_URL}/matches/{competition_id}/{season_id}.json"
+            ).json()
+
+            for match in matches:
+                dataset = dict(
+                    competition_id=competition_id,
+                    season_id=season_id,
+                    match_id=match["match_id"],
+                    _match=match,
+                    _metadata=match
+                )
+                datasets.append(dataset)
         return datasets
 
     def fetch_dataset_files(self, identifier, current_version):
@@ -37,46 +56,3 @@ class StatsbombGithub(Source):
 
         return files
 
-
-class Wyscout(Source):
-    provider = "wyscout"
-    dataset_type = "event"
-
-    def __init__(self, username: str, password: str):
-        self.username = username
-        self.password = password
-
-    def _get(self, path: str, version: str = "v3"):
-        response = requests.get(
-            f"https://apirest.wyscout.com/{version}/{path}",
-            auth=(self.username, self.password),
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def discover_datasets(self, season_id: int):
-        matches = self._get(f"seasons/{season_id}/matches")
-        datasets = []
-        for match in matches["matches"]:
-            dataset = dict(match_id=match["matchId"], version="v3", _metadata=match)
-            datasets.append(dataset)
-
-        return datasets
-
-    def fetch_dataset_files(
-        self, identifier, current_version
-    ) -> Dict[str, Optional[DraftFile]]:
-        current_files = current_version.modified_files_map if current_version else {}
-        files = {}
-
-        for filename, url in [
-            (
-                "events.json",
-                f"https://apirest.wyscout.com/v3/"
-                f"matches/{identifier.match_id}/events?fetch=teams,players",
-            ),
-        ]:
-            files[filename] = retrieve_http(
-                url, current_files.get(filename), auth=(self.username, self.password)
-            )
-        return files

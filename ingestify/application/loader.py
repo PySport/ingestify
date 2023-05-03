@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from multiprocessing import Pool, set_start_method, cpu_count
 from typing import Dict, List, Tuple
 
 from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
@@ -24,6 +25,7 @@ class FetchPolicy:
         current_version = dataset.current_version
 
         if not dataset.versions:
+            # TODO: this is weird? Dataset without any data. Fetch error?
             return True
         # elif self.last_change > current_version.created_at > self.min_age:
         #    return True
@@ -136,9 +138,15 @@ class Loader:
             task_set += task_subset
 
         if len(task_set):
-            logger.info(f"Scheduled {len(task_set)} tasks")
-            for task in task_set:
+            processes = cpu_count()
+            logger.info(f"Scheduled {len(task_set)} tasks. With {processes} processes")
+
+            def run_task(task):
                 logger.info(f"Running task {task}")
                 task.run()
+
+            set_start_method("fork")
+            with Pool(processes) as pool:
+                pool.map(run_task, task_set)
         else:
             logger.info("Nothing to do.")

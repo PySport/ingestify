@@ -1,0 +1,18 @@
+main:
+  dataset_url: sqlite:////tmp/ingestify-demo/dataset.db
+  file_url: file:///tmp/ingestify-demo/data/
+  default_bucket: main
+
+sources:
+  wyscout:
+    # This points to the Wyscout class in sources.py
+    type: sources.Wyscout
+    configuration:
+      # Read the WYSCOUT_USERNAME and WYSCOUT_PASSWORD from the environment variables
+      username: !ENV ${WYSCOUT_USERNAME}
+      password: !ENV ${WYSCOUT_PASSWORD}
+
+extract_jobs:
+  - source: wyscout
+    selectors:
+      - season_id: 188105

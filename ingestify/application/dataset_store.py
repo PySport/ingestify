@@ -39,8 +39,8 @@ class DatasetStore:
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
 
-    def __getstate__(self):
-        return {"file_repository": self.file_repository, "bucket": self.bucket}
+    # def __getstate__(self):
+    #     return {"file_repository": self.file_repository, "bucket": self.bucket}
 
     def set_event_bus(self, event_bus: EventBus):
         self.event_bus = event_bus
@@ -193,12 +193,14 @@ class DatasetStore:
         files = self.load_files(dataset)
         if dataset.provider == "statsbomb":
             from kloppy import statsbomb
-
-            return statsbomb.load(
-                event_data=files["events.json"].stream,
-                lineup_data=files["lineups.json"].stream,
-                **kwargs,
-            )
+            try:
+                return statsbomb.load(
+                    event_data=files["events.json"].stream,
+                    lineup_data=files["lineups.json"].stream,
+                    **kwargs,
+                )
+            except Exception as e:
+                raise Exception(f"Error loading {dataset}") from e
         elif dataset.provider == "wyscout":
             from kloppy import wyscout
 
@@ -224,13 +226,10 @@ class DatasetStore:
             filename=filename,
         )
 
-    def map_kloppy(
+    def map(
         self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
     ):
         assert get_start_method() == "fork"
 
-        def wrapper(dataset):
-            return fn(self.load_with_kloppy(dataset), dataset.identifier)
-
         with Pool(processes or cpu_count()) as pool:
-            return pool.map(wrapper, dataset_collection)
+            return pool.map(fn, dataset_collection)

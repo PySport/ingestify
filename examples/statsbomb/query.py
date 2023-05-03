@@ -10,21 +10,26 @@ def main():
 
     store = get_datastore("config_local.yaml")
     dataset_collection = store.get_dataset_collection(
-        provider="wyscout", season_id=188105
+        provider="wyscout", stage="raw"
     )
 
     with performance_logging(f"loading data with multiprocessing"):
-        dfs = store.map_kloppy(
-            lambda dataset, identifier: (dataset.to_df("*", match=identifier.match_id)),
+        dfs = store.map(
+            lambda dataset: (
+                store.load_with_kloppy(dataset).to_df(
+                    "*", match=dataset.identifier.match_id,
+                    engine="polars"
+                )
+            ),
             dataset_collection,
         )
 
-    print(f"Loaded {len(dfs)} matches")
-
-    import pandas as pd
-
-    df = pd.concat(dfs)
-    print(df.shape)
+    print(f"Exported {len(dataset_collection)} matches")
+    #
+    # import pandas as pd
+    #
+    # df = pd.concat(dfs)
+    # print(df.shape)
     #
     # return
     # dataset_collection = store.get_dataset_collection(

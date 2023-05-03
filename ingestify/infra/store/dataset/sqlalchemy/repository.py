@@ -72,16 +72,29 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             return False
         return True
 
-    def __init__(self, url: str):
+    def _init_engine(self):
         self.engine = create_engine(
-            url,
+            self.url,
             isolation_level="SERIALIZABLE",
             json_serializer=json_serializer,
             json_deserializer=json_deserializer,
         )
         self.session = Session(bind=self.engine)
 
+    def __init__(self, url: str):
+        self.url = url
+        self._init_engine()
+
         metadata.create_all(self.engine)
+
+    def __getstate__(self):
+        return {
+            'url': self.url
+        }
+
+    def __setstate__(self, state):
+        self.url = state['url']
+        self._init_engine()
 
     def get_dataset_collection(
         self,

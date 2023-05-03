@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 def _product_selectors(selector_args):
+    if not selector_args:
+        # Empty selector passed
+        yield dict()
+        return
+
     selector_args_ = {
         k: v if isinstance(v, list) else [v] for k, v in selector_args.items()
     }
@@ -87,7 +92,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
         sources=sources,
     )
 
-    logger.info("Determining tasks")
+    logger.info("Determining tasks...")
 
     for job in config["extract_jobs"]:
         for selector_args in job["selectors"]:
