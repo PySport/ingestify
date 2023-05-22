@@ -3,10 +3,11 @@ import logging
 import os
 import sys
 from itertools import product
-from typing import Optional
+from typing import Optional, Type
 
 from pyaml_env import parse_config
 
+from ingestify import Source
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.application.ingestion_engine import IngestionEngine
 from ingestify.domain.models import (
@@ -71,6 +72,21 @@ def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
     return get_dataset_store_by_urls(dataset_url=url, file_url=url, bucket=bucket)
 
 
+def get_source_cls(type_: str) -> Type[Source]:
+    if type_.startswith("ingestify."):
+        _, type_ = type_.split(".")
+        if type_ == "wyscout":
+            from ingestify.infra.source.wyscout import Wyscout
+            return Wyscout
+        elif type_ == "statsbomb_github":
+            from ingestify.infra.source.statsbomb_github import StatsbombGithub
+            return StatsbombGithub
+        else:
+            raise Exception(f"Unknown source type 'ingestify.{type_}'")
+    else:
+        return import_cls(type_)
+
+
 def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     config = parse_config(config_file)
 
@@ -78,7 +94,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     sources = {}
     sys.path.append(os.path.dirname(config_file))
     for name, source in config["sources"].items():
-        source_cls = import_cls(source["type"])
+        source_cls = get_source_cls(source["type"])
         sources[name] = source_cls(**source.get("configuration", {}))
 
     logger.info("Initializing IngestionEngine")

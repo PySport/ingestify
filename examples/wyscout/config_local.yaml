@@ -6,7 +6,7 @@ main:
 sources:
   wyscout:
     # This points to the Wyscout class in sources.py
-    type: sources.Wyscout
+    type: ingestify.wyscout
     configuration:
       # Read the WYSCOUT_USERNAME and WYSCOUT_PASSWORD from the environment variables
       username: !ENV ${WYSCOUT_USERNAME}
@@ -16,3 +16,10 @@ extract_jobs:
   - source: wyscout
     selectors:
       - season_id: 188105
+    transformer: >
+      def transformer(store, dataset):
+        return store.load_with_kloppy(dataset).to_df(
+            "*", match=dataset.identifier.match_id,
+            engine="polars"
+        )
+      

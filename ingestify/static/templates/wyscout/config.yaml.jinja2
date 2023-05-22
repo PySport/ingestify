@@ -1,0 +1,18 @@
+ingestify_version: {{ ingestify_version }}
+
+main:
+  dataset_url: sqlite:///database/catalog.db
+  file_url: file://database/files/
+  default_bucket: main
+
+sources:
+  wyscout:
+    type: ingestify.wyscout
+    configuration:
+      username: !ENV ${WYSCOUT_USERNAME}
+      password: !ENV ${WYSCOUT_PASSWORD}
+
+extract_jobs:
+  - source: wyscout
+    selectors:
+      - season_id: 188105

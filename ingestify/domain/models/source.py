@@ -8,6 +8,9 @@ from .dataset import Identifier, Version
 
 
 class Source(ABC):
+    def __init__(self, **kwargs):
+        pass
+
     @property
     @abstractmethod
     def dataset_type(self) -> str:

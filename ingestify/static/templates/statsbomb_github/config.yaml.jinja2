@@ -1,0 +1,19 @@
+ingestify_version: {{ ingestify_version }}
+
+main:
+  dataset_url: sqlite:///database/catalog.db
+  file_url: file://database/files/
+  default_bucket: main
+
+sources:
+  statsbomb:
+    type: ingestify.statsbomb_github
+
+extract_jobs:
+  - source: statsbomb
+    selectors:
+      - competition_id: 11
+        season_id: [42, 90]
+
+    # passing an empty selector means: fetch everything
+    #  -
