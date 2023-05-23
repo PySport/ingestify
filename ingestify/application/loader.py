@@ -10,7 +10,9 @@ from ingestify.utils import utcnow
 from .dataset_store import DatasetStore
 
 if platform.system() == 'Darwin':
-    set_start_method("fork")
+    set_start_method("fork", force=True)
+else:
+    set_start_method("spawn", force=True)
 
 
 logger = logging.getLogger(__name__)
