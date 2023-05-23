@@ -165,3 +165,39 @@ Loaded dataset with 4051 events
 .....
 
 ```
+
+
+How to go from raw data to parquet files:
+
+```python
+from ingestify.main import get_datastore
+
+store = get_datastore("config.yaml")
+
+dataset_collection = store.get_dataset_collection(
+    provider="statsbomb", stage="raw"
+)
+
+# Store.map is using multiprocessing by default
+store.map(
+    lambda dataset: (
+        store
+        .load_with_kloppy(dataset)
+        .to_df(
+            "*", 
+            match_id=dataset.identifier.match_id,
+            competition_id=dataset.identifier.competition_id,
+            season_id=dataset.identifier.season_id, 
+            
+            engine="polars"
+        )
+        .write_parquet(
+            f"/tmp/files/blaat/{dataset.identifier.match_id}.parquet"
+        )
+    ),
+    dataset_collection,
+)
+
+# TODO: 
+#  - when a file is written in parquet format (on any other format) it should be added as such to the store.
+```
