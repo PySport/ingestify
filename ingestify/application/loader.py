@@ -1,4 +1,5 @@
 import logging
+import platform
 from datetime import timedelta
 from multiprocessing import Pool, set_start_method, cpu_count
 from typing import Dict, List, Tuple
@@ -7,6 +8,10 @@ from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task,
 from ingestify.utils import utcnow
 
 from .dataset_store import DatasetStore
+
+if platform.system() == 'Darwin':
+    set_start_method("fork")
+
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +150,6 @@ class Loader:
                 logger.info(f"Running task {task}")
                 task.run()
 
-            set_start_method("fork")
             with Pool(processes) as pool:
                 pool.map(run_task, task_set)
         else:
