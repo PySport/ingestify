@@ -1,10 +1,13 @@
 import abc
 import inspect
 import time
-import warnings
+from multiprocessing import get_context, cpu_count, get_all_start_methods
+
 from datetime import datetime, timezone
 from string import Template
 from typing import Dict, Generic, Type, TypeVar
+
+import cloudpickle
 
 
 class ComponentRegistry:
@@ -138,3 +141,24 @@ class AttributeBag:
         _args.update(kwargs)
 
         return cls(**_args)
+
+
+def cloud_unpack_and_call(args):
+    f_pickled, org_args = args
+
+    f = cloudpickle.loads(f_pickled)
+    return f(org_args)
+
+
+def map_in_pool(func, iterable, processes=None):
+    if "fork" in get_all_start_methods():
+        ctx = get_context("fork")
+    else:
+        ctx = get_context("spawn")
+
+    wrapped_fn = cloudpickle.dumps(func)
+
+    with ctx.Pool(processes or cpu_count()) as pool:
+        return pool.map(
+            cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
+        )

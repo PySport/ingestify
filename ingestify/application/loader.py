@@ -5,11 +5,11 @@ from multiprocessing import Pool, set_start_method, cpu_count
 from typing import Dict, List, Tuple
 
 from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
-from ingestify.utils import utcnow
+from ingestify.utils import utcnow, map_in_pool
 
 from .dataset_store import DatasetStore
 
-if platform.system() == 'Darwin':
+if platform.system() == "Darwin":
     set_start_method("fork", force=True)
 else:
     set_start_method("spawn", force=True)
@@ -152,7 +152,6 @@ class Loader:
                 logger.info(f"Running task {task}")
                 task.run()
 
-            with Pool(processes) as pool:
-                pool.map(run_task, task_set)
+            map_in_pool(run_task, task_set)
         else:
             logger.info("Nothing to do.")

@@ -2,7 +2,6 @@ import hashlib
 import mimetypes
 from dataclasses import asdict
 from io import BytesIO, StringIO
-from multiprocessing import Pool, reduction, get_start_method, cpu_count
 
 from typing import Dict, List, Optional
 
@@ -20,11 +19,7 @@ from ingestify.domain.models import (
     Version,
     DatasetCreated,
 )
-from ingestify.utils import utcnow
-
-import cloudpickle
-
-reduction.ForkingPickler = cloudpickle
+from ingestify.utils import utcnow, map_in_pool
 
 
 class DatasetStore:
@@ -230,7 +225,4 @@ class DatasetStore:
     def map(
         self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
     ):
-        assert get_start_method() == "fork"
-
-        with Pool(processes or cpu_count()) as pool:
-            return pool.map(fn, dataset_collection)
+        return map_in_pool(fn, dataset_collection, processes)
