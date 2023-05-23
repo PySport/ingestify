@@ -22,7 +22,7 @@ Ingestify focus' on Ingestion of data.
 
 Make sure you have installed the latest version:
 ```bash
-pip install https://github.com/PySport/ingestify.git
+pip install git+https://github.com/PySport/ingestify.git
 ```
 
 ### Using a template
