@@ -193,6 +193,7 @@ class DatasetStore:
         files = self.load_files(dataset)
         if dataset.provider == "statsbomb":
             from kloppy import statsbomb
+
             try:
                 return statsbomb.load(
                     event_data=files["events.json"].stream,

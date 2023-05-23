@@ -42,8 +42,7 @@ class Wyscout(Source):
         for filename, url in [
             (
                 "events.json",
-                BASE_URL +
-                f"/matches/{identifier.match_id}/events?fetch=teams,players",
+                BASE_URL + f"/matches/{identifier.match_id}/events?fetch=teams,players",
             ),
         ]:
             files[filename] = retrieve_http(

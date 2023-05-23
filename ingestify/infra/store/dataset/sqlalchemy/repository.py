@@ -88,12 +88,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         metadata.create_all(self.engine)
 
     def __getstate__(self):
-        return {
-            'url': self.url
-        }
+        return {"url": self.url}
 
     def __setstate__(self, state):
-        self.url = state['url']
+        self.url = state["url"]
         self._init_engine()
 
     def get_dataset_collection(

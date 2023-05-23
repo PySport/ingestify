@@ -41,7 +41,7 @@ def cli():
     required=False,
     help="Yaml config file",
     type=click.Path(exists=True),
-    default="config.yaml"
+    default="config.yaml",
 )
 @click.option(
     "--bucket",
@@ -84,16 +84,14 @@ def init(template: str, project_name: str):
     for file in template_dir.glob("*"):
         filename = file.name
         if file.is_file():
-            data = file.open('r').read()
+            data = file.open("r").read()
 
             if filename.endswith(".jinja2"):
                 raw_input = jinja2.Template(data)
-                data = raw_input.render(
-                    ingestify_version=__version__
-                )
+                data = raw_input.render(ingestify_version=__version__)
                 filename = filename.rstrip(".jinja2")
 
-            with open(directory / filename, 'w') as fp:
+            with open(directory / filename, "w") as fp:
                 fp.write(data)
         elif file.is_dir():
             (directory / filename).mkdir()

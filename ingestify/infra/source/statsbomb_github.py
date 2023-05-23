@@ -15,17 +15,13 @@ class StatsbombGithub(Source):
         datasets = []
 
         if not competition_id:
-            competitions = requests.get(
-                f"{BASE_URL}/competitions.json"
-            ).json()
+            competitions = requests.get(f"{BASE_URL}/competitions.json").json()
             seasons = [
-                (competition['competition_id'], competition['season_id'])
+                (competition["competition_id"], competition["season_id"])
                 for competition in competitions
             ]
         else:
-            seasons = [
-                (competition_id, season_id)
-            ]
+            seasons = [(competition_id, season_id)]
 
         for competition_id, season_id in seasons:
             matches = requests.get(
@@ -38,7 +34,7 @@ class StatsbombGithub(Source):
                     season_id=season_id,
                     match_id=match["match_id"],
                     _match=match,
-                    _metadata=match
+                    _metadata=match,
                 )
                 datasets.append(dataset)
         return datasets
@@ -55,4 +51,3 @@ class StatsbombGithub(Source):
         files["match.json"] = json.dumps(identifier._match)
 
         return files
-

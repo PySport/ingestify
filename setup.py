@@ -9,7 +9,7 @@ def package_files(directory):
     paths = []
     for (path, directories, filenames) in os.walk(directory):
         for filename in filenames:
-            paths.append(os.path.join('..', path, filename))
+            paths.append(os.path.join("..", path, filename))
     return paths
 
 
@@ -25,7 +25,7 @@ def setup_package():
         license="AGPL",
         packages=setuptools.find_packages(exclude=["tests"]),
         package_data={
-            '': package_files('ingestify/static'),
+            "": package_files("ingestify/static"),
         },
         entry_points={"console_scripts": ["ingestify = ingestify.cmdline:main"]},
         install_requires=[
@@ -36,7 +36,7 @@ def setup_package():
             "click",
             "jinja2",
             "python-dotenv",
-            "pyaml_env"
+            "pyaml_env",
         ],
     )
 

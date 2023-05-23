@@ -77,9 +77,11 @@ def get_source_cls(type_: str) -> Type[Source]:
         _, type_ = type_.split(".")
         if type_ == "wyscout":
             from ingestify.infra.source.wyscout import Wyscout
+
             return Wyscout
         elif type_ == "statsbomb_github":
             from ingestify.infra.source.statsbomb_github import StatsbombGithub
+
             return StatsbombGithub
         else:
             raise Exception(f"Unknown source type 'ingestify.{type_}'")
