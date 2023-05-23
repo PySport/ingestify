@@ -1,3 +1,4 @@
+import builtins
 import os
 from distutils.core import setup
 
@@ -13,9 +14,12 @@ def package_files(directory):
 
 
 def setup_package():
+    builtins.__INGESTIFY_SETUP__ = True
+    import ingestify
+
     setup(
         name="ingestify",
-        version="0.0.1",
+        version=ingestify.__version__,
         author="Koen Vossen",
         author_email="info@koenvossen.nl",
         license="AGPL",
