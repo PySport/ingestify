@@ -22,7 +22,11 @@ Ingestify focus' on Ingestion of data.
 
 Make sure you have installed the latest version:
 ```bash
-pip install https://github.com/PySport/ingestify.git
+pip install git+https://github.com/PySport/ingestify.git
+
+# OR
+
+pip install git+ssh://git@github.com/PySport/ingestify.git
 ```
 
 ### Using a template
@@ -182,7 +186,11 @@ dataset_collection = store.get_dataset_collection(
 store.map(
     lambda dataset: (
         store
+        
+        # As it's related to https://github.com/PySport/kloppy the store can load files using kloppy
         .load_with_kloppy(dataset)
+        
+        # Convert it into a polars dataframe using all columns in the original data and some more additional ones
         .to_df(
             "*", 
             match_id=dataset.identifier.match_id,
@@ -191,6 +199,8 @@ store.map(
             
             engine="polars"
         )
+        
+        # Write to parquet format
         .write_parquet(
             f"/tmp/files/blaat/{dataset.identifier.match_id}.parquet"
         )
