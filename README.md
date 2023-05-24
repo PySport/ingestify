@@ -1,8 +1,8 @@
 # Ingestify
 
-## A ((Post)Modern) Data Platform
+## Data Management Platform
 
-In general a data platform contains:
+In general a data management platform contains:
 1. Ingestion of data (Extract from Source into Load into Data Lake)
 2. Transformation of data (Extract from Data Lake, Transform and Load into Data Warehouse)
 3. Utilization of data
@@ -226,3 +226,15 @@ store.map(
 # TODO: 
 #  - when a file is written in parquet format (on any other format) it should be added as such to the store.
 ```
+
+
+## Future work
+
+Some future work include:
+- Workflow tools - Run custom workflows using with tools like [Airflow](https://airflow.apache.org/), [Dagster](https://docs.dagster.io/getting-started), [Prefect](https://www.prefect.io/), [DBT](https://www.getdbt.com/)
+- Execution engines - Run tasks on other execution engines like [AWS Lambda](https://aws.amazon.com/lambda/), [Dask](https://www.dask.org/)
+- Lineage - Keep track of lineage with tools like [SQLLineage](https://sqllineage.readthedocs.io/en/latest/index.html)
+- Data quality - Monitor data quality with tools like [Great Expectations](https://docs.greatexpectations.io/docs/tutorials/quickstart/)
+- Event Bus - Automatically publish events to external systems like [AWS Event Bridge](https://aws.amazon.com/eventbridge/), [Azure Event Grid](https://learn.microsoft.com/en-us/azure/event-grid/overview), [Google Cloud Pub/Sub](https://cloud.google.com/pubsub/docs/overview), [Kafka](https://kafka.apache.org/), [RabbitMQ](https://www.rabbitmq.com/)
+- Query Engines - Integrate with query engines to run SQL queries directly on the store using tools like [DuckDB](https://duckdb.org/), [DataBend](https://databend.rs/), [DataFusion](https://arrow.apache.org/datafusion/), [Polars](https://www.pola.rs/), [Spark](https://spark.apache.org/)
+- Streaming Data - Ingest streaming data
