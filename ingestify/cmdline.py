@@ -6,6 +6,8 @@ from typing import Optional
 import click
 import jinja2
 from dotenv import find_dotenv, load_dotenv
+
+from ingestify.exceptions import ConfigurationError
 from ingestify.main import get_engine
 
 from ingestify import __version__
@@ -50,8 +52,23 @@ def cli():
     help="bucket",
     type=str,
 )
-def run(config_file: str, bucket: Optional[str]):
-    engine = get_engine(config_file, bucket)
+@click.option(
+    "--debug",
+    "debug",
+    required=False,
+    help="Debugging enabled",
+    type=bool
+)
+def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
+    try:
+        engine = get_engine(config_file, bucket)
+    except ConfigurationError as e:
+        if debug:
+            raise
+        else:
+            logger.exception(f"Failed due a configuration error: {e}")
+            sys.exit(1)
+
     engine.load()
 
     logger.info("Done")

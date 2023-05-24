@@ -4,6 +4,7 @@ import requests
 
 from ingestify import Source, retrieve_http
 from ingestify.domain import DraftFile
+from ingestify.exceptions import ConfigurationError
 
 BASE_URL = "https://apirest.wyscout.com/v3"
 
@@ -12,15 +13,31 @@ class Wyscout(Source):
     provider = "wyscout"
     dataset_type = "event"
 
-    def __init__(self, username: str, password: str):
-        self.username = username
-        self.password = password
+    def __init__(self, name: str, username: str, password: str):
+        super().__init__(name)
+
+        self.username = username.strip()
+        self.password = password.strip()
+
+        if not self.username:
+            raise ConfigurationError(f"Username of Wyscout source named '{self.name}' cannot be empty")
+
+        if not self.password:
+            raise ConfigurationError(f"Username of Wyscout source named '{self.name}' cannot be empty")
 
     def _get(self, path: str):
         response = requests.get(
             BASE_URL + path,
             auth=(self.username, self.password),
         )
+        if response.status_code == 400:
+            # What if the response isn't a json?
+            error = response.json()['error']
+            raise ConfigurationError(
+                f"Check username/password of Wyscout source named '{self.name}'. API response "
+                f"was '{error['message']}' ({error['code']})."
+            )
+
         response.raise_for_status()
         return response.json()
 

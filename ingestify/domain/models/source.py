@@ -8,8 +8,8 @@ from .dataset import Identifier, Version
 
 
 class Source(ABC):
-    def __init__(self, **kwargs):
-        pass
+    def __init__(self, name: str, **kwargs):
+        self.name = name
 
     @property
     @abstractmethod

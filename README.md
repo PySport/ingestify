@@ -16,6 +16,21 @@ TODO: Improve drawings and explain more
 
 Ingestify focus' on Ingestion of data. 
 
+### How does Ingestify work?
+
+<img src="docs/overview.svg" />
+
+- [Source](blob/main/ingestify/domain/models/source.py) is the main entrance from Ingestify to external sources. A Source must always define:
+  - `discover_datasets` - Creates a list of all available datasets on the Source
+  - `fetch_dataset_files` - Fetches a single dataset for a Source
+- [Dataset Store](blob/main/ingestify/application/dataset_store.py) manages the access to the Metadata storage and the file storage. It keeps track of versions, and knows how to load data.
+- [Loader](blob/main/ingestify/application/loader.py) organizes the fetching process. It does this by executing the following steps:
+  1. Ask `Source` for all available datasets for a selector
+  2. Ask `Dataset Store` for all available datasets for a selector
+  3. Determines missing `Datasets`
+  4. Create tasks for data retrieval and puts in `TaskQueue`
+  5. Use multiprocessing to execute all tasks
+
 ## Get started
 
 ### Install
