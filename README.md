@@ -211,3 +211,12 @@ store.map(
 # TODO: 
 #  - when a file is written in parquet format (on any other format) it should be added as such to the store.
 ```
+
+
+## Future work
+
+Some future work include:
+- Workflow tools - Run custom workflows using with tools like [Airflow](https://airflow.apache.org/), [Dagster](https://docs.dagster.io/getting-started), [Prefect](https://www.prefect.io/), [DBT](https://www.getdbt.com/), etc
+- Lineage - Keep track of lineage with tools like [SQLLineage](https://sqllineage.readthedocs.io/en/latest/index.html)
+- Data quality - Monitor data quality with tools like [Great Expectations](https://docs.greatexpectations.io/docs/tutorials/quickstart/)
+- Event Bus - Automatically publish events to external systems like [AWS Event Bridge](https://aws.amazon.com/eventbridge/), [Azure Event Grid](https://learn.microsoft.com/en-us/azure/event-grid/overview), [Google Cloud Pub/Sub](https://cloud.google.com/pubsub/docs/overview), [Kafka](https://kafka.apache.org/), [RabbitMQ](https://www.rabbitmq.com/) etc
