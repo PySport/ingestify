@@ -7,6 +7,7 @@ from ingestify.domain.models import Source
 from .loader import Loader
 from .dataset_store import DatasetStore
 from ..domain import Selector, Dataset
+from ..domain.models.fetch_policy import FetchPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class IngestionEngine:
         self.store = store
         self.loader = Loader(self.sources, self.store)
 
-    def add_selector(self, source: str, selector: Dict):
-        self.loader.add_selector(source, selector)
+    def add_selector(self, source: str, selector: Dict, fetch_policy: FetchPolicy):
+        self.loader.add_selector(source, selector, fetch_policy)
 
     def load(self):
         self.loader.collect_and_run()

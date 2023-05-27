@@ -19,10 +19,10 @@ def retrieve_http(
 ) -> Optional[DraftFile]:
     headers = headers or {}
     if current_file:
-        headers["if-modified-since"] = (
-            format_datetime(current_file.modified_at, usegmt=True),
-        )
-        headers["if-none-match"] = (current_file.tag,)
+        # headers["if-modified-since"] = (
+        #     format_datetime(current_file.modified_at, usegmt=True),
+        # )
+        headers["if-none-match"] = current_file.tag
 
     response = requests.get(url, headers=headers, **kwargs)
     if response.status_code == 304:
@@ -60,6 +60,10 @@ def retrieve_http(
         tag = sha1(content).hexdigest()
     if not content_length:
         content_length = len(content)
+
+    if current_file and current_file.tag == tag:
+        # Not changed. Don't keep it
+        return None
 
     return DraftFile(
         modified_at=modified_at,

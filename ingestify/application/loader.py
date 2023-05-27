@@ -8,6 +8,7 @@ from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task,
 from ingestify.utils import utcnow, map_in_pool
 
 from .dataset_store import DatasetStore
+from ..domain.models.fetch_policy import FetchPolicy
 
 if platform.system() == "Darwin":
     set_start_method("fork", force=True)
@@ -16,28 +17,6 @@ else:
 
 
 logger = logging.getLogger(__name__)
-
-
-class FetchPolicy:
-    def __init__(self):
-        # refresh all data that changed less than two day ago
-        self.min_age = utcnow() - timedelta(days=2)
-        self.last_change = utcnow() - timedelta(days=1)
-
-    def should_fetch(self, dataset_identifier: Identifier) -> bool:
-        # this is called when dataset does not exist yet
-        return True
-
-    def should_refetch(self, dataset: Dataset) -> bool:
-        current_version = dataset.current_version
-
-        if not dataset.versions:
-            # TODO: this is weird? Dataset without any data. Fetch error?
-            return True
-        # elif self.last_change > current_version.created_at > self.min_age:
-        #    return True
-        else:
-            return False
 
 
 class UpdateDatasetTask(Task):
@@ -85,16 +64,15 @@ class Loader:
         self.sources = sources
 
         self.selectors: List[Tuple[Source, Selector]] = []
-        self.fetch_policy = FetchPolicy()
 
-    def add_selector(self, source: str, selector: Dict):
-        self.selectors.append((self.sources[source], Selector(**selector)))
+    def add_selector(self, source: str, selector: Dict, fetch_policy: FetchPolicy, ):
+        self.selectors.append((self.sources[source], Selector(**selector), fetch_policy))
 
     def collect_and_run(self):
         task_set = TaskSet()
 
         total_dataset_count = 0
-        for source, selector in self.selectors:
+        for source, selector, fetch_policy in self.selectors:
             logger.debug(
                 f"Discovering datasets from {source.__class__.__name__} using selector {selector}"
             )
@@ -118,7 +96,7 @@ class Loader:
 
             for dataset_identifier in dataset_identifiers:
                 if dataset := dataset_collection.get(dataset_identifier):
-                    if self.fetch_policy.should_refetch(dataset):
+                    if fetch_policy.should_refetch(dataset):
                         task_subset.add(
                             UpdateDatasetTask(
                                 source=source, dataset=dataset, store=self.store
@@ -127,7 +105,7 @@ class Loader:
                     else:
                         skip_count += 1
                 else:
-                    if self.fetch_policy.should_fetch(dataset_identifier):
+                    if fetch_policy.should_fetch(dataset_identifier):
                         task_subset.add(
                             CreateDatasetTask(
                                 source=source,

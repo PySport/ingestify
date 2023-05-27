@@ -20,13 +20,11 @@ class Dataset:
     identifier: Identifier
     metadata: dict
 
-    current_version_id: int = 0
+    # current_version_id: int = 0
     versions: List[Version] = field(default_factory=list)
 
     def next_version_id(self):
-        version_id = self.current_version_id
-        self.current_version_id += 1
-        return version_id
+        return len(self.versions)
 
     def add_version(self, version: Version):
         self.versions.append(version)

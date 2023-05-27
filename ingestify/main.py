@@ -14,6 +14,7 @@ from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
+from ingestify.domain.models.fetch_policy import FetchPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +119,11 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
 
     logger.info("Determining tasks...")
 
+    fetch_policy = FetchPolicy()
+
     for job in config["extract_jobs"]:
         for selector_args in job["selectors"]:
             for selector in _product_selectors(selector_args):
-                ingestion_engine.add_selector(job["source"], selector)
+                ingestion_engine.add_selector(job["source"], selector, fetch_policy)
 
     return ingestion_engine
