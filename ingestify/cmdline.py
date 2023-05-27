@@ -52,13 +52,7 @@ def cli():
     help="bucket",
     type=str,
 )
-@click.option(
-    "--debug",
-    "debug",
-    required=False,
-    help="Debugging enabled",
-    type=bool
-)
+@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
 def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
     try:
         engine = get_engine(config_file, bucket)

@@ -72,13 +72,19 @@ def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
     return get_dataset_store_by_urls(dataset_url=url, file_url=url, bucket=bucket)
 
 
-def get_source_cls(type_: str) -> Type[Source]:
-    if type_.startswith("ingestify."):
-        _, type_ = type_.split(".")
+def get_source_cls(key: str) -> Type[Source]:
+    if key.startswith("ingestify."):
+        _, type_, dataset_type = key.split(".")
         if type_ == "wyscout":
-            from ingestify.infra.source.wyscout import Wyscout
+            from ingestify.infra.source.wyscout import WyscoutEvent, WyscoutPlayer
 
-            return Wyscout
+            if dataset_type == "event":
+                return WyscoutEvent
+            elif dataset_type == "player":
+                return WyscoutPlayer
+            else:
+                raise Exception(f"Unknown dataset type for Wyscout: '{dataset_type}'")
+
         elif type_ == "statsbomb_github":
             from ingestify.infra.source.statsbomb_github import StatsbombGithub
 
@@ -86,7 +92,7 @@ def get_source_cls(type_: str) -> Type[Source]:
         else:
             raise Exception(f"Unknown source type 'ingestify.{type_}'")
     else:
-        return import_cls(type_)
+        return import_cls(key)
 
 
 def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
@@ -97,7 +103,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     sys.path.append(os.path.dirname(config_file))
     for name, source in config["sources"].items():
         source_cls = get_source_cls(source["type"])
-        sources[name] = source_cls(**source.get("configuration", {}))
+        sources[name] = source_cls(name=name, **source.get("configuration", {}))
 
     logger.info("Initializing IngestionEngine")
     store = get_dataset_store_by_urls(
