@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import requests
 
@@ -9,9 +10,12 @@ BASE_URL = "https://raw.githubusercontent.com/statsbomb/open-data/master/data"
 
 class StatsbombGithub(Source):
     provider = "statsbomb"
-    dataset_type = "event"
 
-    def discover_datasets(self, competition_id: str = None, season_id: str = None):
+    def discover_datasets(
+        self, dataset_type, competition_id: str = None, season_id: str = None
+    ):
+        assert dataset_type == "event"
+
         datasets = []
 
         if not competition_id:
@@ -33,13 +37,16 @@ class StatsbombGithub(Source):
                     competition_id=competition_id,
                     season_id=season_id,
                     match_id=match["match_id"],
+                    _last_modified=datetime.fromisoformat(match['last_updated'].replace("Z", "+00:00")),
                     _match=match,
                     _metadata=match,
                 )
                 datasets.append(dataset)
         return datasets
 
-    def fetch_dataset_files(self, identifier, current_version):
+    def fetch_dataset_files(self, dataset_type, identifier, current_version):
+        assert dataset_type == "event"
+
         current_files = current_version.modified_files_map if current_version else {}
         files = {}
         for filename, url in [

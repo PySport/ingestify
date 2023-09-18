@@ -21,6 +21,9 @@ def parse_value(v):
 
 
 class LocalDatasetRepository(DatasetRepository):
+    def destroy_dataset(self, dataset_id: str):
+        pass
+
     @classmethod
     def supports(cls, url: str) -> bool:
         return url.startswith("file://")

@@ -3,7 +3,7 @@ import mimetypes
 from dataclasses import asdict
 from io import BytesIO, StringIO
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
@@ -48,16 +48,26 @@ class DatasetStore:
         self,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
-        selector: Optional[Selector] = None,
-        **kwargs,
+        **selector,
     ) -> DatasetCollection:
-        return self.dataset_repository.get_dataset_collection(
+        if "selector" in selector:
+            selector = selector["selector"]
+        if isinstance(selector, dict):
+            selector = Selector(selector)
+
+        dataset_collection = self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
             dataset_type=dataset_type,
             provider=provider,
             selector=selector,
-            **kwargs,
         )
+        dataset_collection.set_store(self)
+        return dataset_collection
+
+    #
+    # def destroy_dataset(self, dataset_id: str):
+    #     dataset = self.dataset_repository.
+    #     self.dataset_repository.destroy_dataset(dataset_id)
 
     def _persist_files(
         self,

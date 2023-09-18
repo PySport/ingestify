@@ -1,14 +1,25 @@
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
 from .dataset import Dataset
 from .identifier import Identifier
 
+if TYPE_CHECKING:
+    from ingestify.application.dataset_store import DatasetStore
+
 
 class DatasetCollection:
     def __init__(self, datasets: List[Dataset] = None):
+        self.store: Optional["DatasetStore"] = None
         datasets = datasets or []
 
-        self.datasets = {dataset.identifier.key: dataset for dataset in datasets}
+        self.datasets: dict[str, Dataset] = {
+            dataset.identifier.key: dataset for dataset in datasets
+        }
+
+    def set_store(self, store: "DatasetStore"):
+        self.store = store
+        for dataset in self.datasets.values():
+            dataset.set_store(store)
 
     def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)
@@ -24,3 +35,9 @@ class DatasetCollection:
             if dataset.dataset_id == dataset_id:
                 return dataset
         return None
+
+    def first(self):
+        try:
+            return next(iter(self.datasets.values()))
+        except StopIteration:
+            raise Exception("No items in the collection")

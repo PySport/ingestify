@@ -100,8 +100,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
-        where: Optional[str] = None,
-        **kwargs,
     ) -> DatasetCollection:
         query = (
             self.session.query(Dataset)
@@ -115,6 +113,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         dialect = self.session.bind.dialect.name
 
+        where, selector = selector.split("where")
         if selector:
             for k, v in selector.attributes.items():
                 if dialect == "postgresql":

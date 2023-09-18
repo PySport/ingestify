@@ -5,9 +5,10 @@ from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
 from string import Template
-from typing import Dict, Generic, Type, TypeVar
+from typing import Dict, Generic, Type, TypeVar, Tuple, Optional, Any
 
 import cloudpickle
+from typing_extensions import Self
 
 
 class ComponentRegistry:
@@ -141,6 +142,11 @@ class AttributeBag:
         _args.update(kwargs)
 
         return cls(**_args)
+
+    def split(self, attribute_name: str) -> Tuple[Self, Optional[Any]]:
+        return self.attributes.get(attribute_name), self.__class__(
+            **{k: v for k, v in self.attributes.items() if k != attribute_name}
+        )
 
 
 def cloud_unpack_and_call(args):

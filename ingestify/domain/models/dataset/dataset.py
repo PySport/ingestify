@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from ingestify.utils import utcnow
 
 from .file import DraftFile
 from .identifier import Identifier
 from .version import Version
+
+if TYPE_CHECKING:
+    from ingestify.application.dataset_store import DatasetStore
 
 
 @dataclass
@@ -22,6 +25,11 @@ class Dataset:
 
     # current_version_id: int = 0
     versions: List[Version] = field(default_factory=list)
+
+    store: Optional["DatasetStore"] = None
+
+    def set_store(self, store):
+        self.store = store
 
     def next_version_id(self):
         return len(self.versions)
@@ -52,8 +60,13 @@ class Dataset:
 
             return Version(
                 version_id=self.versions[-1].version_id,
-                created_at=utcnow(),
+                created_at=max([file.modified_at for file in files.values()]),
                 description="Squashed version",
                 is_squashed=True,
                 modified_files=list(files.values()),
             )
+
+    def to_kloppy(self):
+        if not self.store:
+            raise AttributeError("Store not set")
+        return self.store.load_with_kloppy(self)

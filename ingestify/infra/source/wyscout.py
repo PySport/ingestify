@@ -65,11 +65,7 @@ class Wyscout(Source):
 
         return data
 
-
-class WyscoutEvent(Wyscout):
-    dataset_type = "event"
-
-    def discover_datasets(self, season_id: int):
+    def discover_datasets(self, dataset_type: str, season_id: int):
         matches = self._get(f"/seasons/{season_id}/matches")
         datasets = []
         for match in matches["matches"]:
@@ -79,7 +75,7 @@ class WyscoutEvent(Wyscout):
         return datasets
 
     def fetch_dataset_files(
-        self, identifier, current_version
+        self, dataset_type, identifier, current_version
     ) -> Dict[str, Optional[DraftFile]]:
         current_files = current_version.modified_files_map if current_version else {}
         files = {}
@@ -96,26 +92,81 @@ class WyscoutEvent(Wyscout):
         return files
 
 
-class WyscoutPlayer(Wyscout):
-    dataset_type = "player"
+#
+# class WyscoutEvent(Wyscout):
+#     dataset_type = "event"
+#
+#     def discover_datasets(self, season_id: int):
+#         matches = self._get(f"/seasons/{season_id}/matches")
+#         datasets = []
+#         for match in matches["matches"]:
+#             dataset = dict(match_id=match["matchId"], version="v3", _metadata=match)
+#             datasets.append(dataset)
+#
+#         return datasets
+#
+#     def fetch_dataset_files(
+#         self, identifier, current_version
+#     ) -> Dict[str, Optional[DraftFile]]:
+#         current_files = current_version.modified_files_map if current_version else {}
+#         files = {}
+#
+#         for filename, url in [
+#             (
+#                 "events.json",
+#                 f"{BASE_URL}/matches/{identifier.match_id}/events?fetch=teams,players",
+#             ),
+#         ]:
+#             files[filename] = retrieve_http(
+#                 url, current_files.get(filename), auth=(self.username, self.password)
+#             )
+#         return files
+#
+#
+# class WyscoutPlayer(Wyscout):
+#     dataset_type = "player"
+#
+#     def discover_datasets(self, season_id: int):
+#         return [
+#             dict(
+#                 version="v3",
+#             )
+#         ]
+#
+#     def fetch_dataset_files(
+#         self, identifier, current_version
+#     ) -> Dict[str, Optional[DraftFile]]:
+#         current_files = current_version.modified_files_map if current_version else {}
+#
+#         return {
+#             "players.json": retrieve_http(
+#                 f"{BASE_URL}/seasons/{identifier.season_id}/players?limit=100",
+#                 current_files.get("players.json"),
+#                 pager=("players", wyscout_pager_fn),
+#                 auth=(self.username, self.password),
+#             )
+#         }
 
-    def discover_datasets(self, season_id: int):
-        return [
-            dict(
-                version="v3",
-            )
-        ]
 
-    def fetch_dataset_files(
-        self, identifier, current_version
-    ) -> Dict[str, Optional[DraftFile]]:
-        current_files = current_version.modified_files_map if current_version else {}
+if __name__ == "__main__":
+    import dotenv, os
 
-        return {
-            "players.json": retrieve_http(
-                f"{BASE_URL}/seasons/{identifier.season_id}/players?limit=100",
-                current_files.get("players.json"),
-                pager=("players", wyscout_pager_fn),
-                auth=(self.username, self.password),
-            )
-        }
+    dotenv.load_dotenv()
+
+    kilmarnock_id = 8516
+    competition_id = 750
+    season_id = 188105
+    match_id = 5459107
+    player_id = 840543
+
+    data = requests.get(
+        f"{BASE_URL}/competitions/{competition_id}/players",
+        # f"{BASE_URL}/players/{player_id}/career",
+        # f"{BASE_URL}/matches/{match_id}/advancedstats/players",
+        # f"{BASE_URL}/competitions/{competition_id}/matches",  # teams/{kilmarnock_id}/advancedstats?compId={competition_id}",
+        # f"{BASE_URL}/teams/{kilmarnock_id}/squad", #teams/{kilmarnock_id}/advancedstats?compId={competition_id}",
+        auth=(os.environ["WYSCOUT_USERNAME"], os.environ["WYSCOUT_PASSWORD"]),
+    ).json()
+    from pprint import pprint
+
+    pprint(data)

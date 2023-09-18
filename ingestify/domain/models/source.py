@@ -13,21 +13,17 @@ class Source(ABC):
 
     @property
     @abstractmethod
-    def dataset_type(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
     def provider(self) -> str:
         pass
 
     @abstractmethod
-    def discover_datasets(self, **kwargs) -> List[Dict]:
+    def discover_datasets(self, dataset_type: str, **kwargs) -> List[Dict]:
         pass
 
     @abstractmethod
     def fetch_dataset_files(
         self,
+        dataset_type: str,
         identifier: Identifier,
         current_version: Optional[Version],
     ) -> Dict[str, Optional[DraftFile]]:

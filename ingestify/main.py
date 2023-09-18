@@ -10,10 +10,12 @@ from pyaml_env import parse_config
 from ingestify import Source
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.application.ingestion_engine import IngestionEngine
+from ingestify.domain import Selector
 from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
+from ingestify.domain.models.extract_job import ExtractJob
 from ingestify.domain.models.fetch_policy import FetchPolicy
 
 logger = logging.getLogger(__name__)
@@ -75,16 +77,11 @@ def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
 
 def get_source_cls(key: str) -> Type[Source]:
     if key.startswith("ingestify."):
-        _, type_, dataset_type = key.split(".")
+        _, type_ = key.split(".")
         if type_ == "wyscout":
-            from ingestify.infra.source.wyscout import WyscoutEvent, WyscoutPlayer
+            from ingestify.infra.source.wyscout import Wyscout
 
-            if dataset_type == "event":
-                return WyscoutEvent
-            elif dataset_type == "player":
-                return WyscoutPlayer
-            else:
-                raise Exception(f"Unknown dataset type for Wyscout: '{dataset_type}'")
+            return Wyscout
 
         elif type_ == "statsbomb_github":
             from ingestify.infra.source.statsbomb_github import StatsbombGithub
@@ -114,7 +111,6 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     )
     ingestion_engine = IngestionEngine(
         store=store,
-        sources=sources,
     )
 
     logger.info("Determining tasks...")
@@ -122,8 +118,16 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     fetch_policy = FetchPolicy()
 
     for job in config["extract_jobs"]:
-        for selector_args in job["selectors"]:
-            for selector in _product_selectors(selector_args):
-                ingestion_engine.add_selector(job["source"], selector, fetch_policy)
+        import_job = ExtractJob(
+            source=sources[job["source"]],
+            dataset_type=job.get("dataset_type"),
+            selectors=[
+                Selector(**selector)
+                for selector_args in job["selectors"]
+                for selector in _product_selectors(selector_args)
+            ],
+            fetch_policy=fetch_policy,
+        )
+        ingestion_engine.add_extract_job(import_job)
 
     return ingestion_engine
