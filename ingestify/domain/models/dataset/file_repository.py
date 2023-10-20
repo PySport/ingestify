@@ -1,8 +1,6 @@
-import gzip
-import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import IO, AnyStr, BinaryIO
+from typing import BinaryIO
 
 from ingestify.utils import ComponentFactory, ComponentRegistry
 
@@ -14,21 +12,6 @@ file_repository_registry = ComponentRegistry()
 class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
     def __init__(self, url: str):
         self.base_dir = Path(url.split("://")[1])
-
-    def prepare_write_stream(self, stream: BinaryIO) -> BinaryIO:
-        if self.compression == "gzip":
-            output_stream = BinaryIO()
-
-            with gzip.GzipFile(fileobj=output_stream, compresslevel=9, mode="wb") as fp:
-                shutil.copyfileobj(stream, fp)
-            output_stream.seek(0)
-        else:
-            output_stream = stream
-
-        return output_stream
-
-    def prepare_read_stream(self, stream: BinaryIO) -> BinaryIO:
-        pass
 
     @abstractmethod
     def save_content(

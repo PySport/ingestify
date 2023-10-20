@@ -35,8 +35,6 @@ class S3FileRepository(FileRepository):
         key = self.get_path(bucket, dataset, version_id, filename)
         s3_bucket = Path(key.parts[0])
 
-        stream = self.prepare_write_stream(stream)
-
         self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).put(Body=stream)
         return f"s3://{key}"
 
@@ -45,10 +43,9 @@ class S3FileRepository(FileRepository):
     ) -> BinaryIO:
         key = self.get_path(bucket, dataset, version_id, filename)
         s3_bucket = Path(key.parts[0])
-        stream = self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).get()[
+        return self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).get()[
             "Body"
         ]
-        return self.prepare_read_stream(stream)
 
     @classmethod
     def supports(cls, url: str) -> bool:
