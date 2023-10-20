@@ -21,18 +21,29 @@ logger = logging.getLogger(__name__)
 
 
 class UpdateDatasetTask(Task):
-    def __init__(self, source: Source, dataset: Dataset, store: DatasetStore):
+    def __init__(
+        self,
+        source: Source,
+        dataset: Dataset,
+        dataset_identifier: Identifier,
+        store: DatasetStore,
+    ):
         self.source = source
         self.dataset = dataset
+        self.dataset_identifier = dataset_identifier
         self.store = store
 
     def run(self):
         files = self.source.fetch_dataset_files(
             self.dataset.dataset_type,
-            self.dataset.identifier,
+            self.dataset_identifier,  # Use the new dataset_identifier as it's more up-to-date, and contains more info
             current_version=self.dataset.current_version,
         )
-        self.store.add_version(self.dataset, files)
+        self.store.update_dataset(
+            dataset=self.dataset,
+            dataset_identifier=self.dataset_identifier,
+            files=files,
+        )
 
     def __repr__(self):
         return f"UpdateDatasetTask({self.source} -> {self.dataset.identifier})"
@@ -104,11 +115,14 @@ class Loader:
 
                 for dataset_identifier in dataset_identifiers:
                     if dataset := dataset_collection.get(dataset_identifier):
-                        if extract_job.fetch_policy.should_refetch(dataset, dataset_identifier):
+                        if extract_job.fetch_policy.should_refetch(
+                            dataset, dataset_identifier
+                        ):
                             task_subset.add(
                                 UpdateDatasetTask(
                                     source=extract_job.source,
-                                    dataset=dataset,
+                                    dataset=dataset,  # Current dataset from the database
+                                    dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
                                     store=self.store,
                                 )
                             )

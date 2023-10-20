@@ -68,6 +68,103 @@ def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
     logger.info("Done")
 
 
+@cli.command("list")
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    help="Yaml config file",
+    type=click.Path(exists=True),
+    default="config.yaml",
+)
+@click.option(
+    "--bucket",
+    "bucket",
+    required=False,
+    help="bucket",
+    type=str,
+)
+@click.option(
+    "--count",
+    "count",
+    required=False,
+    help="shot count only",
+    type=bool,
+    is_flag=True,
+    default=False,
+)
+@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
+def list_datasets(
+    config_file: str,
+    bucket: Optional[str],
+    count: Optional[bool],
+    debug: Optional[bool],
+):
+    try:
+        engine = get_engine(config_file, bucket)
+    except ConfigurationError as e:
+        if debug:
+            raise
+        else:
+            logger.exception(f"Failed due a configuration error: {e}")
+            sys.exit(1)
+
+    engine.list_datasets(as_count=count)
+
+    logger.info("Done")
+
+
+@cli.command("delete")
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    help="Yaml config file",
+    type=click.Path(exists=True),
+    default="config.yaml",
+)
+@click.option(
+    "--bucket",
+    "bucket",
+    required=False,
+    help="bucket",
+    type=str,
+)
+@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
+@click.argument("dataset_id")
+def delete_dataset(
+    config_file: str, bucket: Optional[str], debug: Optional[bool], dataset_id: str
+):
+    try:
+        engine = get_engine(config_file, bucket)
+    except ConfigurationError as e:
+        if debug:
+            raise
+        else:
+            logger.exception(f"Failed due a configuration error: {e}")
+            sys.exit(1)
+
+    selector = {}
+    if "=" in dataset_id:
+        selector = {
+            # TODO: this `int` will might break stuff. Issue here is the int != str
+            _[0]: int(_[1])
+            for _ in [_.split("=") for _ in dataset_id.split("/")]
+        }
+    else:
+        selector["dataset_id"] = dataset_id
+
+    deleted_dataset_ids = engine.destroy_dataset(**selector)
+    if not deleted_dataset_ids:
+        logger.warning(f"Dataset {selector} not found")
+    elif deleted_dataset_ids:
+        logger.info(f"Deleted dataset with ids {','.join(deleted_dataset_ids)}")
+    else:
+        logger.warning(f"Failed to delete dataset with id {dataset_id}")
+
+    logger.info("Done")
+
+
 @cli.command()
 @click.option(
     "--template",

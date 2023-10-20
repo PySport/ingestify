@@ -25,12 +25,15 @@ def retrieve_http(
         headers["if-none-match"] = current_file.tag
 
     response = requests.get(url, headers=headers, **kwargs)
+    response.raise_for_status()
     if response.status_code == 304:
         # Not modified
         return None
 
     if "last-modified" in response.headers:
         modified_at = parsedate(response.headers["last-modified"])
+        print(modified_at)
+        1 / 0
     else:
         modified_at = utcnow()
 

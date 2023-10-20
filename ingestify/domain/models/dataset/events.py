@@ -11,5 +11,10 @@ class DatasetCreated(DomainEvent):
 
 
 @dataclass
-class VersionAdded:
-    pass
+class VersionAdded(DomainEvent):
+    dataset: Dataset
+
+
+@dataclass
+class DatasetUpdated(DomainEvent):
+    dataset: Dataset

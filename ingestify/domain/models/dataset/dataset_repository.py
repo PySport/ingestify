@@ -16,14 +16,15 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
         self,
         bucket: str,
         dataset_type: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
     ) -> DatasetCollection:
         pass
 
-    # @abstractmethod
-    # def destroy_dataset(self, dataset_id: str):
-    #     pass
+    @abstractmethod
+    def destroy(self, dataset: Dataset):
+        pass
 
     @abstractmethod
     def save(self, bucket: str, dataset: Dataset):

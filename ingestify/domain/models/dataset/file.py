@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import BinaryIO
+from pathlib import Path
+from typing import BinaryIO, Optional
 
 
 @dataclass
@@ -19,16 +20,23 @@ class File:
     modified_at: datetime
     tag: str
     size: int
+    storage_size: int
     content_type: str
 
+    path: Path
+
     @classmethod
-    def from_draft(cls, draft_file: DraftFile, filename: str) -> "File":
+    def from_draft(
+        cls, draft_file: DraftFile, filename: str, storage_size: int, path: Path
+    ) -> "File":
         return cls(
             filename=filename,
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
             size=draft_file.size,
+            storage_size=storage_size,
             content_type=draft_file.content_type,
+            path=path,
         )
 
 
@@ -40,6 +48,7 @@ class LoadedFile:
     size: int
     content_type: str
     stream: BinaryIO
+    path: Path
 
 
 __all__ = ["File", "DraftFile", "LoadedFile"]

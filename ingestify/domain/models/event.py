@@ -1,14 +1,20 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Protocol
 
 from ingestify.utils import utcnow
 
 
+class Dispatcher(Protocol):
+    def dispatch(self, event: "DomainEvent"):
+        pass
+
+
 class EventBus:
     def __init__(self):
-        self.dispatchers = []
+        self.dispatchers: List[Dispatcher] = []
 
-    def register(self, dispatcher):
+    def register(self, dispatcher: Dispatcher):
         self.dispatchers.append(dispatcher)
 
     def dispatch(self, event):

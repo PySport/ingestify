@@ -37,7 +37,9 @@ class StatsbombGithub(Source):
                     competition_id=competition_id,
                     season_id=season_id,
                     match_id=match["match_id"],
-                    _last_modified=datetime.fromisoformat(match['last_updated'].replace("Z", "+00:00")),
+                    _last_modified=datetime.fromisoformat(
+                        match["last_updated"].replace("Z", "+00:00")
+                    ),
                     _match=match,
                     _metadata=match,
                 )

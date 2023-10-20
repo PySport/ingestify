@@ -157,6 +157,8 @@ def cloud_unpack_and_call(args):
 
 
 def map_in_pool(func, iterable, processes=None):
+    # return list(map(func, iterable))
+
     if "fork" in get_all_start_methods():
         ctx = get_context("fork")
     else:

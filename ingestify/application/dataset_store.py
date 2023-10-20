@@ -1,10 +1,14 @@
+import gzip
 import hashlib
 import mimetypes
+import os
+import shutil
 from dataclasses import asdict
 from io import BytesIO, StringIO
 
 from typing import Dict, List, Optional, Union
 
+from ingestify.domain.models.dataset.events import VersionAdded, DatasetUpdated
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
     Dataset,
@@ -31,6 +35,7 @@ class DatasetStore:
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
+        self.file_compression = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
 
@@ -48,6 +53,7 @@ class DatasetStore:
         self,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         **selector,
     ) -> DatasetCollection:
         if "selector" in selector:
@@ -58,6 +64,7 @@ class DatasetStore:
         dataset_collection = self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
             dataset_type=dataset_type,
+            dataset_id=dataset_id,
             provider=provider,
             selector=selector,
         )
@@ -115,21 +122,32 @@ class DatasetStore:
                     )
 
             if isinstance(file_, DraftFile):
+                if self.file_compression == "gzip":
+                    stream = BytesIO()
+                    with gzip.GzipFile(
+                        fileobj=stream, compresslevel=9, mode="wb"
+                    ) as fp:
+                        shutil.copyfileobj(file_.stream, fp)
+
+                    stream.seek(0, os.SEEK_END)
+                    storage_size = stream.tell()
+                    stream.seek(0)
+                    suffix = ".gz"
+                else:
+                    stream = file_.stream
+                    storage_size = file_.size
+                    suffix = ""
 
                 # TODO: check if this is a very clean way to go from DraftFile to File
-                #
-                # The format of the file_id is depending on the FileRepository type
-                # For example S3FileRepository can use a full key as file_id,
-                # while some database storage can use an uuid. It's up to the
-                # repository to define the file_id
-                file = File.from_draft(file_, filename)
-
-                self.file_repository.save_content(
+                path = self.file_repository.save_content(
                     bucket=self.bucket,
                     dataset=dataset,
                     version_id=version_id,
-                    filename=filename,
-                    stream=file_.stream,
+                    filename=filename + suffix,
+                    stream=stream,
+                )
+                file = File.from_draft(
+                    file_, filename, storage_size=storage_size, path=path
                 )
 
                 modified_files_.append(file)
@@ -157,6 +175,24 @@ class DatasetStore:
         )
 
         self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+        self.dispatch(VersionAdded(dataset=dataset))
+
+    def update_dataset(
+        self,
+        dataset: Dataset,
+        dataset_identifier: Identifier,
+        files: Dict[str, DraftFile],
+    ):
+        """The add_version will also save the dataset."""
+        if dataset.update_from_identifier(dataset_identifier):
+            self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+            self.dispatch(DatasetUpdated(dataset=dataset))
+
+        self.add_version(dataset, files)
+
+    def destroy_dataset(self, dataset: Dataset):
+        # TODO: remove files. Now we leave some orphaned files around
+        self.dataset_repository.destroy(dataset)
 
     def create_dataset(
         self,
@@ -164,15 +200,21 @@ class DatasetStore:
         provider: str,
         dataset_identifier: Identifier,
         files: Dict[str, DraftFile],
-        description: str = "Update",
+        description: str = "Create",
     ):
+        now = utcnow()
+
         dataset = Dataset(
             bucket=self.bucket,
             dataset_id=self.dataset_repository.next_identity(),
+            name=dataset_identifier.name,
+            state=dataset_identifier.state,
             identifier=dataset_identifier,
             dataset_type=dataset_type,
             provider=provider,
-            metadata=getattr(dataset_identifier, "_metadata", {}),
+            metadata=dataset_identifier.metadata,
+            created_at=now,
+            updated_at=now,
         )
         self.add_version(dataset, files, description)
 
@@ -216,21 +258,21 @@ class DatasetStore:
         else:
             raise Exception(f"Don't know how to load a '{dataset.provider}' dataset")
 
-    def load_content(self, dataset_id: str, version_id: int, filename: str):
-        datasets = self.dataset_repository.get_dataset_collection(
-            bucket=self.bucket, dataset_id=dataset_id
-        )
-        if not len(datasets):
-            raise Exception("Not found")
-        else:
-            dataset = datasets.get_dataset_by_id(dataset_id)
-
-        return self.file_repository.load_content(
-            bucket=self.bucket,
-            dataset=dataset,
-            version_id=version_id,
-            filename=filename,
-        )
+    # def load_content(self, dataset_id: str, version_id: int, filename: str):
+    #     datasets = self.dataset_repository.get_dataset_collection(
+    #         bucket=self.bucket, dataset_id=dataset_id
+    #     )
+    #     if not len(datasets):
+    #         raise Exception("Not found")
+    #     else:
+    #         dataset = datasets.get_dataset_by_id(dataset_id)
+    #
+    #     return self.file_repository.load_content(
+    #         bucket=self.bucket,
+    #         dataset=dataset,
+    #         version_id=version_id,
+    #         filename=filename,
+    #     )
 
     def map(
         self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None

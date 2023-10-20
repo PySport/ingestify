@@ -99,6 +99,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         bucket: str,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         selector: Optional[Selector] = None,
     ) -> DatasetCollection:
         query = (
@@ -110,6 +111,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             query = query.filter(Dataset.dataset_type == dataset_type)
         if provider:
             query = query.filter(Dataset.provider == provider)
+        if dataset_id:
+            query = query.filter(Dataset.dataset_id == dataset_id)
 
         dialect = self.session.bind.dialect.name
 
@@ -139,6 +142,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         # Just make sure
         dataset.bucket = bucket
         self.session.add(dataset)
+        self.session.commit()
+
+    def destroy(self, dataset: Dataset):
+        self.session.delete(dataset)
         self.session.commit()
 
     def next_identity(self):

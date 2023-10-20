@@ -1,3 +1,2 @@
 from .local_file_repository import LocalFileRepository
-from .http_file_repository import HTTPFileRepository
-from .teamtv_file_repository import TeamTVFileRepository
+from .s3_file_repository import S3FileRepository

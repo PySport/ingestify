@@ -21,8 +21,11 @@ def parse_value(v):
 
 
 class LocalDatasetRepository(DatasetRepository):
-    def destroy_dataset(self, dataset_id: str):
-        pass
+    def destroy(self, dataset: Dataset):
+        path = (
+            self.base_dir / dataset.identifier.key.replace("/", "__") / "dataset.pickle"
+        )
+        path.unlink()
 
     @classmethod
     def supports(cls, url: str) -> bool:
@@ -35,6 +38,7 @@ class LocalDatasetRepository(DatasetRepository):
         self,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         selector: Optional[Selector] = None,
         **kwargs
     ) -> DatasetCollection:
@@ -54,12 +58,12 @@ class LocalDatasetRepository(DatasetRepository):
         return DatasetCollection(datasets)
 
     def save(self, bucket: str, dataset: Dataset):
-        full_path = (
+        path = (
             self.base_dir / dataset.identifier.key.replace("/", "__") / "dataset.pickle"
         )
-        full_path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(full_path, "wb") as fp:
+        with open(path, "wb") as fp:
             pickle.dump(dataset, fp)
 
     def next_identity(self):
