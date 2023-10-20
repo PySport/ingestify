@@ -61,8 +61,10 @@ def retrieve_http(
 
     if not tag:
         tag = sha1(content).hexdigest()
-    if not content_length:
-        content_length = len(content)
+
+    # if not content_length: - Don't use http header as it might be wrong
+    # for example in case of compressed data
+    content_length = len(content)
 
     if current_file and current_file.tag == tag:
         # Not changed. Don't keep it
