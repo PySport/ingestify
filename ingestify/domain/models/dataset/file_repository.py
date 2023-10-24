@@ -49,6 +49,10 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
         )
         return path
 
+    def get_relative_path(self, path: Path) -> Path:
+        """Return the relative path to the base of the repository"""
+        return path.relative_to(self.base_dir)
+
 
 file_repository_factory = ComponentFactory.build_factory(
     FileRepository, file_repository_registry

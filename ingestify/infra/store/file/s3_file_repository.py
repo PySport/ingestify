@@ -1,7 +1,5 @@
-import os
-import shutil
 from pathlib import Path
-from typing import IO, AnyStr, BinaryIO
+from typing import BinaryIO
 
 import boto3 as boto3
 
@@ -31,12 +29,12 @@ class S3FileRepository(FileRepository):
         version_id: int,
         filename: str,
         stream: BinaryIO,
-    ):
+    ) -> Path:
         key = self.get_path(bucket, dataset, version_id, filename)
         s3_bucket = Path(key.parts[0])
 
         self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).put(Body=stream)
-        return f"s3://{key}"
+        return key
 
     def load_content(
         self, bucket: str, dataset: Dataset, version_id: int, filename: str

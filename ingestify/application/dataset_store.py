@@ -139,7 +139,7 @@ class DatasetStore:
                     suffix = ""
 
                 # TODO: check if this is a very clean way to go from DraftFile to File
-                path = self.file_repository.save_content(
+                full_path = self.file_repository.save_content(
                     bucket=self.bucket,
                     dataset=dataset,
                     version_id=version_id,
@@ -147,7 +147,10 @@ class DatasetStore:
                     stream=stream,
                 )
                 file = File.from_draft(
-                    file_, filename, storage_size=storage_size, path=path
+                    file_,
+                    filename,
+                    storage_size=storage_size,
+                    path=self.file_repository.get_relative_path(full_path),
                 )
 
                 modified_files_.append(file)
