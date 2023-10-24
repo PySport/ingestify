@@ -237,7 +237,7 @@ def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr,
     )
 
     path = find_dotenv(usecwd=True)

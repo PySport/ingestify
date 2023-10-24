@@ -37,6 +37,7 @@ def setup_package():
             "jinja2",
             "python-dotenv",
             "pyaml_env",
+            "boto3"
         ],
     )
 

@@ -17,6 +17,10 @@ class Source(ABC):
         pass
 
     @abstractmethod
+    def discover_selectors(self, dataset_type: str) -> List[Dict]:
+        pass
+
+    @abstractmethod
     def discover_datasets(self, dataset_type: str, **kwargs) -> List[Dict]:
         pass
 

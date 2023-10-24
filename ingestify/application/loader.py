@@ -1,15 +1,13 @@
 import logging
 import platform
-from datetime import timedelta
-from multiprocessing import Pool, set_start_method, cpu_count
-from typing import Dict, List, Tuple
+from multiprocessing import set_start_method, cpu_count
+from typing import List
 
 from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
-from ingestify.utils import utcnow, map_in_pool
+from ingestify.utils import map_in_pool
 
 from .dataset_store import DatasetStore
 from ..domain.models.extract_job import ExtractJob
-from ..domain.models.fetch_policy import FetchPolicy
 
 if platform.system() == "Darwin":
     set_start_method("fork", force=True)
@@ -90,7 +88,19 @@ class Loader:
 
         total_dataset_count = 0
         for extract_job in self.extract_jobs:
-            for selector in extract_job.selectors:
+            selectors = extract_job.selectors
+            if len(selectors) == 1 and not selectors[0]:
+                logger.debug(
+                    f"Discovering selectors from {extract_job.source.__class__.__name__}"
+                )
+                selectors = [
+                    Selector(**selector)
+                    for selector in extract_job.source.discover_selectors(
+                        extract_job.dataset_type
+                    )
+                ]
+
+            for selector in selectors:
                 logger.debug(
                     f"Discovering datasets from {extract_job.source.__class__.__name__} using selector {selector}"
                 )

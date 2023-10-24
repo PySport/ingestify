@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 import requests
 
@@ -18,6 +18,9 @@ def wyscout_pager_fn(url, response):
 
 
 class Wyscout(Source):
+    def discover_selectors(self, dataset_type: str) -> List[Dict]:
+        raise NotImplementedError("Not implemented for Wyscout")
+
     provider = "wyscout"
 
     def __init__(self, name: str, username: str, password: str):
