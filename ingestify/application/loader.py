@@ -99,6 +99,9 @@ class Loader:
                         extract_job.dataset_type
                     )
                 ]
+                logger.info(
+                    f"Discovered {len(selectors)} selectors from {extract_job.source.__class__.__name__}"
+                )
 
             for selector in selectors:
                 logger.debug(
