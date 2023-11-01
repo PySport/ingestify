@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 class DatasetState(Enum):
     SCHEDULED = "SCHEDULED"
+    PARTIAL = "PARTIAL"
     COMPLETE = "COMPLETE"
 
     @property

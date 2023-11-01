@@ -16,9 +16,10 @@ class Source(ABC):
     def provider(self) -> str:
         pass
 
-    @abstractmethod
-    def discover_selectors(self, dataset_type: str) -> List[Dict]:
-        pass
+    # TODO: consider making this required...
+    # @abstractmethod
+    # def discover_selectors(self, dataset_type: str) -> List[Dict]:
+    #     pass
 
     @abstractmethod
     def discover_datasets(self, dataset_type: str, **kwargs) -> List[Dict]:

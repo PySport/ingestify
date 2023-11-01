@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Dict
 
 from ingestify.utils import AttributeBag
 
@@ -25,3 +25,9 @@ class Identifier(AttributeBag):
         from ingestify.domain.models.dataset.dataset import DatasetState
 
         return self.attributes.get("_state", DatasetState.SCHEDULED)
+
+    @property
+    def files_last_modified(self) -> Optional[Dict[str, datetime]]:
+        """Return last modified per file. This makes it possible to detect when a file is added with an older
+           last_modified than current dataset. """
+        return self.attributes.get("_files_last_modified")

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from email.utils import format_datetime, parsedate
 from hashlib import sha1
 from io import BytesIO
@@ -15,10 +16,16 @@ def retrieve_http(
     current_file: Optional[File] = None,
     headers: Optional[dict] = None,
     pager: Optional[Tuple[str, Callable[[str, dict], Optional[str]]]] = None,
+    last_modified: Optional[datetime] = None,
     **kwargs
 ) -> Optional[DraftFile]:
     headers = headers or {}
     if current_file:
+        if current_file.modified_at >= last_modified:
+            # Not changed
+            return None
+        # else:
+        #     print(f"{current_file.modified_at=} {last_modified=}")
         # headers["if-modified-since"] = (
         #     format_datetime(current_file.modified_at, usegmt=True),
         # )
@@ -30,15 +37,15 @@ def retrieve_http(
         # Not modified
         return None
 
-    if "last-modified" in response.headers:
+    if last_modified:
+        modified_at = last_modified
+    elif "last-modified" in response.headers:
         modified_at = parsedate(response.headers["last-modified"])
-        print(modified_at)
-        1 / 0
     else:
         modified_at = utcnow()
 
     tag = response.headers.get("etag")
-    content_length = int(response.headers.get("content-length", 0))
+    # content_length = int(response.headers.get("content-length", 0))
 
     if pager:
         """

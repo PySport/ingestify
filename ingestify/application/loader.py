@@ -90,18 +90,22 @@ class Loader:
         for extract_job in self.extract_jobs:
             selectors = extract_job.selectors
             if len(selectors) == 1 and not selectors[0]:
-                logger.debug(
-                    f"Discovering selectors from {extract_job.source.__class__.__name__}"
-                )
-                selectors = [
-                    Selector(**selector)
-                    for selector in extract_job.source.discover_selectors(
-                        extract_job.dataset_type
+                if hasattr(extract_job.source, 'discover_selectors'):
+                    logger.debug(
+                        f"Discovering selectors from {extract_job.source.__class__.__name__}"
                     )
-                ]
-                logger.info(
-                    f"Discovered {len(selectors)} selectors from {extract_job.source.__class__.__name__}"
-                )
+                    selectors = [
+                        Selector(**selector)
+                        for selector in extract_job.source.discover_selectors(
+                            extract_job.dataset_type
+                        )
+                    ]
+                    logger.info(
+                        f"Discovered {len(selectors)} selectors from {extract_job.source.__class__.__name__}"
+                    )
+                else:
+                    logger.info(f"Empty selector and source {extract_job.source.__class__.__name__} "
+                                f"doesn't support discover_selectors.")
 
             for selector in selectors:
                 logger.debug(

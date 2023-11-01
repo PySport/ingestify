@@ -21,9 +21,13 @@ class FetchPolicy:
             return True
         elif (
             current_version
-            and identifier.last_modified
-            and current_version.created_at < identifier.last_modified
         ):
-            return True
-        else:
-            return False
+            if identifier.files_last_modified:
+                if current_version.is_changed(identifier.files_last_modified):
+                    return True
+
+            else:
+                if identifier.last_modified and current_version.created_at < identifier.last_modified:
+                    return True
+
+        return False
