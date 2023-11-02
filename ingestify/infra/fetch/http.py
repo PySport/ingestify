@@ -21,7 +21,7 @@ def retrieve_http(
 ) -> Optional[DraftFile]:
     headers = headers or {}
     if current_file:
-        if current_file.modified_at >= last_modified:
+        if last_modified and current_file.modified_at >= last_modified:
             # Not changed
             return None
         # else:
