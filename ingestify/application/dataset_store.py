@@ -254,13 +254,17 @@ class DatasetStore:
         for file in current_version.modified_files:
             # TODO: refactor
 
+            version_id = file.version_id
+            if version_id is None:
+                version_id = current_version.version_id
+
             loaded_file = LoadedFile(
                 stream=reader(
                     self.file_repository.load_content(
                         bucket=self.bucket,
                         dataset=dataset,
                         # When file.version_id is set we must use it.
-                        version_id=file.version_id or current_version.version_id,
+                        version_id=version_id,
                         filename=file.filename + suffix,
                     )
                 ),
