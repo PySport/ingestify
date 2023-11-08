@@ -1,3 +1,4 @@
+from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
@@ -10,9 +11,30 @@ class Dispatcher(Protocol):
         pass
 
 
+class Subscriber(ABC):
+    def __init__(self, store):
+        self.store = store
+
+    @abstractmethod
+    def handle(self, event: "DomainEvent"):
+        pass
+
+
+class EventPublisher(Dispatcher):
+    def __init__(self):
+        self.subscribers: list[Subscriber] = []
+
+    def dispatch(self, event: "DomainEvent"):
+        for subscriber in self.subscribers:
+            subscriber.handle(event)
+
+    def add_subscriber(self, subscriber: Subscriber):
+        self.subscribers.append(subscriber)
+
+
 class EventBus:
     def __init__(self):
-        self.dispatchers: List[Dispatcher] = []
+        self.dispatchers: list[Dispatcher] = []
 
     def register(self, dispatcher: Dispatcher):
         self.dispatchers.append(dispatcher)

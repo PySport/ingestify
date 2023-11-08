@@ -2,7 +2,13 @@ import itertools
 import logging
 from typing import Dict, Optional, List
 
-from ingestify.domain.models.event import EventBus, EventRepository, EventWriter
+from ingestify.domain.models.event import (
+    EventBus,
+    EventRepository,
+    EventWriter,
+    Subscriber,
+    Dispatcher,
+)
 from ingestify.domain.models import Source
 
 from .loader import Loader
@@ -23,13 +29,7 @@ class IngestionEngine:
 
         # Note: disconnect event from loading. Event should only be used for
         #       metadata and 'loaded_files' for the actual data.
-        event_bus = EventBus()
-        event_repository = EventRepository()
-        event_bus.register(EventWriter(event_repository))
-        event_bus.register(EventLogger())
-
         self.store = store
-        # self.store.set_event_bus(event_bus)
         self.loader = Loader(self.store)
 
     def add_extract_job(self, extract_job: ExtractJob):

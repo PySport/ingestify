@@ -19,15 +19,16 @@ class FetchPolicy:
         if not dataset.versions:
             # TODO: this is weird? Dataset without any data. Fetch error?
             return True
-        elif (
-            current_version
-        ):
+        elif current_version:
             if identifier.files_last_modified:
                 if current_version.is_changed(identifier.files_last_modified):
                     return True
 
             else:
-                if identifier.last_modified and current_version.created_at < identifier.last_modified:
+                if (
+                    identifier.last_modified
+                    and current_version.created_at < identifier.last_modified
+                ):
                     return True
 
         return False

@@ -15,7 +15,7 @@ from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
-from ingestify.domain.models.event import EventBus
+from ingestify.domain.models.event import EventBus, EventPublisher, Subscriber
 from ingestify.domain.models.extract_job import ExtractJob
 from ingestify.domain.models.fetch_policy import FetchPolicy
 
@@ -61,7 +61,7 @@ def get_dataset_store_by_urls(
 
 
 def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
-    config = parse_config(config_file, default_value='')
+    config = parse_config(config_file, default_value="")
 
     return get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
@@ -92,8 +92,12 @@ def get_source_cls(key: str) -> Type[Source]:
         return import_cls(key)
 
 
+def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
+    return import_cls(key)
+
+
 def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
-    config = parse_config(config_file, default_value='')
+    config = parse_config(config_file, default_value="")
 
     logger.info("Initializing sources")
     sources = {}
@@ -115,6 +119,19 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     # event_bus = EventBus()
     # event_bus.register(Dispatcher())
     # store.set_event_bus(event_bus=event_bus)
+    event_bus = EventBus()
+    # event_repository = EventRepository()
+    # event_bus.register(EventWriter(event_repository))
+    # event_bus.register(EventLogger())
+
+    event_publisher = EventPublisher()
+    for subscriber in config.get("event_subscribers", []):
+        cls = get_event_subscriber_cls(subscriber["type"])
+        event_publisher.add_subscriber(cls(store))
+
+    event_bus.register(event_publisher)
+    store.set_event_bus(event_bus)
+
     ingestion_engine = IngestionEngine(
         store=store,
     )

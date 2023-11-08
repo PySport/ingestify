@@ -29,5 +29,5 @@ class Identifier(AttributeBag):
     @property
     def files_last_modified(self) -> Optional[Dict[str, datetime]]:
         """Return last modified per file. This makes it possible to detect when a file is added with an older
-           last_modified than current dataset. """
+        last_modified than current dataset."""
         return self.attributes.get("_files_last_modified")
