@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ingestify.domain.models.event import DomainEvent
+from ingestify.domain.models.event.domain_event import DomainEvent
 
 from .dataset import Dataset
 

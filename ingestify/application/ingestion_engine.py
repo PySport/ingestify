@@ -1,27 +1,13 @@
 import itertools
 import logging
-from typing import Dict, Optional, List
+from typing import Optional, List
 
-from ingestify.domain.models.event import (
-    EventBus,
-    EventRepository,
-    EventWriter,
-    Subscriber,
-    Dispatcher,
-)
-from ingestify.domain.models import Source
 
 from .loader import Loader
 from .dataset_store import DatasetStore
 from ..domain.models.extract_job import ExtractJob
 
 logger = logging.getLogger(__name__)
-
-
-class EventLogger:
-    def dispatch(self, event):
-        print(event)
-        logger.info(f"Got event: {event}")
 
 
 class IngestionEngine:

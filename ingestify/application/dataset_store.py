@@ -6,7 +6,7 @@ import shutil
 from dataclasses import asdict
 from io import BytesIO, StringIO
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Callable, BinaryIO
 
 from ingestify.domain.models.dataset.events import VersionAdded, DatasetUpdated
 from ingestify.domain.models.event import EventBus
@@ -76,6 +76,37 @@ class DatasetStore:
     #     dataset = self.dataset_repository.
     #     self.dataset_repository.destroy_dataset(dataset_id)
 
+    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BytesIO, int, str]:
+        if self.file_compression == "gzip":
+            stream = BytesIO()
+            with gzip.GzipFile(fileobj=stream, compresslevel=9, mode="wb") as fp:
+                shutil.copyfileobj(file_.stream, fp)
+
+            stream.seek(0, os.SEEK_END)
+            storage_size = stream.tell()
+            stream.seek(0)
+            suffix = ".gz"
+        else:
+            stream = file_.stream
+            storage_size = file_.size
+            suffix = ""
+
+        return stream, storage_size, suffix
+
+    def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], BytesIO], str]:
+        if self.file_compression == "gzip":
+
+            def reader(fh: BinaryIO) -> BytesIO:
+                stream = BytesIO()
+                with gzip.GzipFile(fileobj=fh, compresslevel=9, mode="rb") as fp:
+                    shutil.copyfileobj(fp, stream)
+                stream.seek(0)
+                return stream
+
+            return reader, ".gz"
+        else:
+            return lambda fh: fh, ""
+
     def _persist_files(
         self,
         dataset: Dataset,
@@ -122,21 +153,7 @@ class DatasetStore:
                     )
 
             if isinstance(file_, DraftFile):
-                if self.file_compression == "gzip":
-                    stream = BytesIO()
-                    with gzip.GzipFile(
-                        fileobj=stream, compresslevel=9, mode="wb"
-                    ) as fp:
-                        shutil.copyfileobj(file_.stream, fp)
-
-                    stream.seek(0, os.SEEK_END)
-                    storage_size = stream.tell()
-                    stream.seek(0)
-                    suffix = ".gz"
-                else:
-                    stream = file_.stream
-                    storage_size = file_.size
-                    suffix = ""
+                stream, storage_size, suffix = self._prepare_write_stream(file_)
 
                 # TODO: check if this is a very clean way to go from DraftFile to File
                 full_path = self.file_repository.save_content(
@@ -226,13 +243,19 @@ class DatasetStore:
     def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
         current_version = dataset.current_version
         files = {}
+
+        reader, suffix = self._prepare_read_stream()
         for file in current_version.modified_files:
+            # TODO: refactor
+
             loaded_file = LoadedFile(
-                stream=self.file_repository.load_content(
-                    bucket=self.bucket,
-                    dataset=dataset,
-                    version_id=current_version.version_id,
-                    filename=file.filename,
+                stream=reader(
+                    self.file_repository.load_content(
+                        bucket=self.bucket,
+                        dataset=dataset,
+                        version_id=current_version.version_id,
+                        filename=file.filename + suffix,
+                    )
                 ),
                 **asdict(file),
             )

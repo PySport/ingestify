@@ -46,6 +46,7 @@ class LoadedFile:
     modified_at: datetime
     tag: str
     size: int
+    storage_size: int
     content_type: str
     stream: BinaryIO
     path: Path

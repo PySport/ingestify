@@ -15,7 +15,8 @@ from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
-from ingestify.domain.models.event import EventBus, EventPublisher, Subscriber
+from ingestify.domain.models.event import EventBus, Publisher, Subscriber
+
 from ingestify.domain.models.extract_job import ExtractJob
 from ingestify.domain.models.fetch_policy import FetchPolicy
 
@@ -112,24 +113,14 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
         file_url=config["main"]["file_url"],
         bucket=bucket or config["main"].get("default_bucket"),
     )
-    # class Dispatcher:
-    #     def dispatch(self, event):
-    #         print(event)
-    #
-    # event_bus = EventBus()
-    # event_bus.register(Dispatcher())
-    # store.set_event_bus(event_bus=event_bus)
-    event_bus = EventBus()
-    # event_repository = EventRepository()
-    # event_bus.register(EventWriter(event_repository))
-    # event_bus.register(EventLogger())
 
-    event_publisher = EventPublisher()
+    # Setup an EventBus and wire some more components
+    event_bus = EventBus()
+    publisher = Publisher()
     for subscriber in config.get("event_subscribers", []):
         cls = get_event_subscriber_cls(subscriber["type"])
-        event_publisher.add_subscriber(cls(store))
-
-    event_bus.register(event_publisher)
+        publisher.add_subscriber(cls(store))
+    event_bus.register(publisher)
     store.set_event_bus(event_bus)
 
     ingestion_engine = IngestionEngine(
