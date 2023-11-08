@@ -38,10 +38,8 @@ def _product_selectors(selector_args):
 
 def import_cls(name):
     components = name.split(".")
-    mod = importlib.import_module(components[0])
-    for comp in components[1:]:
-        mod = getattr(mod, comp)
-    return mod
+    mod = importlib.import_module(".".join(components[:-1]))
+    return getattr(mod, components[-1])
 
 
 def get_dataset_store_by_urls(
