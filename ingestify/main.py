@@ -61,7 +61,7 @@ def get_dataset_store_by_urls(
 
 
 def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
-    config = parse_config(config_file)
+    config = parse_config(config_file, default_value='')
 
     return get_dataset_store_by_urls(
         dataset_url=config["main"]["dataset_url"],
@@ -93,7 +93,7 @@ def get_source_cls(key: str) -> Type[Source]:
 
 
 def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
-    config = parse_config(config_file)
+    config = parse_config(config_file, default_value='')
 
     logger.info("Initializing sources")
     sources = {}
