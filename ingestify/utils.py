@@ -1,5 +1,6 @@
 import abc
 import inspect
+import os
 import time
 from multiprocessing import get_context, cpu_count, get_all_start_methods
 
@@ -157,7 +158,9 @@ def cloud_unpack_and_call(args):
 
 
 def map_in_pool(func, iterable, processes=None):
-    # return list(map(func, iterable))
+    # TODO: move to cmdline
+    if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
+        return list(map(func, iterable))
 
     if "fork" in get_all_start_methods():
         ctx = get_context("fork")

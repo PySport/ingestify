@@ -25,6 +25,9 @@ class File:
 
     path: Path
 
+    # This can be used when a Version is squashed
+    version_id: Optional[int] = None
+
     @classmethod
     def from_draft(
         cls, draft_file: DraftFile, filename: str, storage_size: int, path: Path
@@ -50,6 +53,9 @@ class LoadedFile:
     content_type: str
     stream: BinaryIO
     path: Path
+
+    # This can be used when a Version is squashed
+    version_id: Optional[int] = None
 
 
 __all__ = ["File", "DraftFile", "LoadedFile"]

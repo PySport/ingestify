@@ -204,11 +204,17 @@ class DatasetStore:
         files: Dict[str, DraftFile],
     ):
         """The add_version will also save the dataset."""
+        dataset_changed = False
         if dataset.update_from_identifier(dataset_identifier):
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-            self.dispatch(DatasetUpdated(dataset=dataset))
+            dataset_changed = True
 
         self.add_version(dataset, files)
+
+        if dataset_changed:
+            # Dispatch after version added. Otherwise the downstream handlers are not able to see
+            # the new version
+            self.dispatch(DatasetUpdated(dataset=dataset))
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around
@@ -253,7 +259,8 @@ class DatasetStore:
                     self.file_repository.load_content(
                         bucket=self.bucket,
                         dataset=dataset,
-                        version_id=current_version.version_id,
+                        # When file.version_id is set we must use it.
+                        version_id=file.version_id or current_version.version_id,
                         filename=file.filename + suffix,
                     )
                 ),

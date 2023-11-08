@@ -97,6 +97,7 @@ class Dataset:
                             f"Cannot squash draft file. Version: {version}. Filename: {filename}"
                         )
                     files[filename] = file
+                    files[filename].version_id = version.version_id
 
             return Version(
                 version_id=self.versions[-1].version_id,
