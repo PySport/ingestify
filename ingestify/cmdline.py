@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -31,6 +32,10 @@ logger = logging.getLogger(__name__)
 #     #         logger.info(f"Found source '{k}'")
 
 
+def get_default_config() -> Path:
+    return Path(os.environ.get("INGESTIFY_CONFIG_FILE", "config.yaml"))
+
+
 @click.group()
 def cli():
     pass
@@ -43,7 +48,7 @@ def cli():
     required=False,
     help="Yaml config file",
     type=click.Path(exists=True),
-    default="config.yaml",
+    default=get_default_config,
 )
 @click.option(
     "--bucket",
@@ -75,7 +80,7 @@ def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
     required=False,
     help="Yaml config file",
     type=click.Path(exists=True),
-    default="config.yaml",
+    default=get_default_config,
 )
 @click.option(
     "--bucket",
@@ -121,7 +126,7 @@ def list_datasets(
     required=False,
     help="Yaml config file",
     type=click.Path(exists=True),
-    default="config.yaml",
+    default=get_default_config(),
 )
 @click.option(
     "--bucket",
