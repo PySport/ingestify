@@ -122,11 +122,6 @@ def build_source(name, source_args):
     else:
         configuration = raw_configuration
 
-
-    if 'aws_secret_id' in configuration:
-        secrets = secrets_client.get_secret_value(SecretId=configuration['aws_secret_id'])
-        del configuration['aws_secret_id']
-        configuration.update(secrets)
     return source_cls(name=name, **configuration)
 
 
