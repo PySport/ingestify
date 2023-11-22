@@ -10,6 +10,7 @@ from pyaml_env import parse_config
 from ingestify import Source
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.application.ingestion_engine import IngestionEngine
+from ingestify.application.secrets_manager import SecretsManager
 from ingestify.domain import Selector
 from ingestify.domain.models import (
     dataset_repository_factory,
@@ -19,8 +20,11 @@ from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
 from ingestify.domain.models.extract_job import ExtractJob
 from ingestify.domain.models.fetch_policy import FetchPolicy
+from ingestify.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
+
+secrets_manager = SecretsManager()
 
 
 def _product_selectors(selector_args):
@@ -53,6 +57,10 @@ def get_dataset_store_by_urls(
         raise Exception("Bucket is not specified")
 
     file_repository = file_repository_factory.build_if_supports(url=file_url)
+
+    if secrets_manager.supports(dataset_url):
+        dataset_url = secrets_manager.load_as_db_url(dataset_url)
+
     dataset_repository = dataset_repository_factory.build_if_supports(url=dataset_url)
     return DatasetStore(
         dataset_repository=dataset_repository,
@@ -93,6 +101,35 @@ def get_source_cls(key: str) -> Type[Source]:
         return import_cls(key)
 
 
+def build_source(name, source_args):
+    source_cls = get_source_cls(source_args['type'])
+    raw_configuration = source_args.get('configuration', {})
+    configuration = {}
+    if isinstance(raw_configuration, list):
+        # This normally means the data needs to be loaded from somewhere else
+        for item in raw_configuration:
+            if isinstance(item, dict):
+                configuration.update(item)
+            elif secrets_manager.supports(item):
+                item = secrets_manager.load_as_dict(item)
+                configuration.update(item)
+            else:
+                raise ConfigurationError(
+                    f"Don't know how to use source configuration '{item}'"
+                )
+    elif isinstance(raw_configuration, str):
+        configuration = secrets_manager.load_as_dict(raw_configuration)
+    else:
+        configuration = raw_configuration
+
+
+    if 'aws_secret_id' in configuration:
+        secrets = secrets_client.get_secret_value(SecretId=configuration['aws_secret_id'])
+        del configuration['aws_secret_id']
+        configuration.update(secrets)
+    return source_cls(name=name, **configuration)
+
+
 def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
     return import_cls(key)
 
@@ -103,9 +140,11 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     logger.info("Initializing sources")
     sources = {}
     sys.path.append(os.path.dirname(config_file))
-    for name, source in config["sources"].items():
-        source_cls = get_source_cls(source["type"])
-        sources[name] = source_cls(name=name, **source.get("configuration", {}))
+    for name, source_args in config["sources"].items():
+        sources[name] = build_source(
+            name=name,
+            source_args=source_args
+        )
 
     logger.info("Initializing IngestionEngine")
     store = get_dataset_store_by_urls(
