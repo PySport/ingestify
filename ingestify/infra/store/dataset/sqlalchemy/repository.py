@@ -83,7 +83,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def _init_engine(self):
         self.engine = create_engine(
             self.url,
-            isolation_level="SERIALIZABLE",
+            # Use the default isolation level, don't need SERIALIZABLE
+            # isolation_level="SERIALIZABLE",
             json_serializer=json_serializer,
             json_deserializer=json_deserializer,
         )
