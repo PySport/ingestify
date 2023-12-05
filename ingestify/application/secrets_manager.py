@@ -27,10 +27,10 @@ class SecretsManager:
             try:
                 secrets = json.loads(item['SecretString'])
             except JSONDecodeError:
-                raise Exception(f"Secret url '{url}' could not be parsed: {item['SecretString']}")
+                raise Exception(f"Secret url '{url}' could not be parsed.")
 
         else:
-            raise Exception(f"Secret url '{url}' is not supported")
+            raise Exception(f"Secret url '{url}' is not supported.")
         return secrets
 
     def supports(self, url: str):
