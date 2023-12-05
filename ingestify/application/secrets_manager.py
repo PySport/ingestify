@@ -1,4 +1,5 @@
 import json
+from json import JSONDecodeError
 from urllib.parse import urlparse
 
 import boto3
@@ -23,7 +24,11 @@ class SecretsManager:
                     raise ConfigurationError(f"Couldn't find secret: {url}")
                 raise
 
-            secrets = json.loads(item['SecretString'])
+            try:
+                secrets = json.loads(item['SecretString'])
+            except JSONDecodeError:
+                raise Exception(f"Secret url '{url}' could not be parsed: {item['SecretString']}")
+
         else:
             raise Exception(f"Secret url '{url}' is not supported")
         return secrets
