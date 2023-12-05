@@ -61,6 +61,12 @@ def get_dataset_store_by_urls(
     if secrets_manager.supports(dataset_url):
         dataset_url = secrets_manager.load_as_db_url(dataset_url)
 
+    if dataset_url.startswith("postgres://"):
+        dataset_url = dataset_url.replace(
+            "postgress://",
+            "postgress+"
+        )
+
     dataset_repository = dataset_repository_factory.build_if_supports(url=dataset_url)
     return DatasetStore(
         dataset_repository=dataset_repository,

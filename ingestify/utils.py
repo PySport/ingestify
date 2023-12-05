@@ -2,6 +2,7 @@ import abc
 import inspect
 import os
 import time
+import re
 from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
@@ -10,6 +11,19 @@ from typing import Dict, Generic, Type, TypeVar, Tuple, Optional, Any
 
 import cloudpickle
 from typing_extensions import Self
+
+
+def sanitize_exception_message(exception_message):
+    """
+    Sanitizes an exception message by removing any sensitive information such as passwords.
+    """
+    # Regular expression to identify potential sensitive information like URLs with passwords
+    sensitive_info_pattern = r':(\w+)@'
+
+    # Replace sensitive information with a placeholder
+    sanitized_message = re.sub(sensitive_info_pattern, ':******@', exception_message)
+
+    return sanitized_message
 
 
 class ComponentRegistry:
@@ -47,12 +61,15 @@ class ComponentRegistry:
         for cls_name, class_ in self.__registered_components.items():
             if not hasattr(class_, "supports"):
                 raise Exception(
-                    f"Class '{cls_name}' does not implemented a 'supports' classmethod. This is required when using 'get_supporting_component'."
+                    f"Class '{cls_name}' does not implemented a 'supports' classmethod. "
+                    f"This is required when using 'get_supporting_component'."
                 )
 
             if class_.supports(**kwargs):
                 return cls_name
-        raise Exception(f"No supporting class found for {kwargs}")
+
+        kwargs_str = sanitize_exception_message(str(kwargs))
+        raise Exception(f"No supporting class found for {kwargs_str}")
 
 
 T = TypeVar("T")

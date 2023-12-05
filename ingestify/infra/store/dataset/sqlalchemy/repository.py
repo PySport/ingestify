@@ -63,8 +63,16 @@ def isint(x):
 
 
 class SqlAlchemyDatasetRepository(DatasetRepository):
+    @staticmethod
+    def fix_url(url: str) -> str:
+        if url.startswith("postgress://"):
+            url = url.replace("postgress://", "postgresql://")
+        return url
+
     @classmethod
     def supports(cls, url: str) -> bool:
+        url = cls.fix_url(url)
+
         _url = make_url(url)
         try:
             _url.get_dialect()
@@ -82,6 +90,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         self.session = Session(bind=self.engine)
 
     def __init__(self, url: str):
+        url = self.fix_url(url)
+
         self.url = url
         self._init_engine()
 
