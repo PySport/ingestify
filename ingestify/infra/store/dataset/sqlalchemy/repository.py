@@ -65,8 +65,8 @@ def isint(x):
 class SqlAlchemyDatasetRepository(DatasetRepository):
     @staticmethod
     def fix_url(url: str) -> str:
-        if url.startswith("postgress://"):
-            url = url.replace("postgress://", "postgresql://")
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://")
         return url
 
     @classmethod
