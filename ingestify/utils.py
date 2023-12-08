@@ -174,7 +174,7 @@ def cloud_unpack_and_call(args):
     return f(org_args)
 
 
-def map_in_pool(func, iterable, processes=None):
+def map_in_pool(func, iterable, processes=0):
     # TODO: move to cmdline
     if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
         return list(map(func, iterable))

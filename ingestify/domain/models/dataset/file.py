@@ -10,7 +10,7 @@ class DraftFile:
     tag: str
     size: int
     content_type: str
-
+    data_format: str
     stream: BinaryIO
 
 
@@ -22,6 +22,8 @@ class File:
     size: int
     storage_size: int
     content_type: str
+
+    data_format: str
 
     path: Path
 
@@ -35,6 +37,7 @@ class File:
         return cls(
             filename=filename,
             modified_at=draft_file.modified_at,
+            data_format=draft_file.data_format,
             tag=draft_file.tag,
             size=draft_file.size,
             storage_size=storage_size,
@@ -51,6 +54,7 @@ class LoadedFile:
     size: int
     storage_size: int
     content_type: str
+    data_format: str
     stream: BinaryIO
     path: Path
 

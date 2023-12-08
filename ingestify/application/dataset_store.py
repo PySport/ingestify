@@ -59,6 +59,7 @@ class DatasetStore:
         if "selector" in selector:
             selector = selector["selector"]
         if isinstance(selector, dict):
+            # By-pass the build as we don't want to specify data_formats here... (for now)
             selector = Selector(selector)
 
         dataset_collection = self.dataset_repository.get_dataset_collection(

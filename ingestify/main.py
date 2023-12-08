@@ -16,6 +16,7 @@ from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
+from ingestify.domain.models.data_format_collection import DataFormatCollection
 from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
 from ingestify.domain.models.extract_job import ExtractJob
@@ -172,15 +173,23 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     fetch_policy = FetchPolicy()
 
     for job in config["extract_jobs"]:
+        data_formats = DataFormatCollection.from_dict(
+            job.get('data_formats', {'default': {'v1'}})
+        )
+
         import_job = ExtractJob(
             source=sources[job["source"]],
             dataset_type=job.get("dataset_type"),
             selectors=[
-                Selector(**selector)
+                Selector.build(
+                    **selector,
+                    data_formats=data_formats
+                )
                 for selector_args in job["selectors"]
                 for selector in _product_selectors(selector_args)
             ],
             fetch_policy=fetch_policy,
+            data_formats=data_formats
         )
         ingestion_engine.add_extract_job(import_job)
 

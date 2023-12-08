@@ -95,7 +95,6 @@ version_table = Table(
     Column("description", String(255)),
     Column("created_at", TZDateTime(6)),
 )
-
 file_table = Table(
     "file",
     metadata,
@@ -105,8 +104,10 @@ file_table = Table(
     Column("modified_at", TZDateTime(6)),
     Column("tag", String(255)),
     Column("content_type", String(255)),
+    Column("data_format", String(255)),
     Column("size", BigInteger),
     Column("storage_size", BigInteger),
+
     Column("path", PathString),
     ForeignKeyConstraint(
         ("dataset_id", "version_id"),
@@ -114,6 +115,7 @@ file_table = Table(
         ondelete="CASCADE",
     ),
 )
+
 
 mapper_registry.map_imperatively(
     Dataset,
