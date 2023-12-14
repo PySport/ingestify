@@ -1,4 +1,6 @@
-from ingestify.domain.models.data_format_collection import DataFormatCollection
+from ingestify.domain.models.data_spec_version_collection import (
+    DataSpecVersionCollection,
+)
 from ingestify.utils import AttributeBag
 
 
@@ -7,14 +9,9 @@ class Selector(AttributeBag):
         return len(self.filtered_attributes) > 0
 
     @classmethod
-    def build(cls, data_formats: DataFormatCollection, **kwargs):
-        return cls(
-            _data_formats=data_formats.copy(),
-            **kwargs
-        )
+    def build(cls, data_spec_versions: DataSpecVersionCollection, **kwargs):
+        return cls(_data_spec_versions=data_spec_versions.copy(), **kwargs)
 
     @property
-    def data_formats(self):
-        return self._data_formats
-
-
+    def data_spec_versions(self):
+        return self._data_spec_versions

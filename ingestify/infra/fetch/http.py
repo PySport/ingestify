@@ -17,7 +17,7 @@ def retrieve_http(
     headers: Optional[dict] = None,
     pager: Optional[Tuple[str, Callable[[str, dict], Optional[str]]]] = None,
     last_modified: Optional[datetime] = None,
-    **kwargs
+    **kwargs,
 ) -> Optional[DraftFile]:
     headers = headers or {}
     if current_file:
@@ -31,7 +31,17 @@ def retrieve_http(
         # )
         headers["if-none-match"] = current_file.tag
 
-    response = requests.get(url, headers=headers, **kwargs)
+    http_kwargs = {}
+    file_attributes = {}
+    for key, item in kwargs.items():
+        if key.startswith("http_"):
+            http_kwargs[key[5:]] = item
+        elif key.startswith("file_"):
+            file_attributes[key[5:]] = item
+        else:
+            raise Exception(f"Don't know how to use {key}")
+
+    response = requests.get(url, headers=headers, **http_kwargs)
     response.raise_for_status()
     if response.status_code == 304:
         # Not modified
@@ -83,4 +93,5 @@ def retrieve_http(
         size=content_length,
         content_type=response.headers.get("content-type"),
         stream=BytesIO(content),
+        **file_attributes,
     )

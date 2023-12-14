@@ -7,6 +7,7 @@ from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task,
 from ingestify.utils import map_in_pool
 
 from .dataset_store import DatasetStore
+from ..domain.models.data_spec_version_collection import DataSpecVersionCollection
 from ..domain.models.extract_job import ExtractJob
 
 if platform.system() == "Darwin":
@@ -24,18 +25,21 @@ class UpdateDatasetTask(Task):
         source: Source,
         dataset: Dataset,
         dataset_identifier: Identifier,
+        data_spec_versions: DataSpecVersionCollection,
         store: DatasetStore,
     ):
         self.source = source
         self.dataset = dataset
         self.dataset_identifier = dataset_identifier
+        self.data_spec_versions = data_spec_versions
         self.store = store
 
     def run(self):
         files = self.source.fetch_dataset_files(
             self.dataset.dataset_type,
             self.dataset_identifier,  # Use the new dataset_identifier as it's more up-to-date, and contains more info
-            current_version=self.dataset.current_version,
+            data_spec_versions=self.data_spec_versions,
+            current_revision=self.dataset.current_revision,
         )
         self.store.update_dataset(
             dataset=self.dataset,
@@ -52,17 +56,22 @@ class CreateDatasetTask(Task):
         self,
         source: Source,
         dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
         dataset_identifier: Identifier,
         store: DatasetStore,
     ):
         self.source = source
         self.dataset_type = dataset_type
+        self.data_spec_versions = data_spec_versions
         self.dataset_identifier = dataset_identifier
         self.store = store
 
     def run(self):
         files = self.source.fetch_dataset_files(
-            self.dataset_type, self.dataset_identifier, current_version=None
+            dataset_type=self.dataset_type,
+            identifier=self.dataset_identifier,
+            data_spec_versions=self.data_spec_versions,
+            current_revision=None,
         )
         self.store.create_dataset(
             dataset_type=self.dataset_type,
@@ -99,8 +108,7 @@ class Loader:
                     )
                     job_selectors = [
                         Selector.build(
-                            **selector,
-                            data_formats=extract_job.data_formats
+                            **selector, data_formats=extract_job.data_formats
                         )
                         for selector in extract_job.source.discover_selectors(
                             extract_job.dataset_type
@@ -130,12 +138,11 @@ class Loader:
             )
             dataset_identifiers = [
                 Identifier.create_from(selector, **identifier)
-
                 # We have to pass the data_formats here as a Source can add some
                 # extra data to the identifier which is retrieved in a certain data format
                 for identifier in extract_job.source.discover_datasets(
                     dataset_type=extract_job.dataset_type,
-                    data_formats=selector.data_formats,
+                    data_spec_versions=selector.data_spec_versions,
                     **selector.filtered_attributes,
                 )
             ]
@@ -161,7 +168,7 @@ class Loader:
                                 source=extract_job.source,
                                 dataset=dataset,  # Current dataset from the database
                                 dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
-                                data_formats=selector.data_formats,
+                                data_spec_versions=selector.data_spec_versions,
                                 store=self.store,
                             )
                         )

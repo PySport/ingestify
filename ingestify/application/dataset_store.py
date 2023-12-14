@@ -20,7 +20,7 @@ from ingestify.domain.models import (
     FileRepository,
     Identifier,
     Selector,
-    Version,
+    Revision,
     DatasetCreated,
 )
 from ingestify.utils import utcnow, map_in_pool
@@ -35,7 +35,7 @@ class DatasetStore:
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
-        self.file_compression = "gzip"
+        self.storage_compression_method = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
 
@@ -78,7 +78,7 @@ class DatasetStore:
     #     self.dataset_repository.destroy_dataset(dataset_id)
 
     def _prepare_write_stream(self, file_: DraftFile) -> tuple[BytesIO, int, str]:
-        if self.file_compression == "gzip":
+        if self.storage_compression_method == "gzip":
             stream = BytesIO()
             with gzip.GzipFile(fileobj=stream, compresslevel=9, mode="wb") as fp:
                 shutil.copyfileobj(file_.stream, fp)
@@ -95,7 +95,7 @@ class DatasetStore:
         return stream, storage_size, suffix
 
     def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], BytesIO], str]:
-        if self.file_compression == "gzip":
+        if self.storage_compression_method == "gzip":
 
             def reader(fh: BinaryIO) -> BytesIO:
                 stream = BytesIO()
@@ -111,84 +111,64 @@ class DatasetStore:
     def _persist_files(
         self,
         dataset: Dataset,
-        version_id: int,
+        revision_id: int,
         modified_files: Dict[str, Optional[DraftFile]],
     ) -> List[File]:
         modified_files_ = []
 
-        current_version = dataset.current_version
+        current_revision = dataset.current_revision
 
-        for filename, file_ in modified_files.items():
-            if isinstance(file_, (str, bytes, BytesIO, StringIO)):
-                if isinstance(file_, str):
-                    stream = BytesIO(file_.encode("utf-8"))
-                elif isinstance(file_, bytes):
-                    stream = BytesIO(file_)
-                elif isinstance(file_, StringIO):
-                    stream = BytesIO(file_.read().encode("utf-8"))
-                elif isinstance(file_, BytesIO):
-                    stream = file_
-                else:
-                    raise Exception("not possible")
+        for file_id, file_ in modified_files.items():
+            if file_ is None:
+                # It's always allowed to pass None as file. This means it didn't change and must be ignored.
+                continue
 
-                data = stream.read()
-                size = len(data)
-                tag = hashlib.sha1(data).hexdigest()
-                stream.seek(0)
+            file_ = DraftFile.from_input(file_)
+            current_file = (
+                current_revision.modified_files_map.get(file_id)
+                if current_revision
+                else None
+            )
+            if current_file and current_file.tag == file_.tag:
+                # File didn't change. Ignore it.
+                continue
 
-                if (
-                    current_version
-                    and (
-                        current_file := current_version.modified_files_map.get(filename)
-                    )
-                    and current_file.tag == tag
-                ):
-                    file_ = None
-                else:
-                    file_ = DraftFile(
-                        modified_at=utcnow(),
-                        content_type=mimetypes.guess_type(filename)[0],
-                        tag=tag,
-                        size=size,
-                        stream=stream,
-                    )
+            stream, storage_size, suffix = self._prepare_write_stream(file_)
 
-            if isinstance(file_, DraftFile):
-                stream, storage_size, suffix = self._prepare_write_stream(file_)
+            # TODO: check if this is a very clean way to go from DraftFile to File
+            full_path = self.file_repository.save_content(
+                bucket=self.bucket,
+                dataset=dataset,
+                revision_id=revision_id,
+                filename=file_id + suffix,
+                stream=stream,
+            )
+            file = File.from_draft(
+                file_,
+                file_id,
+                storage_size=storage_size,
+                storage_compression_method=self.storage_compression_method,
+                path=self.file_repository.get_relative_path(full_path),
+            )
 
-                # TODO: check if this is a very clean way to go from DraftFile to File
-                full_path = self.file_repository.save_content(
-                    bucket=self.bucket,
-                    dataset=dataset,
-                    version_id=version_id,
-                    filename=filename + suffix,
-                    stream=stream,
-                )
-                file = File.from_draft(
-                    file_,
-                    filename,
-                    storage_size=storage_size,
-                    path=self.file_repository.get_relative_path(full_path),
-                )
-
-                modified_files_.append(file)
+            modified_files_.append(file)
 
         return modified_files_
 
-    def add_version(
+    def add_revision(
         self, dataset: Dataset, files: Dict[str, DraftFile], description: str = "Update"
     ):
         """
         Create new version first, so FileRepository can use
-        version_id in the key.
+        revision_id in the key.
         """
-        version_id = dataset.next_version_id()
+        revision_id = dataset.next_revision_id()
         created_at = utcnow()
 
-        persisted_files_ = self._persist_files(dataset, version_id, files)
-        dataset.add_version(
-            Version(
-                version_id=version_id,
+        persisted_files_ = self._persist_files(dataset, revision_id, files)
+        dataset.add_revision(
+            Revision(
+                revision_id=revision_id,
                 created_at=created_at,
                 description=description,
                 modified_files=persisted_files_,
@@ -210,7 +190,7 @@ class DatasetStore:
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             dataset_changed = True
 
-        self.add_version(dataset, files)
+        self.add_revision(dataset, files)
 
         if dataset_changed:
             # Dispatch after version added. Otherwise the downstream handlers are not able to see
@@ -243,29 +223,29 @@ class DatasetStore:
             created_at=now,
             updated_at=now,
         )
-        self.add_version(dataset, files, description)
+        self.add_revision(dataset, files, description)
 
         self.dispatch(DatasetCreated(dataset=dataset))
 
     def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
-        current_version = dataset.current_version
+        current_version = dataset.current_revision
         files = {}
 
         reader, suffix = self._prepare_read_stream()
         for file in current_version.modified_files:
             # TODO: refactor
 
-            version_id = file.version_id
-            if version_id is None:
-                version_id = current_version.version_id
+            revision_id = file.revision_id
+            if revision_id is None:
+                revision_id = current_version.revision_id
 
             loaded_file = LoadedFile(
                 stream=reader(
                     self.file_repository.load_content(
                         bucket=self.bucket,
                         dataset=dataset,
-                        # When file.version_id is set we must use it.
-                        version_id=version_id,
+                        # When file.revision_id is set we must use it.
+                        revision_id=revision_id,
                         filename=file.filename + suffix,
                     )
                 ),

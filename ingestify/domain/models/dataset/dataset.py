@@ -7,7 +7,7 @@ from ingestify.utils import utcnow
 
 from .file import DraftFile
 from .identifier import Identifier
-from .version import Version
+from .revision import Revision
 
 if TYPE_CHECKING:
     from ingestify.application.dataset_store import DatasetStore
@@ -43,19 +43,18 @@ class Dataset:
     created_at: datetime
     updated_at: datetime
 
-    # current_version_id: int = 0
-    versions: List[Version] = field(default_factory=list)
+    revisions: List[Revision] = field(default_factory=list)
 
     store: Optional["DatasetStore"] = None
 
     def set_store(self, store):
         self.store = store
 
-    def next_version_id(self):
-        return len(self.versions)
+    def next_revision_id(self):
+        return len(self.revisions)
 
-    def add_version(self, version: Version):
-        self.versions.append(version)
+    def add_revision(self, revision: Revision):
+        self.revisions.append(revision)
         self.updated_at = utcnow()
 
     def update_from_identifier(self, dataset_identifier: Identifier) -> bool:
@@ -78,32 +77,32 @@ class Dataset:
         return changed
 
     @property
-    def current_version(self) -> Optional[Version]:
+    def current_revision(self) -> Optional[Revision]:
         """
         When multiple versions are available, squash versions into one single version which
         contents all most recent files.
         """
-        if not self.versions:
+        if not self.revisions:
             return None
-        elif len(self.versions) == 1:
-            return self.versions[0]
+        elif len(self.revisions) == 1:
+            return self.revisions[0]
         else:
             files = {}
 
-            for version in self.versions:
-                for filename, file in version.modified_files_map.items():
+            for revision in self.revisions:
+                for filename, file in revision.modified_files_map.items():
                     if isinstance(file, DraftFile):
                         raise Exception(
-                            f"Cannot squash draft file. Version: {version}. Filename: {filename}"
+                            f"Cannot squash draft file. Revision: {revision}. Filename: {filename}"
                         )
                     files[filename] = file
-                    files[filename].version_id = version.version_id
+                    files[filename].revision_id = revision.revision_id
 
-            return Version(
-                version_id=self.versions[-1].version_id,
-                created_at=self.versions[-1].created_at,
+            return Revision(
+                revision_id=self.revisions[-1].revision_id,
+                created_at=self.revisions[-1].created_at,
                 # created_at=max([file.modified_at for file in files.values()]),
-                description="Squashed version",
+                description="Squashed revision",
                 is_squashed=True,
                 modified_files=list(files.values()),
             )

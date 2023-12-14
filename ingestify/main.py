@@ -16,7 +16,9 @@ from ingestify.domain.models import (
     dataset_repository_factory,
     file_repository_factory,
 )
-from ingestify.domain.models.data_format_collection import DataFormatCollection
+from ingestify.domain.models.data_spec_version_collection import (
+    DataSpecVersionCollection,
+)
 from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
 from ingestify.domain.models.extract_job import ExtractJob
@@ -63,10 +65,7 @@ def get_dataset_store_by_urls(
         dataset_url = secrets_manager.load_as_db_url(dataset_url)
 
     if dataset_url.startswith("postgres://"):
-        dataset_url = dataset_url.replace(
-            "postgress://",
-            "postgress+"
-        )
+        dataset_url = dataset_url.replace("postgress://", "postgress+")
 
     dataset_repository = dataset_repository_factory.build_if_supports(url=dataset_url)
     return DatasetStore(
@@ -109,8 +108,8 @@ def get_source_cls(key: str) -> Type[Source]:
 
 
 def build_source(name, source_args):
-    source_cls = get_source_cls(source_args['type'])
-    raw_configuration = source_args.get('configuration', {})
+    source_cls = get_source_cls(source_args["type"])
+    raw_configuration = source_args.get("configuration", {})
     configuration = {}
     if isinstance(raw_configuration, list):
         # This normally means the data needs to be loaded from somewhere else
@@ -143,10 +142,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     sources = {}
     sys.path.append(os.path.dirname(config_file))
     for name, source_args in config["sources"].items():
-        sources[name] = build_source(
-            name=name,
-            source_args=source_args
-        )
+        sources[name] = build_source(name=name, source_args=source_args)
 
     logger.info("Initializing IngestionEngine")
     store = get_dataset_store_by_urls(
@@ -173,23 +169,20 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     fetch_policy = FetchPolicy()
 
     for job in config["extract_jobs"]:
-        data_formats = DataFormatCollection.from_dict(
-            job.get('data_formats', {'default': {'v1'}})
+        data_spec_versions = DataSpecVersionCollection.from_dict(
+            job.get("data_spec_versions", {"default": {"v1"}})
         )
 
         import_job = ExtractJob(
             source=sources[job["source"]],
             dataset_type=job.get("dataset_type"),
             selectors=[
-                Selector.build(
-                    **selector,
-                    data_formats=data_formats
-                )
+                Selector.build(**selector, data_spec_versions=data_spec_versions)
                 for selector_args in job["selectors"]
                 for selector in _product_selectors(selector_args)
             ],
             fetch_policy=fetch_policy,
-            data_formats=data_formats
+            data_spec_versions=data_spec_versions,
         )
         ingestion_engine.add_extract_job(import_job)
 

@@ -115,7 +115,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     ) -> DatasetCollection:
         query = (
             self.session.query(Dataset)
-            .options(joinedload(Dataset.versions))
+            .options(joinedload(Dataset.revisions))
             .filter(Dataset.bucket == bucket)
         )
         if dataset_type:
@@ -129,7 +129,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         where, selector = selector.split("where")
         if selector:
-            for k, v in selector.attributes.items():
+            for k, v in selector.filtered_attributes.items():
                 if dialect == "postgresql":
                     column = dataset_table.c.identifier[k]
                     if isint(v):

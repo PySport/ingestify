@@ -15,11 +15,11 @@ class LocalFileRepository(FileRepository):
         self,
         bucket: str,
         dataset: Dataset,
-        version_id: int,
+        revision_id: int,
         filename: str,
         stream: BinaryIO,
     ) -> Path:
-        path = self.get_path(bucket, dataset, version_id, filename)
+        path = self.get_path(bucket, dataset, revision_id, filename)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(path, "wb") as fp:
@@ -27,6 +27,6 @@ class LocalFileRepository(FileRepository):
         return path
 
     def load_content(
-        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+        self, bucket: str, dataset: Dataset, revision_id: int, filename: str
     ) -> BinaryIO:
-        return open(self.get_path(bucket, dataset, version_id, filename), "rb")
+        return open(self.get_path(bucket, dataset, revision_id, filename), "rb")

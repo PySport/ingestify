@@ -4,7 +4,8 @@ from typing import Dict, List, Optional
 # from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from . import DraftFile
-from .dataset import Identifier, Version
+from .data_spec_version_collection import DataSpecVersionCollection
+from .dataset import Identifier, Revision
 
 
 class Source(ABC):
@@ -30,7 +31,8 @@ class Source(ABC):
         self,
         dataset_type: str,
         identifier: Identifier,
-        current_version: Optional[Version],
+        data_spec_versions: DataSpecVersionCollection,
+        current_revision: Optional[Revision],
     ) -> Dict[str, Optional[DraftFile]]:
         pass
 
