@@ -8,7 +8,7 @@ from io import BytesIO, StringIO
 
 from typing import Dict, List, Optional, Union, Callable, BinaryIO
 
-from ingestify.domain.models.dataset.events import VersionAdded, DatasetUpdated
+from ingestify.domain.models.dataset.events import RevisionAdded, DatasetUpdated
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
     Dataset,
@@ -59,7 +59,7 @@ class DatasetStore:
         if "selector" in selector:
             selector = selector["selector"]
         if isinstance(selector, dict):
-            # By-pass the build as we don't want to specify data_formats here... (for now)
+            # By-pass the build as we don't want to specify data_spec_versions here... (for now)
             selector = Selector(selector)
 
         dataset_collection = self.dataset_repository.get_dataset_collection(
@@ -176,7 +176,7 @@ class DatasetStore:
         )
 
         self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-        self.dispatch(VersionAdded(dataset=dataset))
+        self.dispatch(RevisionAdded(dataset=dataset))
 
     def update_dataset(
         self,
@@ -193,7 +193,7 @@ class DatasetStore:
         self.add_revision(dataset, files)
 
         if dataset_changed:
-            # Dispatch after version added. Otherwise the downstream handlers are not able to see
+            # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
             # the new version
             self.dispatch(DatasetUpdated(dataset=dataset))
 

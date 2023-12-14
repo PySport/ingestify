@@ -108,7 +108,7 @@ class Loader:
                     )
                     job_selectors = [
                         Selector.build(
-                            **selector, data_formats=extract_job.data_formats
+                            **selector, data_spec_versions=extract_job.data_spec_versions
                         )
                         for selector in extract_job.source.discover_selectors(
                             extract_job.dataset_type
@@ -128,7 +128,7 @@ class Loader:
             for selector in job_selectors:
                 key = (extract_job.source.name, extract_job.dataset_type, selector.key)
                 if existing_selector := selectors.get(key):
-                    existing_selector[1].data_formats.merge(selector.data_formats)
+                    existing_selector[1].data_spec_versions.merge(selector.data_spec_versions)
                 else:
                     selectors[key] = (extract_job, selector)
 
@@ -138,7 +138,7 @@ class Loader:
             )
             dataset_identifiers = [
                 Identifier.create_from(selector, **identifier)
-                # We have to pass the data_formats here as a Source can add some
+                # We have to pass the data_spec_versions here as a Source can add some
                 # extra data to the identifier which is retrieved in a certain data format
                 for identifier in extract_job.source.discover_datasets(
                     dataset_type=extract_job.dataset_type,
@@ -181,7 +181,7 @@ class Loader:
                                 source=extract_job.source,
                                 dataset_type=extract_job.dataset_type,
                                 dataset_identifier=dataset_identifier,
-                                data_formats=selector.data_formats,
+                                data_spec_versions=selector.data_spec_versions,
                                 store=self.store,
                             )
                         )

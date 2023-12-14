@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from ingestify.domain.models.dataset.events import (
         DatasetCreated,
         DatasetUpdated,
-        VersionAdded,
+        RevisionAdded,
     )
 
 
@@ -20,7 +20,7 @@ class Subscriber:
     def on_dataset_updated(self, event: "DatasetUpdated"):
         pass
 
-    def on_version_added(self, event: "VersionAdded"):
+    def on_version_added(self, event: "RevisionAdded"):
         pass
 
     def handle(self, event: DomainEvent):
@@ -28,12 +28,12 @@ class Subscriber:
         from ingestify.domain.models.dataset.events import (
             DatasetCreated,
             DatasetUpdated,
-            VersionAdded,
+            RevisionAdded,
         )
 
         if isinstance(event, DatasetCreated):
             self.on_dataset_created(event)
         elif isinstance(event, DatasetUpdated):
             self.on_dataset_updated(event)
-        elif isinstance(event, VersionAdded):
+        elif isinstance(event, RevisionAdded):
             self.on_version_added(event)
