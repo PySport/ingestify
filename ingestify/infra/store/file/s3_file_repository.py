@@ -26,20 +26,20 @@ class S3FileRepository(FileRepository):
         self,
         bucket: str,
         dataset: Dataset,
-        version_id: int,
+        revision_id: int,
         filename: str,
         stream: BinaryIO,
     ) -> Path:
-        key = self.get_path(bucket, dataset, version_id, filename)
+        key = self.get_path(bucket, dataset, revision_id, filename)
         s3_bucket = Path(key.parts[0])
 
         self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).put(Body=stream)
         return key
 
     def load_content(
-        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+        self, bucket: str, dataset: Dataset, revision_id: int, filename: str
     ) -> BinaryIO:
-        key = self.get_path(bucket, dataset, version_id, filename)
+        key = self.get_path(bucket, dataset, revision_id, filename)
         s3_bucket = Path(key.parts[0])
         return self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).get()[
             "Body"

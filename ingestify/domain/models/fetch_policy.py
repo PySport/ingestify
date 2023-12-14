@@ -15,19 +15,19 @@ class FetchPolicy:
         return True
 
     def should_refetch(self, dataset: Dataset, identifier: Identifier) -> bool:
-        current_version = dataset.current_version
-        if not dataset.versions:
+        current_revision = dataset.current_revision
+        if not dataset.revisions:
             # TODO: this is weird? Dataset without any data. Fetch error?
             return True
-        elif current_version:
+        elif current_revision:
             if identifier.files_last_modified:
-                if current_version.is_changed(identifier.files_last_modified):
+                if current_revision.is_changed(identifier.files_last_modified):
                     return True
 
             else:
                 if (
                     identifier.last_modified
-                    and current_version.created_at < identifier.last_modified
+                    and current_revision.created_at < identifier.last_modified
                 ):
                     return True
 

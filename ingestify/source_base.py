@@ -6,7 +6,7 @@ from ingestify.domain.models import (
     Identifier,
     Selector,
     Source,
-    Version,
+    Revision,
 )
 
 __all__ = [
@@ -15,7 +15,7 @@ __all__ = [
     "Source",
     "DatasetStore",
     "Dataset",
-    "Version",
+    "Revision",
     "File",
     "DraftFile",
 ]

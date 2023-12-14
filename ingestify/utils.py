@@ -18,10 +18,10 @@ def sanitize_exception_message(exception_message):
     Sanitizes an exception message by removing any sensitive information such as passwords.
     """
     # Regular expression to identify potential sensitive information like URLs with passwords
-    sensitive_info_pattern = r':(\w+)@'
+    sensitive_info_pattern = r":(\w+)@"
 
     # Replace sensitive information with a placeholder
-    sanitized_message = re.sub(sensitive_info_pattern, ':******@', exception_message)
+    sanitized_message = re.sub(sensitive_info_pattern, ":******@", exception_message)
 
     return sanitized_message
 
@@ -174,7 +174,7 @@ def cloud_unpack_and_call(args):
     return f(org_args)
 
 
-def map_in_pool(func, iterable, processes=None):
+def map_in_pool(func, iterable, processes=0):
     # TODO: move to cmdline
     if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
         return list(map(func, iterable))

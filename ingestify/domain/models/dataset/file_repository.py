@@ -18,7 +18,7 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
         self,
         bucket: str,
         dataset: Dataset,
-        version_id: int,
+        revision_id: int,
         filename: str,
         stream: BinaryIO,
     ) -> Path:
@@ -26,7 +26,7 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
 
     @abstractmethod
     def load_content(
-        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+        self, bucket: str, dataset: Dataset, revision_id: int, filename: str
     ) -> BinaryIO:
         pass
 
@@ -36,7 +36,7 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
         pass
 
     def get_path(
-        self, bucket: str, dataset: Dataset, version_id: int, filename: str
+        self, bucket: str, dataset: Dataset, revision_id: int, filename: str
     ) -> Path:
         path = (
             self.base_dir
@@ -44,7 +44,7 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
             / f"provider={dataset.provider}"
             / f"dataset_type={dataset.dataset_type}"
             / str(dataset.identifier)
-            / str(version_id)
+            / str(revision_id)
             / filename
         )
         return path

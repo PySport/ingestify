@@ -1,7 +1,13 @@
+import hashlib
+import mimetypes
+
 from dataclasses import dataclass
 from datetime import datetime
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import BinaryIO, Optional
+
+from ingestify.utils import utcnow
 
 
 @dataclass
@@ -9,53 +15,116 @@ class DraftFile:
     modified_at: datetime
     tag: str
     size: int
-    content_type: str
+    content_type: Optional[str]
+
+    data_feed_key: str  # Example: 'events'
+    data_spec_version: str  # Example: 'v3'
+    data_serialization_format: str  # Example: 'json'
 
     stream: BinaryIO
+
+    @classmethod
+    def from_input(
+        cls,
+        file_,
+        data_feed_key=None,
+        data_spec_version=None,
+        data_serialization_format=None,
+    ):
+        # Pass-through for these types
+        if isinstance(file_, DraftFile) or file_ is None:
+            return file_
+        elif isinstance(file_, str):
+            stream = BytesIO(file_.encode("utf-8"))
+        elif isinstance(file_, bytes):
+            stream = BytesIO(file_)
+        elif isinstance(file_, StringIO):
+            stream = BytesIO(file_.read().encode("utf-8"))
+        elif isinstance(file_, BytesIO):
+            stream = file_
+        else:
+            raise Exception(f"Not possible to create DraftFile from {type(file_)}")
+
+        data = stream.read()
+        size = len(data)
+        tag = hashlib.sha1(data).hexdigest()
+        stream.seek(0)
+
+        return DraftFile(
+            modified_at=utcnow(),
+            tag=tag,
+            size=size,
+            stream=stream,
+            content_type=None,
+            data_feed_key=data_feed_key,
+            data_spec_version=data_spec_version,
+            data_serialization_format=data_serialization_format,
+        )
 
 
 @dataclass
 class File:
-    filename: str
+    file_id: str
     modified_at: datetime
     tag: str
     size: int
-    storage_size: int
     content_type: str
 
-    path: Path
+    data_feed_key: str  # Example: 'events'
+    data_spec_version: str  # Example: 'v3'
+    data_serialization_format: str  # Example: 'json'
+
+    storage_size: int
+    storage_compression_method: Optional[str]  # Example: 'gzip'
+    storage_path: Path
 
     # This can be used when a Version is squashed
-    version_id: Optional[int] = None
+    revision_id: Optional[int] = None
 
     @classmethod
     def from_draft(
-        cls, draft_file: DraftFile, filename: str, storage_size: int, path: Path
+        cls,
+        draft_file: DraftFile,
+        file_id: str,
+        storage_size: int,
+        storage_compression_method,
+        path: Path,
     ) -> "File":
         return cls(
-            filename=filename,
+            file_id=file_id,
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
             size=draft_file.size,
-            storage_size=storage_size,
+            data_feed_key=draft_file.data_feed_key,
+            data_spec_version=draft_file.data_spec_version,
+            data_serialization_format=draft_file.data_serialization_format,
             content_type=draft_file.content_type,
-            path=path,
+            storage_size=storage_size,
+            storage_compression_method=storage_compression_method,
+            storage_path=path,
         )
 
 
 @dataclass
 class LoadedFile:
-    filename: str
+    # Unique key to identify this File within a Dataset
+    file_id: str
     modified_at: datetime
     tag: str
     size: int
     storage_size: int
     content_type: str
+
+    data_feed_key: str  # Example: 'events'
+    data_spec_version: str  # Example: 'v3'
+    compression_method: Optional[str]  # Example: 'gzip'
+    serialization_format: str  # Example: 'json'
+
     stream: BinaryIO
     path: Path
 
-    # This can be used when a Version is squashed
-    version_id: Optional[int] = None
+    # This can be used when a Revision is squashed
+    revision_id: Optional[int] = None
 
 
 __all__ = ["File", "DraftFile", "LoadedFile"]

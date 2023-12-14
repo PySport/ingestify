@@ -5,12 +5,12 @@ from .file import DraftFile, File, LoadedFile
 from .file_repository import FileRepository, file_repository_factory
 from .identifier import Identifier
 from .selector import Selector
-from .version import Version
+from .revision import Revision
 from .events import DatasetCreated
 
 __all__ = [
     "Selector",
-    "Version",
+    "Revision",
     "Dataset",
     "Identifier",
     "DatasetCollection",
