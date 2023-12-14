@@ -159,7 +159,7 @@ class DatasetStore:
         self, dataset: Dataset, files: Dict[str, DraftFile], description: str = "Update"
     ):
         """
-        Create new version first, so FileRepository can use
+        Create new revision first, so FileRepository can use
         revision_id in the key.
         """
         revision_id = dataset.next_revision_id()
@@ -184,7 +184,7 @@ class DatasetStore:
         dataset_identifier: Identifier,
         files: Dict[str, DraftFile],
     ):
-        """The add_version will also save the dataset."""
+        """The add_revision will also save the dataset."""
         dataset_changed = False
         if dataset.update_from_identifier(dataset_identifier):
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
@@ -194,7 +194,7 @@ class DatasetStore:
 
         if dataset_changed:
             # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
-            # the new version
+            # the new revision
             self.dispatch(DatasetUpdated(dataset=dataset))
 
     def destroy_dataset(self, dataset: Dataset):
@@ -228,16 +228,16 @@ class DatasetStore:
         self.dispatch(DatasetCreated(dataset=dataset))
 
     def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
-        current_version = dataset.current_revision
+        current_revision = dataset.current_revision
         files = {}
 
         reader, suffix = self._prepare_read_stream()
-        for file in current_version.modified_files:
+        for file in current_revision.modified_files:
             # TODO: refactor
 
             revision_id = file.revision_id
             if revision_id is None:
-                revision_id = current_version.revision_id
+                revision_id = current_revision.revision_id
 
             loaded_file = LoadedFile(
                 stream=reader(
@@ -246,12 +246,12 @@ class DatasetStore:
                         dataset=dataset,
                         # When file.revision_id is set we must use it.
                         revision_id=revision_id,
-                        filename=file.filename + suffix,
+                        filename=file.file_id + suffix,
                     )
                 ),
                 **asdict(file),
             )
-            files[file.filename] = loaded_file
+            files[file.file_id] = loaded_file
         return files
 
     def load_with_kloppy(self, dataset: Dataset, **kwargs):
