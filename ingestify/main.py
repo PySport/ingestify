@@ -32,9 +32,10 @@ secrets_manager = SecretsManager()
 
 def _product_selectors(selector_args):
     if not selector_args:
-        # Empty selector passed
-        # yield dict()
-        yield lambda dict_selector: True
+        # Empty selector passed. This is a special case when
+        # a Source doesn't have discover_selectors but also doesn't require
+        # selectors
+        yield dict()
         return
 
     if isinstance(selector_args, str):
