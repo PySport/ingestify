@@ -179,6 +179,9 @@ def map_in_pool(func, iterable, processes=0):
     if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
         return list(map(func, iterable))
 
+    if not processes:
+        processes = int(os.environ.get("INGESTIFY_CONCURRENCY", "0"))
+
     if "fork" in get_all_start_methods():
         ctx = get_context("fork")
     else:
