@@ -90,6 +90,7 @@ def retrieve_http(
         return None
 
     return DraftFile(
+        created_at=utcnow(),
         modified_at=modified_at,
         tag=tag,
         size=content_length,

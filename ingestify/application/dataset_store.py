@@ -126,7 +126,6 @@ class DatasetStore:
                 # It's always allowed to pass None as file. This means it didn't change and must be ignored.
                 continue
 
-            file_ = DraftFile.from_input(file_)
             current_file = (
                 current_revision.modified_files_map.get(file_id)
                 if current_revision

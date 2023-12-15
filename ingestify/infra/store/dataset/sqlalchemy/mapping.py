@@ -101,7 +101,10 @@ file_table = Table(
     Column("dataset_id", String(255), primary_key=True),
     Column("revision_id", Integer, primary_key=True),
     Column("file_id", String(255), primary_key=True),
+
+    Column("created_at", TZDateTime(6)),
     Column("modified_at", TZDateTime(6)),
+
     Column("tag", String(255)),
     Column("content_type", String(255)),
     Column("size", BigInteger),

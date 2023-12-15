@@ -12,6 +12,7 @@ from ingestify.utils import utcnow
 
 @dataclass
 class DraftFile:
+    created_at: datetime
     modified_at: datetime
     tag: str
     size: int
@@ -30,6 +31,7 @@ class DraftFile:
         data_feed_key=None,
         data_spec_version=None,
         data_serialization_format=None,
+        modified_at=None
     ):
         # Pass-through for these types
         if isinstance(file_, DraftFile) or file_ is None:
@@ -50,8 +52,11 @@ class DraftFile:
         tag = hashlib.sha1(data).hexdigest()
         stream.seek(0)
 
+        now = utcnow()
+
         return DraftFile(
-            modified_at=utcnow(),
+            created_at=now,
+            modified_at=modified_at or now,
             tag=tag,
             size=size,
             stream=stream,
@@ -65,6 +70,7 @@ class DraftFile:
 @dataclass
 class File:
     file_id: str
+    created_at: datetime
     modified_at: datetime
     tag: str
     size: int
@@ -92,6 +98,7 @@ class File:
     ) -> "File":
         return cls(
             file_id=file_id,
+            created_at=draft_file.created_at,
             modified_at=draft_file.modified_at,
             tag=draft_file.tag,
             size=draft_file.size,
@@ -109,6 +116,7 @@ class File:
 class LoadedFile:
     # Unique key to identify this File within a Dataset
     file_id: str
+    created_at: datetime
     modified_at: datetime
     tag: str
     size: int
