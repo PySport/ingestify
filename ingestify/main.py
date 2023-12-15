@@ -182,14 +182,23 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
             job.get("data_spec_versions", {"default": {"v1"}})
         )
 
-        import_job = ExtractJob(
-            source=sources[job["source"]],
-            dataset_type=job.get("dataset_type"),
-            selectors=[
+        if "selectors" in job:
+            selectors = [
                 Selector.build(selector, data_spec_versions=data_spec_versions)
                 for selector_args in job["selectors"]
                 for selector in _product_selectors(selector_args)
-            ],
+            ]
+        else:
+            # Add a single empty selector. This won't match anything
+            # but makes it easier later one where we loop over selectors.
+            selectors = [
+                Selector.build({}, data_spec_versions=data_spec_versions)
+            ]
+
+        import_job = ExtractJob(
+            source=sources[job["source"]],
+            dataset_type=job.get("dataset_type"),
+            selectors=selectors,
             fetch_policy=fetch_policy,
             data_spec_versions=data_spec_versions,
         )
