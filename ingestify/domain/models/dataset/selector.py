@@ -9,8 +9,20 @@ class Selector(AttributeBag):
         return len(self.filtered_attributes) > 0
 
     @classmethod
-    def build(cls, data_spec_versions: DataSpecVersionCollection, **kwargs):
-        return cls(_data_spec_versions=data_spec_versions.copy(), **kwargs)
+    def build(cls, attributes, data_spec_versions: DataSpecVersionCollection):
+        if callable(attributes):
+            return cls(
+                _data_spec_versions=data_spec_versions.copy(), _matcher=attributes
+            )
+        else:
+            return cls(_data_spec_versions=data_spec_versions.copy(), **attributes)
+
+    @property
+    def is_dynamic(self):
+        return "_matcher" in self.attributes
+
+    def is_match(self, selector: dict):
+        return self._matcher(selector)
 
     @property
     def data_spec_versions(self):

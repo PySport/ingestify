@@ -33,7 +33,15 @@ secrets_manager = SecretsManager()
 def _product_selectors(selector_args):
     if not selector_args:
         # Empty selector passed
-        yield dict()
+        # yield dict()
+        yield lambda dict_selector: True
+        return
+
+    if isinstance(selector_args, str):
+        if selector_args == "*":
+            yield lambda dict_selector: True
+        else:
+            yield lambda dict_selector: eval(selector_args, {}, dict_selector)
         return
 
     selector_args_ = {
@@ -177,7 +185,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
             source=sources[job["source"]],
             dataset_type=job.get("dataset_type"),
             selectors=[
-                Selector.build(**selector, data_spec_versions=data_spec_versions)
+                Selector.build(selector, data_spec_versions=data_spec_versions)
                 for selector_args in job["selectors"]
                 for selector in _product_selectors(selector_args)
             ],

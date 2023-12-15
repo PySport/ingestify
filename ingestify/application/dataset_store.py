@@ -29,6 +29,7 @@ from ingestify.utils import utcnow, map_in_pool
 
 logger = logging.getLogger(__name__)
 
+
 class DatasetStore:
     def __init__(
         self,
@@ -183,9 +184,13 @@ class DatasetStore:
 
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             self.dispatch(RevisionAdded(dataset=dataset))
-            logger.info(f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}")
+            logger.info(
+                f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}"
+            )
         else:
-            logger.info(f"Ignoring a new revision without changed files -> {dataset.identifier}")
+            logger.info(
+                f"Ignoring a new revision without changed files -> {dataset.identifier}"
+            )
 
     def update_dataset(
         self,
@@ -255,7 +260,10 @@ class DatasetStore:
                         dataset=dataset,
                         # When file.revision_id is set we must use it.
                         revision_id=revision_id,
-                        filename=file.file_id + "." + file.data_serialization_format + suffix,
+                        filename=file.file_id
+                        + "."
+                        + file.data_serialization_format
+                        + suffix,
                     )
                 ),
                 **asdict(file),

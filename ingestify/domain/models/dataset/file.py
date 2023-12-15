@@ -31,7 +31,7 @@ class DraftFile:
         data_feed_key=None,
         data_spec_version=None,
         data_serialization_format=None,
-        modified_at=None
+        modified_at=None,
     ):
         # Pass-through for these types
         if isinstance(file_, DraftFile) or file_ is None:

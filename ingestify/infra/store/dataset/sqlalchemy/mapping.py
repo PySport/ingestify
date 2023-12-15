@@ -101,22 +101,17 @@ file_table = Table(
     Column("dataset_id", String(255), primary_key=True),
     Column("revision_id", Integer, primary_key=True),
     Column("file_id", String(255), primary_key=True),
-
     Column("created_at", TZDateTime(6)),
     Column("modified_at", TZDateTime(6)),
-
     Column("tag", String(255)),
     Column("content_type", String(255)),
     Column("size", BigInteger),
-
     Column("data_feed_key", String(255)),
     Column("data_spec_version", String(255)),
     Column("data_serialization_format", String(255)),
-
     Column("storage_compression_method", String(255)),
     Column("storage_size", BigInteger),
     Column("storage_path", PathString),
-
     ForeignKeyConstraint(
         ("dataset_id", "revision_id"),
         [revision_table.c.dataset_id, revision_table.c.revision_id],

@@ -9,6 +9,7 @@ from ingestify.utils import map_in_pool
 from .dataset_store import DatasetStore
 from ..domain.models.data_spec_version_collection import DataSpecVersionCollection
 from ..domain.models.extract_job import ExtractJob
+from ..exceptions import ConfigurationError
 
 if platform.system() == "Darwin":
     set_start_method("fork", force=True)
@@ -100,35 +101,57 @@ class Loader:
         # First collect all selectors, before discovering datasets
         selectors = {}
         for extract_job in self.extract_jobs:
-            job_selectors = extract_job.selectors
-            if len(job_selectors) == 1 and not job_selectors[0]:
+            static_selectors = [
+                selector
+                for selector in extract_job.selectors
+                if not selector.is_dynamic
+            ]
+            dynamic_selectors = [
+                selector for selector in extract_job.selectors if selector.is_dynamic
+            ]
+            if dynamic_selectors:
                 if hasattr(extract_job.source, "discover_selectors"):
                     logger.debug(
                         f"Discovering selectors from {extract_job.source.__class__.__name__}"
                     )
-                    job_selectors = [
-                        Selector.build(
-                            **selector, data_spec_versions=extract_job.data_spec_versions
-                        )
-                        for selector in extract_job.source.discover_selectors(
-                            extract_job.dataset_type
-                        )
-                    ]
+
+                    # TODO: consider making this lazy and fetch once per Source instead of
+                    #       once per ExtractJob
+                    all_selectors = extract_job.source.discover_selectors(
+                        extract_job.dataset_type
+                    )
+                    extra_static_selectors = []
+                    for dynamic_selector in dynamic_selectors:
+                        dynamic_job_selectors = [
+                            Selector.build(
+                                job_selector,
+                                data_spec_versions=extract_job.data_spec_versions,
+                            )
+                            for job_selector in all_selectors
+                            if dynamic_selector.is_match(job_selector)
+                        ]
+                        extra_static_selectors.extend(dynamic_job_selectors)
+                        logger.info(f"Added {len(dynamic_job_selectors)} selectors")
+
+                    static_selectors.extend(extra_static_selectors)
                     logger.info(
-                        f"Discovered {len(job_selectors)} selectors from {extract_job.source.__class__.__name__}"
+                        f"Discovered {len(extra_static_selectors)} selectors from {extract_job.source.__class__.__name__}"
                     )
                 else:
-                    logger.info(
-                        f"Empty selector and source {extract_job.source.__class__.__name__} "
-                        f"doesn't support discover_selectors."
+                    raise ConfigurationError(
+                        f"Dynamic selectors cannot be used for "
+                        f"{extract_job.source.__class__.__name__} because it doesn't support"
+                        f" selector discovery"
                     )
 
             # Merge selectors when source, dataset_type and actual selector is the same. This makes
             # sure there will be only 1 dataset for this combination
-            for selector in job_selectors:
+            for selector in static_selectors:
                 key = (extract_job.source.name, extract_job.dataset_type, selector.key)
                 if existing_selector := selectors.get(key):
-                    existing_selector[1].data_spec_versions.merge(selector.data_spec_versions)
+                    existing_selector[1].data_spec_versions.merge(
+                        selector.data_spec_versions
+                    )
                 else:
                     selectors[key] = (extract_job, selector)
 

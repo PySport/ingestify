@@ -21,7 +21,7 @@ class DataSpecVersionCollection(dict):
 
     def merge(self, other: "DataSpecVersionCollection"):
         for data_feed_key, data_spec_versions in other.items():
-            if data_feed_key in self.items:
+            if data_feed_key in self:
                 self[data_feed_key].update(data_spec_versions)
             else:
                 self[data_feed_key] = data_spec_versions
