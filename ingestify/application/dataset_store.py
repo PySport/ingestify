@@ -140,7 +140,7 @@ class DatasetStore:
                 bucket=self.bucket,
                 dataset=dataset,
                 revision_id=revision_id,
-                filename=file_id + suffix,
+                filename=file_id + "." + file_.data_serialization_format + suffix,
                 stream=stream,
             )
             file = File.from_draft(
@@ -246,7 +246,7 @@ class DatasetStore:
                         dataset=dataset,
                         # When file.revision_id is set we must use it.
                         revision_id=revision_id,
-                        filename=file.file_id + suffix,
+                        filename=file.file_id + "." + file.data_serialization_format + suffix,
                     )
                 ),
                 **asdict(file),

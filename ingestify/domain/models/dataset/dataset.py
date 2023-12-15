@@ -90,13 +90,13 @@ class Dataset:
             files = {}
 
             for revision in self.revisions:
-                for filename, file in revision.modified_files_map.items():
+                for file_id, file in revision.modified_files_map.items():
                     if isinstance(file, DraftFile):
                         raise Exception(
-                            f"Cannot squash draft file. Revision: {revision}. Filename: {filename}"
+                            f"Cannot squash draft file. Revision: {revision}. FileId: {file_id}"
                         )
-                    files[filename] = file
-                    files[filename].revision_id = revision.revision_id
+                    files[file_id] = file
+                    files[file_id].revision_id = revision.revision_id
 
             return Revision(
                 revision_id=self.revisions[-1].revision_id,

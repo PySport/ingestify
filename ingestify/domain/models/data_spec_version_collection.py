@@ -3,10 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Union, List, Set
 
 
-@dataclass
-class DataSpecVersionCollection:
-    items: Dict[str, Set[str]]
-
+class DataSpecVersionCollection(dict):
     @classmethod
     def from_dict(cls, items: Dict[str, Union[str, List[str], Set[str]]]):
         items_ = {}
@@ -20,11 +17,11 @@ class DataSpecVersionCollection:
         return cls(items_)
 
     def copy(self):
-        return DataSpecVersionCollection(copy.deepcopy(self.items))
+        return DataSpecVersionCollection(copy.deepcopy(self))
 
     def merge(self, other: "DataSpecVersionCollection"):
-        for data_feed_key, data_spec_versions in other.items.items():
+        for data_feed_key, data_spec_versions in other.items():
             if data_feed_key in self.items:
-                self.items[data_feed_key].update(data_spec_versions)
+                self[data_feed_key].update(data_spec_versions)
             else:
-                self.items[data_feed_key] = data_spec_versions
+                self[data_feed_key] = data_spec_versions

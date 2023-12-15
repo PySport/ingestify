@@ -48,8 +48,10 @@ def retrieve_http(
         return None
 
     if last_modified:
+        # From metadata received from api in discover_datasets
         modified_at = last_modified
     elif "last-modified" in response.headers:
+        # Received from the webserver
         modified_at = parsedate(response.headers["last-modified"])
     else:
         modified_at = utcnow()
