@@ -105,12 +105,15 @@ file_table = Table(
     Column("tag", String(255)),
     Column("content_type", String(255)),
     Column("size", BigInteger),
-    Column("storage_size", BigInteger),
+
     Column("data_feed_key", String(255)),
     Column("data_spec_version", String(255)),
-    Column("compression_method", String(255)),
-    Column("serialization_format", String(255)),
-    Column("path", PathString),
+    Column("data_serialization_format", String(255)),
+
+    Column("storage_compression_method", String(255)),
+    Column("storage_size", BigInteger),
+    Column("storage_path", PathString),
+
     ForeignKeyConstraint(
         ("dataset_id", "revision_id"),
         [revision_table.c.dataset_id, revision_table.c.revision_id],

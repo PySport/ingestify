@@ -1,5 +1,6 @@
 import gzip
 import hashlib
+import logging
 import mimetypes
 import os
 import shutil
@@ -25,6 +26,8 @@ from ingestify.domain.models import (
 )
 from ingestify.utils import utcnow, map_in_pool
 
+
+logger = logging.getLogger(__name__)
 
 class DatasetStore:
     def __init__(
@@ -166,17 +169,24 @@ class DatasetStore:
         created_at = utcnow()
 
         persisted_files_ = self._persist_files(dataset, revision_id, files)
-        dataset.add_revision(
-            Revision(
-                revision_id=revision_id,
-                created_at=created_at,
-                description=description,
-                modified_files=persisted_files_,
+        if persisted_files_:
+            # It can happen an API tells us data is changed, but it was not changed. In this case
+            # we decide to ignore it.
+            # Make sure there are files changed before creating a new revision
+            dataset.add_revision(
+                Revision(
+                    revision_id=revision_id,
+                    created_at=created_at,
+                    description=description,
+                    modified_files=persisted_files_,
+                )
             )
-        )
 
-        self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-        self.dispatch(RevisionAdded(dataset=dataset))
+            self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+            self.dispatch(RevisionAdded(dataset=dataset))
+            logger.info(f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}")
+        else:
+            logger.info(f"Ignoring a new revision without changed files -> {dataset.identifier}")
 
     def update_dataset(
         self,
