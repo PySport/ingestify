@@ -125,11 +125,13 @@ class LoadedFile:
 
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
-    compression_method: Optional[str]  # Example: 'gzip'
-    serialization_format: str  # Example: 'json'
+    data_serialization_format: Optional[str]  # Example: 'gzip'
+
+    storage_size: int
+    storage_compression_method: Optional[str]  # Example: 'gzip'
+    storage_path: Path
 
     stream: BinaryIO
-    path: Path
 
     # This can be used when a Revision is squashed
     revision_id: Optional[int] = None

@@ -23,7 +23,7 @@ class Source(ABC):
     #     pass
 
     @abstractmethod
-    def discover_datasets(self, dataset_type: str, **kwargs) -> List[Dict]:
+    def discover_datasets(self, dataset_type: str, data_spec_versions: DataSpecVersionCollection, **kwargs) -> List[Dict]:
         pass
 
     @abstractmethod
