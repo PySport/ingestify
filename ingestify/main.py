@@ -191,9 +191,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
         else:
             # Add a single empty selector. This won't match anything
             # but makes it easier later one where we loop over selectors.
-            selectors = [
-                Selector.build({}, data_spec_versions=data_spec_versions)
-            ]
+            selectors = [Selector.build({}, data_spec_versions=data_spec_versions)]
 
         import_job = ExtractJob(
             source=sources[job["source"]],

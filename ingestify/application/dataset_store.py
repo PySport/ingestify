@@ -10,6 +10,7 @@ from io import BytesIO, StringIO
 from typing import Dict, List, Optional, Union, Callable, BinaryIO
 
 from ingestify.domain.models.dataset.events import RevisionAdded, DatasetUpdated
+from ingestify.domain.models.dataset.file_collection import FileCollection
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
     Dataset,
@@ -241,7 +242,7 @@ class DatasetStore:
 
         self.dispatch(DatasetCreated(dataset=dataset))
 
-    def load_files(self, dataset: Dataset) -> Dict[str, LoadedFile]:
+    def load_files(self, dataset: Dataset) -> FileCollection:
         current_revision = dataset.current_revision
         files = {}
 
@@ -269,7 +270,7 @@ class DatasetStore:
                 **asdict(file),
             )
             files[file.file_id] = loaded_file
-        return files
+        return FileCollection(files)
 
     def load_with_kloppy(self, dataset: Dataset, **kwargs):
         files = self.load_files(dataset)
