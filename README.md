@@ -18,6 +18,10 @@ Ingestify focus' on Ingestion of data.
 
 ### How does Ingestify work?
 
+1. A `Source` is asked for all available `Datasets` using the `discover_datasets` method
+2. All available `Datasets` are compared with what's already fetched, and if it's changed (using a `FetchPolicy`)
+3. A `TaskQueue` is filled with `Tasks` to fetch all missing or stale `Datasets`
+
 <img src="docs/overview.svg" />
 
 - [Source](blob/main/ingestify/domain/models/source.py) is the main entrance from Ingestify to external sources. A Source must always define:
