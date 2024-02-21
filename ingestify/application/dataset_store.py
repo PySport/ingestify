@@ -52,7 +52,6 @@ class DatasetStore:
 
     def dispatch(self, event):
         if self.event_bus:
-            logger.info(f"Dispatching {event}")
             self.event_bus.dispatch(event)
 
     def get_dataset_collection(

@@ -1,4 +1,10 @@
+import logging
+
+
 from .dispatcher import Dispatcher
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventBus:
@@ -9,5 +15,12 @@ class EventBus:
         self.dispatchers.append(dispatcher)
 
     def dispatch(self, event):
+
         for dispatcher in self.dispatchers:
-            dispatcher.dispatch(event)
+            try:
+                dispatcher.dispatch(event)
+            except Exception as e:
+                logger.exception(
+                    f"Failed to handle {event}"
+                )
+                raise Exception(f"Failed to handle {event}") from e
