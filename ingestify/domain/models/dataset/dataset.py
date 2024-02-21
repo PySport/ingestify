@@ -47,6 +47,10 @@ class Dataset:
 
     store: Optional["DatasetStore"] = None
 
+    @property
+    def is_complete(self):
+        return self.state.is_complete
+
     def set_store(self, store):
         self.store = store
 
