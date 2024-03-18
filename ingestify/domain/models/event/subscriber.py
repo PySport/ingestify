@@ -20,7 +20,7 @@ class Subscriber:
     def on_metadata_updated(self, event: "MetadataUpdated"):
         pass
 
-    def on_version_added(self, event: "RevisionAdded"):
+    def on_revision_added(self, event: "RevisionAdded"):
         pass
 
     def handle(self, event: DomainEvent):
@@ -36,4 +36,4 @@ class Subscriber:
         elif isinstance(event, MetadataUpdated):
             self.on_metadata_updated(event)
         elif isinstance(event, RevisionAdded):
-            self.on_version_added(event)
+            self.on_revision_added(event)
