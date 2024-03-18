@@ -74,7 +74,7 @@ class File:
     modified_at: datetime
     tag: str
     size: int
-    content_type: str
+    content_type: Optional[str]
 
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
@@ -121,7 +121,7 @@ class LoadedFile:
     tag: str
     size: int
     storage_size: int
-    content_type: str
+    content_type: Optional[str]
 
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
