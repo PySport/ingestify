@@ -1,16 +1,13 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
 from ingestify.utils import utcnow
 
 from .file import DraftFile
 from .identifier import Identifier
 from .revision import Revision
-
-if TYPE_CHECKING:
-    from ingestify.application.dataset_store import DatasetStore
 
 
 class DatasetState(Enum):
@@ -45,14 +42,9 @@ class Dataset:
 
     revisions: List[Revision] = field(default_factory=list)
 
-    store: Optional["DatasetStore"] = None
-
     @property
     def is_complete(self):
         return self.state.is_complete
-
-    def set_store(self, store):
-        self.store = store
 
     def next_revision_id(self):
         return len(self.revisions)
@@ -110,8 +102,3 @@ class Dataset:
                 is_squashed=True,
                 modified_files=list(files.values()),
             )
-
-    def to_kloppy(self):
-        if not self.store:
-            raise AttributeError("Store not set")
-        return self.store.load_with_kloppy(self)

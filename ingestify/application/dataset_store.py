@@ -74,7 +74,6 @@ class DatasetStore:
             provider=provider,
             selector=selector,
         )
-        dataset_collection.set_store(self)
         return dataset_collection
 
     #
