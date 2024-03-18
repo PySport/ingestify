@@ -9,7 +9,7 @@ from io import BytesIO, StringIO
 
 from typing import Dict, List, Optional, Union, Callable, BinaryIO
 
-from ingestify.domain.models.dataset.events import RevisionAdded, DatasetUpdated
+from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
 from ingestify.domain.models.dataset.file_collection import FileCollection
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
@@ -187,10 +187,12 @@ class DatasetStore:
             logger.info(
                 f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}"
             )
+            return True
         else:
             logger.info(
                 f"Ignoring a new revision without changed files -> {dataset.identifier}"
             )
+            return False
 
     def update_dataset(
         self,
@@ -199,17 +201,17 @@ class DatasetStore:
         files: Dict[str, DraftFile],
     ):
         """The add_revision will also save the dataset."""
-        dataset_changed = False
+        metadata_changed = False
         if dataset.update_from_identifier(dataset_identifier):
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-            dataset_changed = True
+            metadata_changed = True
 
         self.add_revision(dataset, files)
 
-        if dataset_changed:
+        if metadata_changed:
             # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
             # the new revision
-            self.dispatch(DatasetUpdated(dataset=dataset))
+            self.dispatch(MetadataUpdated(dataset=dataset))
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around

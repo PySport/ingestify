@@ -24,10 +24,10 @@ class RevisionAdded(DomainEvent):
 
 
 @dataclass
-class DatasetUpdated(DomainEvent):
+class MetadataUpdated(DomainEvent):
     dataset: Dataset
 
-    event_type: str = "dataset_updated"
+    event_type: str = "metadata_updated"
     occurred_at: datetime = field(default_factory=utcnow)
 
 

@@ -5,7 +5,7 @@ from .domain_event import DomainEvent
 if TYPE_CHECKING:
     from ingestify.domain.models.dataset.events import (
         DatasetCreated,
-        DatasetUpdated,
+        MetadataUpdated,
         RevisionAdded,
     )
 
@@ -17,7 +17,7 @@ class Subscriber:
     def on_dataset_created(self, event: "DatasetCreated"):
         pass
 
-    def on_dataset_updated(self, event: "DatasetUpdated"):
+    def on_metadata_updated(self, event: "MetadataUpdated"):
         pass
 
     def on_version_added(self, event: "RevisionAdded"):
@@ -27,13 +27,13 @@ class Subscriber:
         # TODO: fix the circular dependencies
         from ingestify.domain.models.dataset.events import (
             DatasetCreated,
-            DatasetUpdated,
+            MetadataUpdated,
             RevisionAdded,
         )
 
         if isinstance(event, DatasetCreated):
             self.on_dataset_created(event)
-        elif isinstance(event, DatasetUpdated):
-            self.on_dataset_updated(event)
+        elif isinstance(event, MetadataUpdated):
+            self.on_metadata_updated(event)
         elif isinstance(event, RevisionAdded):
             self.on_version_added(event)

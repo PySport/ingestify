@@ -10,7 +10,13 @@ from ingestify.exceptions import ConfigurationError
 
 class SecretsManager:
     def __init__(self):
-        self.aws_client = boto3.client("secretsmanager")
+        self._aws_client = None
+
+    @property
+    def aws_client(self):
+        if not self._aws_client:
+            self._aws_client = boto3.client("secretsmanager")
+        return self._aws_client
 
     def load_as_dict(self, url: str) -> dict:
         """Load a secret from the supported vault. In this case only AWS Secrets Manager"""
