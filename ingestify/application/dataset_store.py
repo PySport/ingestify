@@ -243,20 +243,26 @@ class DatasetStore:
 
         self.dispatch(DatasetCreated(dataset=dataset))
 
-    def load_files(self, dataset: Dataset) -> FileCollection:
+    def load_files(
+        self,
+        dataset: Dataset,
+        data_feed_keys: Optional[List[str]] = None,
+        lazy: bool = False,
+    ) -> FileCollection:
         current_revision = dataset.current_revision
         files = {}
 
         reader, suffix = self._prepare_read_stream()
         for file in current_revision.modified_files:
-            # TODO: refactor
+            if data_feed_keys and file.data_feed_key not in data_feed_keys:
+                continue
 
             revision_id = file.revision_id
             if revision_id is None:
                 revision_id = current_revision.revision_id
 
-            loaded_file = LoadedFile(
-                stream=reader(
+            def get_stream():
+                return reader(
                     self.file_repository.load_content(
                         bucket=self.bucket,
                         dataset=dataset,
@@ -267,7 +273,10 @@ class DatasetStore:
                         + file.data_serialization_format
                         + suffix,
                     )
-                ),
+                )
+
+            loaded_file = LoadedFile(
+                _stream=get_stream if lazy else get_stream(),
                 **asdict(file),
             )
             files[file.file_id] = loaded_file
@@ -280,8 +289,8 @@ class DatasetStore:
 
             try:
                 return statsbomb.load(
-                    event_data=files["events.json"].stream,
-                    lineup_data=files["lineups.json"].stream,
+                    event_data=files.get_file("events").stream,
+                    lineup_data=files.get_file("lineups").stream,
                     **kwargs,
                 )
             except Exception as e:

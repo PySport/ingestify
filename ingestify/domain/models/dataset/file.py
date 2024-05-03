@@ -131,10 +131,16 @@ class LoadedFile:
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
 
-    stream: BinaryIO
+    _stream: Union[BinaryIO, Callable[[], BinaryIO]]
 
     # This can be used when a Revision is squashed
     revision_id: Optional[int] = None
+
+    @property
+    def stream(self):
+        if callable(self._stream):
+            self._stream = self._stream()
+        return self._stream
 
 
 __all__ = ["File", "DraftFile", "LoadedFile"]

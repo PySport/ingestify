@@ -15,9 +15,15 @@ isotime_schema = Schema(
 factory = Factory(
     schemas={
         datetime: isotime_schema,
-        DatasetCreated: Schema(pre_parse=type_checker(DatasetCreated.event_type, "event_type")),
-        MetadataUpdated: Schema(pre_parse=type_checker(MetadataUpdated.event_type, "event_type")),
-        RevisionAdded: Schema(pre_parse=type_checker(RevisionAdded.event_type, "event_type"))
+        DatasetCreated: Schema(
+            pre_parse=type_checker(DatasetCreated.event_type, "event_type")
+        ),
+        MetadataUpdated: Schema(
+            pre_parse=type_checker(MetadataUpdated.event_type, "event_type")
+        ),
+        RevisionAdded: Schema(
+            pre_parse=type_checker(RevisionAdded.event_type, "event_type")
+        ),
         # ClipSelectionContent: Schema(pre_parse=type_checker(ClipSelectionContent.content_type, field="contentType")),
         # TeamInfoImageContent: Schema(pre_parse=type_checker(TeamInfoImageContent.content_type, field="contentType")),
         # StaticVideoContent: Schema(pre_parse=type_checker(StaticVideoContent.content_type, field="contentType"))

@@ -20,7 +20,5 @@ class EventBus:
             try:
                 dispatcher.dispatch(event)
             except Exception as e:
-                logger.exception(
-                    f"Failed to handle {event}"
-                )
+                logger.exception(f"Failed to handle {event}")
                 raise Exception(f"Failed to handle {event}") from e

@@ -8,4 +8,3 @@ class DomainEvent(ABC):
     @abstractmethod
     def event_type(self) -> str:
         pass
-
