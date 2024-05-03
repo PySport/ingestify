@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import BinaryIO, Optional
+from typing import BinaryIO, Optional, Union, Callable
 
 from ingestify.utils import utcnow
 
