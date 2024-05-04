@@ -139,7 +139,7 @@ class LoadedFile:
     @property
     def stream(self):
         if callable(self._stream):
-            self._stream = self._stream()
+            self._stream = self._stream(self)
         return self._stream
 
 

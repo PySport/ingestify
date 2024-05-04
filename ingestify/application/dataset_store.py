@@ -257,21 +257,21 @@ class DatasetStore:
             if data_feed_keys and file.data_feed_key not in data_feed_keys:
                 continue
 
-            revision_id = file.revision_id
-            if revision_id is None:
-                revision_id = current_revision.revision_id
+            def get_stream(file_):
+                revision_id = file_.revision_id
+                if revision_id is None:
+                    revision_id = current_revision.revision_id
 
-            def get_stream():
                 return reader(
                     self.file_repository.load_content(
                         bucket=self.bucket,
                         dataset=dataset,
                         # When file.revision_id is set we must use it.
                         revision_id=revision_id,
-                        filename=file.file_id
-                        + "."
-                        + file.data_serialization_format
-                        + suffix,
+                        filename=file_.file_id
+                                 + "."
+                                 + file_.data_serialization_format
+                                 + suffix,
                     )
                 )
 
