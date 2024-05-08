@@ -248,6 +248,7 @@ class DatasetStore:
         dataset: Dataset,
         data_feed_keys: Optional[List[str]] = None,
         lazy: bool = False,
+        auto_rewind: bool = True
     ) -> FileCollection:
         current_revision = dataset.current_revision
         files = {}
@@ -280,7 +281,7 @@ class DatasetStore:
                 **asdict(file),
             )
             files[file.file_id] = loaded_file
-        return FileCollection(files)
+        return FileCollection(files, auto_rewind=auto_rewind)
 
     def load_with_kloppy(self, dataset: Dataset, **kwargs):
         files = self.load_files(dataset)
