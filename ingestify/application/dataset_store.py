@@ -269,14 +269,14 @@ class DatasetStore:
                         # When file.revision_id is set we must use it.
                         revision_id=revision_id,
                         filename=file_.file_id
-                                 + "."
-                                 + file_.data_serialization_format
-                                 + suffix,
+                        + "."
+                        + file_.data_serialization_format
+                        + suffix,
                     )
                 )
 
             loaded_file = LoadedFile(
-                _stream=get_stream if lazy else get_stream(),
+                _stream=get_stream if lazy else get_stream(file),
                 **asdict(file),
             )
             files[file.file_id] = loaded_file
