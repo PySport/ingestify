@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List, Union
 
 from ingestify.utils import ComponentFactory, ComponentRegistry
 
@@ -16,7 +16,7 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
         self,
         bucket: str,
         dataset_type: Optional[str] = None,
-        dataset_id: Optional[str] = None,
+        dataset_id: Optional[Union[str, List[str]]] = None,
         provider: Optional[str] = None,
         selector: Optional[Selector] = None,
     ) -> DatasetCollection:

@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Optional
+from typing import Optional, Union, List
 
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.engine import make_url
@@ -110,7 +110,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         bucket: str,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
-        dataset_id: Optional[str] = None,
+        dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Selector] = None,
     ) -> DatasetCollection:
         query = (
@@ -123,7 +123,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         if provider:
             query = query.filter(Dataset.provider == provider)
         if dataset_id:
-            query = query.filter(Dataset.dataset_id == dataset_id)
+            if isinstance(dataset_id, list):
+                query = query.filter(Dataset.dataset_id.in_(dataset_id))
+            else:
+                query = query.filter(Dataset.dataset_id == dataset_id)
 
         dialect = self.session.bind.dialect.name
 
