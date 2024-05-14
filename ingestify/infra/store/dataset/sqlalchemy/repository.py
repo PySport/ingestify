@@ -122,8 +122,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             query = query.filter(Dataset.dataset_type == dataset_type)
         if provider:
             query = query.filter(Dataset.provider == provider)
-        if dataset_id:
+        if dataset_id is not None:
             if isinstance(dataset_id, list):
+                if len(dataset_id) == 0:
+                    # When an empty list is explicitly passed, make sure we
+                    # return an empty DatasetCollection
+                    return DatasetCollection()
+
                 query = query.filter(Dataset.dataset_id.in_(dataset_id))
             else:
                 query = query.filter(Dataset.dataset_id == dataset_id)
