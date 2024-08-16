@@ -134,8 +134,8 @@ class BatchSource(Source):
             }
 
 
-def test_engine():
-    engine = get_engine("config.yaml", "main")
+def test_engine(config_file):
+    engine = get_engine(config_file, "main")
 
     add_extract_job(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
@@ -170,12 +170,12 @@ def test_engine():
     assert len(datasets) == 1
 
 
-def test_iterator_source():
+def test_iterator_source(config_file):
     """Test when a Source returns a Iterator to do Batch processing.
 
     Every batch must be executed right away.
     """
-    engine = get_engine("config.yaml", "main")
+    engine = get_engine(config_file, "main")
 
     batch_source = None
 
