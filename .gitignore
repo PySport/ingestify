@@ -1,0 +1,5 @@
+.*
+!.gitignore
+!.github
+__pycache__
+scratchpad
