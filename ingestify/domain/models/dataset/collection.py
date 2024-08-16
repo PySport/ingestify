@@ -1,16 +1,26 @@
-from typing import List
+from typing import List, Optional
 
+from .collection_metadata import DatasetCollectionMetadata
 from .dataset import Dataset
 from .identifier import Identifier
 
 
 class DatasetCollection:
-    def __init__(self, datasets: List[Dataset] = None):
+    def __init__(
+        self,
+        metadata: Optional[DatasetCollectionMetadata] = None,
+        datasets: Optional[List[Dataset]] = None,
+    ):
         datasets = datasets or []
 
+        # TODO: this fails when datasets contains different dataset_types with overlapping identifiers
         self.datasets: dict[str, Dataset] = {
             dataset.identifier.key: dataset for dataset in datasets
         }
+        self.metadata = metadata
+
+    def loaded(self):
+        return self.metadata.count == len(self.datasets)
 
     def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)

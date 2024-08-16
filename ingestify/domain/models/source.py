@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Iterator, Union
 
 # from ingestify.utils import ComponentFactory, ComponentRegistry
 
 from . import DraftFile
 from .data_spec_version_collection import DataSpecVersionCollection
 from .dataset import Identifier, Revision
+from .dataset.collection_metadata import DatasetCollectionMetadata
 
 
 class Source(ABC):
@@ -24,8 +25,12 @@ class Source(ABC):
 
     @abstractmethod
     def discover_datasets(
-        self, dataset_type: str, data_spec_versions: DataSpecVersionCollection, **kwargs
-    ) -> List[Dict]:
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        **kwargs
+    ) -> Union[List[Dict], Iterator[List[Dict]]]:
         pass
 
     @abstractmethod
