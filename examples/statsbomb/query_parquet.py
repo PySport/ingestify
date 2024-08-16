@@ -14,7 +14,8 @@ def main():
 
     con = duckdb.connect()
     with performance_logging("query parquet"):
-        res = con.query("""
+        res = con.query(
+            """
         SELECT 
             match, 
             COUNT(*) 
@@ -24,7 +25,8 @@ def main():
             match 
         ORDER BY 
             COUNT(*) DESC 
-        LIMIT 10""")
+        LIMIT 10"""
+        )
         print(res)
 
 

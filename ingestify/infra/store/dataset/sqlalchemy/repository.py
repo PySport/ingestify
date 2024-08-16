@@ -194,7 +194,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         selector: Optional[Union[Selector, List[Selector]]] = None,
         metadata_only: bool = False,
     ) -> DatasetCollection:
-
         def apply_query_filter(query):
             return self._filter_query(
                 query,
