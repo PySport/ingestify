@@ -212,14 +212,14 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         else:
             datasets = []
 
-        metadata_result = list(
-            apply_query_filter(
-                self.session.query(func.max(File.modified_at), func.count())
+        metadata_result_row = apply_query_filter(
+            self.session.query(
+                func.min(File.modified_at).label("first_modified_at"),
+                func.max(File.modified_at).label("last_modified_at"),
+                func.count().label("row_count"),
             )
-        )[0]
-        dataset_collection_metadata = DatasetCollectionMetadata(
-            last_modified=metadata_result[0], count=metadata_result[1]
-        )
+        ).first()
+        dataset_collection_metadata = DatasetCollectionMetadata(*metadata_result_row)
 
         return DatasetCollection(dataset_collection_metadata, datasets)
 
