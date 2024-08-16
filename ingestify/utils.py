@@ -145,6 +145,10 @@ class AttributeBag:
     def filtered_attributes(self):
         return {k: v for k, v in self.attributes.items() if not k.startswith("_")}
 
+    def __eq__(self, other):
+        if isinstance(other, AttributeBag):
+            return self.key == other.key
+
     def __hash__(self):
         return hash(self.key)
 
@@ -193,3 +197,37 @@ def map_in_pool(func, iterable, processes=0):
         return pool.map(
             cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
         )
+
+
+class SyncPool:
+    def map_async(self, func, iterable):
+        return [func(item) for item in iterable]
+
+    def join(self):
+        return True
+
+
+class TaskExecutor:
+    def __init__(self, processes=0):
+        if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
+            pool = SyncPool()
+        else:
+            if not processes:
+                processes = int(os.environ.get("INGESTIFY_CONCURRENCY", "0"))
+
+            if "fork" in get_all_start_methods():
+                ctx = get_context("fork")
+            else:
+                ctx = get_context("spawn")
+
+            pool = ctx.Pool(processes or cpu_count())
+        self.pool = pool
+
+    def run(self, func, iterable):
+        wrapped_fn = cloudpickle.dumps(func)
+        self.pool.map_async(
+            cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
+        )
+
+    def join(self):
+        self.pool.join()

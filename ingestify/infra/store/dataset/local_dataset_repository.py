@@ -33,6 +33,9 @@ class LocalDatasetRepository(DatasetRepository):
 
     def __init__(self, url: str):
         self.base_dir = Path(url[7:])
+        raise DeprecationWarning(
+            "This Repository should not be used. Better use SqlAlchemyDatasetRepository with a local sqlite database."
+        )
 
     def get_dataset_collection(
         self,

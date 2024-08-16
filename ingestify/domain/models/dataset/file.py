@@ -28,9 +28,9 @@ class DraftFile:
     def from_input(
         cls,
         file_,
+        data_serialization_format="txt",
         data_feed_key=None,
         data_spec_version=None,
-        data_serialization_format=None,
         modified_at=None,
     ):
         # Pass-through for these types

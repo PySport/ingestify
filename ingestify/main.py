@@ -195,7 +195,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
 
         import_job = ExtractJob(
             source=sources[job["source"]],
-            dataset_type=job.get("dataset_type"),
+            dataset_type=job["dataset_type"],
             selectors=selectors,
             fetch_policy=fetch_policy,
             data_spec_versions=data_spec_versions,

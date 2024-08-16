@@ -13,7 +13,7 @@ class FileCollection(dict):
         self,
         data_feed_key: Optional[str] = None,
         data_spec_version: Optional[str] = None,
-        auto_rewind: Optional[bool] = None
+        auto_rewind: Optional[bool] = None,
     ) -> Optional[LoadedFile]:
         if not data_feed_key and not data_spec_version:
             raise ValueError(

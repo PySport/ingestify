@@ -4,7 +4,7 @@ from multiprocessing import set_start_method, cpu_count
 from typing import List
 
 from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
-from ingestify.utils import map_in_pool
+from ingestify.utils import map_in_pool, TaskExecutor
 
 from .dataset_store import DatasetStore
 from ..domain.models.data_spec_version_collection import DataSpecVersionCollection
@@ -94,8 +94,6 @@ class Loader:
         self.extract_jobs.append(extract_job)
 
     def collect_and_run(self):
-        task_set = TaskSet()
-
         total_dataset_count = 0
 
         # First collect all selectors, before discovering datasets
@@ -155,77 +153,96 @@ class Loader:
                 else:
                     selectors[key] = (extract_job, selector)
 
+        def run_task(task):
+            logger.info(f"Running task {task}")
+            task.run()
+
+        task_executor = TaskExecutor()
+
         for extract_job, selector in selectors.values():
             logger.debug(
                 f"Discovering datasets from {extract_job.source.__class__.__name__} using selector {selector}"
             )
-            dataset_identifiers = [
-                Identifier.create_from(selector, **identifier)
-                # We have to pass the data_spec_versions here as a Source can add some
-                # extra data to the identifier which is retrieved in a certain data format
-                for identifier in extract_job.source.discover_datasets(
-                    dataset_type=extract_job.dataset_type,
-                    data_spec_versions=selector.data_spec_versions,
-                    **selector.filtered_attributes,
-                )
-            ]
 
-            task_subset = TaskSet()
-
-            dataset_collection = self.store.get_dataset_collection(
+            dataset_collection_metadata = self.store.get_dataset_collection(
                 dataset_type=extract_job.dataset_type,
-                provider=extract_job.source.provider,
+                data_spec_versions=selector.data_spec_versions,
                 selector=selector,
+                metadata_only=True,
+            ).metadata
+
+            # There are two different, but similar flows here:
+            # 1. The discover_datasets returns a list, and the entire list can be processed at once
+            # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
+            discovered_datasets = extract_job.source.discover_datasets(
+                dataset_type=extract_job.dataset_type,
+                data_spec_versions=selector.data_spec_versions,
+                dataset_collection_metadata=dataset_collection_metadata,
+                **selector.filtered_attributes,
             )
 
-            skip_count = 0
-            total_dataset_count += len(dataset_identifiers)
+            if isinstance(discovered_datasets, list):
+                batches = [discovered_datasets]
+            else:
+                batches = discovered_datasets
 
-            for dataset_identifier in dataset_identifiers:
-                if dataset := dataset_collection.get(dataset_identifier):
-                    if extract_job.fetch_policy.should_refetch(
-                        dataset, dataset_identifier
-                    ):
-                        task_subset.add(
-                            UpdateDatasetTask(
-                                source=extract_job.source,
-                                dataset=dataset,  # Current dataset from the database
-                                dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
-                                data_spec_versions=selector.data_spec_versions,
-                                store=self.store,
+            for batch in batches:
+                dataset_identifiers = [
+                    Identifier.create_from(selector, **identifier)
+                    # We have to pass the data_spec_versions here as a Source can add some
+                    # extra data to the identifier which is retrieved in a certain data format
+                    for identifier in batch
+                ]
+
+                # Load all available datasets based on the discovered dataset identifiers
+                dataset_collection = self.store.get_dataset_collection(
+                    dataset_type=extract_job.dataset_type,
+                    provider=extract_job.source.provider,
+                    selector=dataset_identifiers,
+                )
+
+                skip_count = 0
+                total_dataset_count += len(dataset_identifiers)
+
+                task_set = TaskSet()
+                for dataset_identifier in dataset_identifiers:
+                    if dataset := dataset_collection.get(dataset_identifier):
+                        if extract_job.fetch_policy.should_refetch(
+                            dataset, dataset_identifier
+                        ):
+                            task_set.add(
+                                UpdateDatasetTask(
+                                    source=extract_job.source,
+                                    dataset=dataset,  # Current dataset from the database
+                                    dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
+                                    data_spec_versions=selector.data_spec_versions,
+                                    store=self.store,
+                                )
                             )
-                        )
+                        else:
+                            skip_count += 1
                     else:
-                        skip_count += 1
-                else:
-                    if extract_job.fetch_policy.should_fetch(dataset_identifier):
-                        task_subset.add(
-                            CreateDatasetTask(
-                                source=extract_job.source,
-                                dataset_type=extract_job.dataset_type,
-                                dataset_identifier=dataset_identifier,
-                                data_spec_versions=selector.data_spec_versions,
-                                store=self.store,
+                        if extract_job.fetch_policy.should_fetch(dataset_identifier):
+                            task_set.add(
+                                CreateDatasetTask(
+                                    source=extract_job.source,
+                                    dataset_type=extract_job.dataset_type,
+                                    dataset_identifier=dataset_identifier,
+                                    data_spec_versions=selector.data_spec_versions,
+                                    store=self.store,
+                                )
                             )
-                        )
-                    else:
-                        skip_count += 1
+                        else:
+                            skip_count += 1
 
-            logger.info(
-                f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
-                f"using selector {selector} => {len(task_subset)} tasks. {skip_count} skipped."
-            )
+                logger.info(
+                    f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
+                    f"using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
+                )
 
-            task_set += task_subset
+                task_executor.run(run_task, task_set)
+                logger.info(f"Scheduled {len(task_set)} tasks")
 
-        if len(task_set):
-            processes = cpu_count()
-            logger.info(f"Scheduled {len(task_set)} tasks. With {processes} processes")
+        task_executor.join()
 
-            def run_task(task):
-                logger.info(f"Running task {task}")
-                task.run()
-
-            map_in_pool(run_task, task_set)
-        else:
-            logger.info("Nothing to do.")
+        logger.info("Done")
