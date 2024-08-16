@@ -2,7 +2,7 @@ import json
 import uuid
 from typing import Optional, Union, List
 
-from sqlalchemy import create_engine, func, text
+from sqlalchemy import create_engine, func, text, tuple_
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, joinedload
@@ -111,7 +111,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[Union[str, List[str]]] = None,
-        selector: Optional[Selector] = None,
+        selector: Optional[Union[Selector, List[Selector]]] = None,
     ) -> DatasetCollection:
         query = (
             self.session.query(Dataset)
@@ -137,20 +137,44 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         where, selector = selector.split("where")
         if selector:
-            for k, v in selector.filtered_attributes.items():
+            if isinstance(selector, list):
+                selectors = selector
+            else:
+                selectors = [selector]
+
+            if not selectors:
+                raise ValueError("Selectors must contain at least one item")
+
+            keys = list(selectors[0].filtered_attributes.keys())
+
+            columns = []
+            first_selector = selectors[0].filtered_attributes
+
+            # Create a query like this:
+            #  SELECT * FROM dataset WHERE (column1, column2, column3) IN ((1, 2, 3), (4, 5, 6), (7, 8, 9))
+            for k in keys:
                 if dialect == "postgresql":
                     column = dataset_table.c.identifier[k]
+
+                    # Take the value from the first selector to determine the type.
+                    # TODO: check all selectors to determine the type
+                    v = first_selector[k]
                     if isint(v):
                         column = column.as_integer()
                     elif isfloat(v):
                         column = column.as_float()
                     else:
                         column = column.as_string()
-                    query = query.filter(column == v)
                 else:
-                    query = query.filter(
-                        func.json_extract(Dataset.identifier, f"$.{k}") == v
-                    )
+                    column = func.json_extract(Dataset.identifier, f"$.{k}")
+                columns.append(column)
+
+            values = []
+            for selector in selectors:
+                filtered_attributes = selector.filtered_attributes
+                values.append(tuple([filtered_attributes[k] for k in keys]))
+
+            query = query.filter(tuple_(*columns).in_(values))
 
         if where:
             query = query.filter(text(where))

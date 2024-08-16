@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable, Iterator, Union
 
 # from ingestify.utils import ComponentFactory, ComponentRegistry
 
@@ -25,7 +25,7 @@ class Source(ABC):
     @abstractmethod
     def discover_datasets(
         self, dataset_type: str, data_spec_versions: DataSpecVersionCollection, **kwargs
-    ) -> List[Dict]:
+    ) -> Union[List[Dict], Iterator[List[Dict]]]:
         pass
 
     @abstractmethod

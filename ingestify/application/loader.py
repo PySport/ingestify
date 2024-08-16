@@ -159,64 +159,76 @@ class Loader:
             logger.debug(
                 f"Discovering datasets from {extract_job.source.__class__.__name__} using selector {selector}"
             )
-            dataset_identifiers = [
-                Identifier.create_from(selector, **identifier)
-                # We have to pass the data_spec_versions here as a Source can add some
-                # extra data to the identifier which is retrieved in a certain data format
-                for identifier in extract_job.source.discover_datasets(
-                    dataset_type=extract_job.dataset_type,
-                    data_spec_versions=selector.data_spec_versions,
-                    **selector.filtered_attributes,
-                )
-            ]
 
-            task_subset = TaskSet()
-
-            dataset_collection = self.store.get_dataset_collection(
+            # There are two different, but similar flows here:
+            # 1. The discover_datasets returns a list, and the entire list can be processed at once
+            # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
+            discovered_datasets = extract_job.source.discover_datasets(
                 dataset_type=extract_job.dataset_type,
-                provider=extract_job.source.provider,
-                selector=selector,
+                data_spec_versions=selector.data_spec_versions,
+                **selector.filtered_attributes,
             )
 
-            skip_count = 0
-            total_dataset_count += len(dataset_identifiers)
+            if isinstance(discovered_datasets, list):
+                batches = [discovered_datasets]
+            else:
+                batches = discovered_datasets
 
-            for dataset_identifier in dataset_identifiers:
-                if dataset := dataset_collection.get(dataset_identifier):
-                    if extract_job.fetch_policy.should_refetch(
-                        dataset, dataset_identifier
-                    ):
-                        task_subset.add(
-                            UpdateDatasetTask(
-                                source=extract_job.source,
-                                dataset=dataset,  # Current dataset from the database
-                                dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
-                                data_spec_versions=selector.data_spec_versions,
-                                store=self.store,
+            for batch in batches:
+                dataset_identifiers = [
+                    Identifier.create_from(selector, **identifier)
+                    # We have to pass the data_spec_versions here as a Source can add some
+                    # extra data to the identifier which is retrieved in a certain data format
+                    for identifier in batch
+                ]
+
+                task_subset = TaskSet()
+
+                dataset_collection = self.store.get_dataset_collection(
+                    dataset_type=extract_job.dataset_type,
+                    provider=extract_job.source.provider,
+                    selector=selector,
+                )
+
+                skip_count = 0
+                total_dataset_count += len(dataset_identifiers)
+
+                for dataset_identifier in dataset_identifiers:
+                    if dataset := dataset_collection.get(dataset_identifier):
+                        if extract_job.fetch_policy.should_refetch(
+                            dataset, dataset_identifier
+                        ):
+                            task_subset.add(
+                                UpdateDatasetTask(
+                                    source=extract_job.source,
+                                    dataset=dataset,  # Current dataset from the database
+                                    dataset_identifier=dataset_identifier,  # Most recent dataset_identifier
+                                    data_spec_versions=selector.data_spec_versions,
+                                    store=self.store,
+                                )
                             )
-                        )
+                        else:
+                            skip_count += 1
                     else:
-                        skip_count += 1
-                else:
-                    if extract_job.fetch_policy.should_fetch(dataset_identifier):
-                        task_subset.add(
-                            CreateDatasetTask(
-                                source=extract_job.source,
-                                dataset_type=extract_job.dataset_type,
-                                dataset_identifier=dataset_identifier,
-                                data_spec_versions=selector.data_spec_versions,
-                                store=self.store,
+                        if extract_job.fetch_policy.should_fetch(dataset_identifier):
+                            task_subset.add(
+                                CreateDatasetTask(
+                                    source=extract_job.source,
+                                    dataset_type=extract_job.dataset_type,
+                                    dataset_identifier=dataset_identifier,
+                                    data_spec_versions=selector.data_spec_versions,
+                                    store=self.store,
+                                )
                             )
-                        )
-                    else:
-                        skip_count += 1
+                        else:
+                            skip_count += 1
 
-            logger.info(
-                f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
-                f"using selector {selector} => {len(task_subset)} tasks. {skip_count} skipped."
-            )
+                logger.info(
+                    f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
+                    f"using selector {selector} => {len(task_subset)} tasks. {skip_count} skipped."
+                )
 
-            task_set += task_subset
+                task_set += task_subset
 
         if len(task_set):
             processes = cpu_count()

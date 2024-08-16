@@ -145,6 +145,10 @@ class AttributeBag:
     def filtered_attributes(self):
         return {k: v for k, v in self.attributes.items() if not k.startswith("_")}
 
+    def __eq__(self, other):
+        if isinstance(other, AttributeBag):
+            return self.key == other.key
+
     def __hash__(self):
         return hash(self.key)
 

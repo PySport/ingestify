@@ -1,0 +1,16 @@
+main:
+  # Cannot use in memory data because database is shared between processes
+  dataset_url: !ENV "sqlite:///${TEST_DIR}/main.db"
+  file_url: !ENV file://${TEST_DIR}/data
+  default_bucket: main
+
+sources:
+  test_source:
+    type: fake_source.FakeSource
+
+extract_jobs:
+  - source: test_source
+    dataset_type: match
+    selectors:
+      - competition_id: 1
+        season_id: 2

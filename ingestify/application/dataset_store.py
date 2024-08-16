@@ -66,6 +66,13 @@ class DatasetStore:
         if isinstance(selector, dict):
             # By-pass the build as we don't want to specify data_spec_versions here... (for now)
             selector = Selector(selector)
+        elif isinstance(selector, list):
+            if not selector:
+                return DatasetCollection()
+
+            if isinstance(selector[0], dict):
+                # Convert all selector dicts to Selectors
+                selector = [Selector(_) for _ in selector]
 
         dataset_collection = self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
@@ -248,7 +255,7 @@ class DatasetStore:
         dataset: Dataset,
         data_feed_keys: Optional[List[str]] = None,
         lazy: bool = False,
-        auto_rewind: bool = True
+        auto_rewind: bool = True,
     ) -> FileCollection:
         current_revision = dataset.current_revision
         files = {}
