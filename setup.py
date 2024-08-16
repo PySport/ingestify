@@ -38,7 +38,7 @@ def setup_package():
             "python-dotenv",
             "pyaml_env",
             "boto3",
-            "pytz"
+            "pytz",
         ],
         extras_require={"test": ["pytest>=6.2.5,<7"]},
     )
