@@ -19,6 +19,9 @@ class DatasetCollection:
         }
         self.metadata = metadata
 
+    def loaded(self):
+        return self.metadata.count == len(self.datasets)
+
     def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)
 

@@ -7,7 +7,7 @@ import setuptools
 
 def package_files(directory):
     paths = []
-    for (path, directories, filenames) in os.walk(directory):
+    for path, directories, filenames in os.walk(directory):
         for filename in filenames:
             paths.append(os.path.join("..", path, filename))
     return paths
@@ -37,8 +37,9 @@ def setup_package():
             "jinja2",
             "python-dotenv",
             "pyaml_env",
-            "boto3"
+            "boto3",
         ],
+        extras_require={"test": ["pytest>=6.2.5,<7"]},
     )
 
 

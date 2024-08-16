@@ -195,7 +195,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         metadata_only: bool = False,
     ) -> DatasetCollection:
 
-        def apply_filter(query):
+        def apply_query_filter(query):
             return self._filter_query(
                 query,
                 bucket=bucket,
@@ -206,7 +206,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             )
 
         if not metadata_only:
-            dataset_query = apply_filter(
+            dataset_query = apply_query_filter(
                 self.session.query(Dataset).options(joinedload(Dataset.revisions))
             )
             datasets = list(dataset_query)
@@ -214,7 +214,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             datasets = []
 
         metadata_result = list(
-            apply_filter(self.session.query(func.max(File.modified_at), func.count()))
+            apply_query_filter(
+                self.session.query(func.max(File.modified_at), func.count())
+            )
         )[0]
         dataset_collection_metadata = DatasetCollectionMetadata(
             last_modified=metadata_result[0], count=metadata_result[1]
