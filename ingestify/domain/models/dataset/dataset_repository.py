@@ -19,6 +19,7 @@ class DatasetRepository(ABC, metaclass=dataset_repository_registry.metaclass):
         dataset_id: Optional[Union[str, List[str]]] = None,
         provider: Optional[str] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
+        metadata_only: bool = False,
     ) -> DatasetCollection:
         pass
 

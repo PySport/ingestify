@@ -7,12 +7,16 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, joinedload
 
+from ingestify.domain import File
 from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
     DatasetRepository,
     Identifier,
     Selector,
+)
+from ingestify.domain.models.dataset.collection_metadata import (
+    DatasetCollectionMetadata,
 )
 
 from .mapping import dataset_table, metadata
@@ -105,19 +109,16 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         self.url = state["url"]
         self._init_engine()
 
-    def get_dataset_collection(
+    def _filter_query(
         self,
+        query,
         bucket: str,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
-    ) -> DatasetCollection:
-        query = (
-            self.session.query(Dataset)
-            .options(joinedload(Dataset.revisions))
-            .filter(Dataset.bucket == bucket)
-        )
+    ):
+        query = query.filter(Dataset.bucket == bucket)
         if dataset_type:
             query = query.filter(Dataset.dataset_type == dataset_type)
         if provider:
@@ -135,7 +136,11 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         dialect = self.session.bind.dialect.name
 
-        where, selector = selector.split("where")
+        if not isinstance(selector, list):
+            where, selector = selector.split("where")
+        else:
+            where = None
+
         if selector:
             if isinstance(selector, list):
                 selectors = selector
@@ -178,8 +183,44 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         if where:
             query = query.filter(text(where))
+        return query
 
-        return DatasetCollection(list(query))
+    def get_dataset_collection(
+        self,
+        bucket: str,
+        dataset_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        dataset_id: Optional[Union[str, List[str]]] = None,
+        selector: Optional[Union[Selector, List[Selector]]] = None,
+        metadata_only: bool = False,
+    ) -> DatasetCollection:
+
+        def apply_filter(query):
+            return self._filter_query(
+                query,
+                bucket=bucket,
+                dataset_type=dataset_type,
+                provider=provider,
+                dataset_id=dataset_id,
+                selector=selector,
+            )
+
+        if not metadata_only:
+            dataset_query = apply_filter(
+                self.session.query(Dataset).options(joinedload(Dataset.revisions))
+            )
+            datasets = list(dataset_query)
+        else:
+            datasets = []
+
+        metadata_result = list(
+            apply_filter(self.session.query(func.max(File.modified_at), func.count()))
+        )[0]
+        dataset_collection_metadata = DatasetCollectionMetadata(
+            last_modified=metadata_result[0], count=metadata_result[1]
+        )
+
+        return DatasetCollection(dataset_collection_metadata, datasets)
 
     def save(self, bucket: str, dataset: Dataset):
         # Just make sure
