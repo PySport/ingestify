@@ -230,4 +230,5 @@ class TaskExecutor:
         )
 
     def join(self):
+        self.pool.close()
         self.pool.join()

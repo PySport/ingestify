@@ -23,6 +23,7 @@ from ingestify.domain.models.dataset.dataset import DatasetState
 class TZDateTime(TypeDecorator):
     impl = DateTime
     LOCAL_TIMEZONE = datetime.datetime.utcnow().astimezone().tzinfo
+    cache_ok = True
 
     def process_bind_param(self, value: datetime, dialect):
         if value.tzinfo is None:

@@ -217,7 +217,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 func.min(File.modified_at).label("first_modified_at"),
                 func.max(File.modified_at).label("last_modified_at"),
                 func.count().label("row_count"),
-            )
+            ).join(Dataset, Dataset.dataset_id == File.dataset_id)
         ).first()
         dataset_collection_metadata = DatasetCollectionMetadata(*metadata_result_row)
 
