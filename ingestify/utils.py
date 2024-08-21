@@ -206,6 +206,9 @@ class SyncPool:
     def join(self):
         return True
 
+    def close(self):
+        return True
+
 
 class TaskExecutor:
     def __init__(self, processes=0):
