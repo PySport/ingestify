@@ -72,7 +72,7 @@ def retrieve_http(
             if not next_url:
                 break
             else:
-                response = requests.get(next_url, headers=headers, **kwargs)
+                response = requests.get(next_url, headers=headers, **http_kwargs)
 
         content = json.dumps({data_path: data}).encode("utf-8")
     else:
