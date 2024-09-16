@@ -30,8 +30,6 @@ def parse_value(v):
 
 
 def json_serializer(o):
-    if isinstance(o, Identifier):
-        o = o.filtered_attributes
     return json.dumps(o)
 
 

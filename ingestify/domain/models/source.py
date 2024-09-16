@@ -1,11 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Iterable, Iterator, Union
 
-# from ingestify.utils import ComponentFactory, ComponentRegistry
-
-from . import DraftFile
 from .data_spec_version_collection import DataSpecVersionCollection
-from .dataset import Identifier, Revision
 from .dataset.collection_metadata import DatasetCollectionMetadata
 from .resources.dataset_resource import DatasetResource
 
@@ -13,11 +9,6 @@ from .resources.dataset_resource import DatasetResource
 class Source(ABC):
     def __init__(self, name: str, **kwargs):
         self.name = name
-
-    @property
-    @abstractmethod
-    def provider(self) -> str:
-        pass
 
     # TODO: consider making this required...
     # @abstractmethod

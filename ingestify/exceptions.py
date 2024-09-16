@@ -4,3 +4,7 @@ class IngestifyError(Exception):
 
 class ConfigurationError(IngestifyError):
     pass
+
+
+class DuplicateFile(IngestifyError):
+    pass

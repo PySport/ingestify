@@ -9,6 +9,7 @@ from io import BytesIO, StringIO
 
 from typing import Dict, List, Optional, Union, Callable, BinaryIO
 
+from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
 from ingestify.domain.models.dataset.file_collection import FileCollection
 from ingestify.domain.models.event import EventBus
@@ -209,9 +210,9 @@ class DatasetStore:
     ):
         """The add_revision will also save the dataset."""
         metadata_changed = False
-        if dataset.update_from_identifier(dataset_identifier):
-            self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-            metadata_changed = True
+        # if dataset.update_from_identifier(dataset_identifier):
+        #     self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+        #     metadata_changed = True
 
         self.add_revision(dataset, files)
 
@@ -229,6 +230,9 @@ class DatasetStore:
         dataset_type: str,
         provider: str,
         dataset_identifier: Identifier,
+        name: str,
+        state: DatasetState,
+        metadata: dict,
         files: Dict[str, DraftFile],
         description: str = "Create",
     ):
@@ -237,12 +241,12 @@ class DatasetStore:
         dataset = Dataset(
             bucket=self.bucket,
             dataset_id=self.dataset_repository.next_identity(),
-            name=dataset_identifier.name,
-            state=dataset_identifier.state,
+            name=name,
+            state=state,
             identifier=dataset_identifier,
             dataset_type=dataset_type,
             provider=provider,
-            metadata=dataset_identifier.metadata,
+            metadata=metadata,
             created_at=now,
             updated_at=now,
         )
