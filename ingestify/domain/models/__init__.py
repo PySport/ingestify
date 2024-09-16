@@ -18,6 +18,7 @@ from .sink import Sink, sink_factory
 from .source import Source
 from .task import Task, TaskSet
 from .data_spec_version_collection import DataSpecVersionCollection
+from .resources import DatasetResource
 
 __all__ = [
     "Selector",
@@ -26,6 +27,7 @@ __all__ = [
     "Revision",
     "Dataset",
     "DatasetCollection",
+    "DatasetResource",
     "File",
     "DraftFile",
     "DatasetCreated",

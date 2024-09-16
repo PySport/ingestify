@@ -13,6 +13,15 @@ import cloudpickle
 from typing_extensions import Self
 
 
+from itertools import islice
+
+
+def chunker(it, size):
+    iterator = iter(it)
+    while chunk := list(islice(iterator, size)):
+        yield chunk
+
+
 def sanitize_exception_message(exception_message):
     """
     Sanitizes an exception message by removing any sensitive information such as passwords.

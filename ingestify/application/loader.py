@@ -1,10 +1,11 @@
+import itertools
 import logging
 import platform
 from multiprocessing import set_start_method, cpu_count
 from typing import List
 
 from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
-from ingestify.utils import map_in_pool, TaskExecutor
+from ingestify.utils import map_in_pool, TaskExecutor, chunker
 
 from .dataset_store import DatasetStore
 from ..domain.models.data_spec_version_collection import DataSpecVersionCollection
@@ -18,6 +19,24 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_CHUNK_SIZE = 100
+
+
+def to_batches(input_):
+    if isinstance(input_, list):
+        batches = [input_]
+    else:
+        # Assume it's an iterator. Peek what's inside, and put it back
+        peek = next(input_)
+        input_ = itertools.chain([peek], input_)
+
+        if not isinstance(peek, list):
+            batches = chunker(input_, DEFAULT_CHUNK_SIZE)
+        else:
+            batches = input_
+    return batches
 
 
 class UpdateDatasetTask(Task):
@@ -174,24 +193,21 @@ class Loader:
             # There are two different, but similar flows here:
             # 1. The discover_datasets returns a list, and the entire list can be processed at once
             # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
-            discovered_datasets = extract_job.source.discover_datasets(
+            datasets = extract_job.source.find_datasets(
                 dataset_type=extract_job.dataset_type,
                 data_spec_versions=selector.data_spec_versions,
                 dataset_collection_metadata=dataset_collection_metadata,
                 **selector.filtered_attributes,
             )
 
-            if isinstance(discovered_datasets, list):
-                batches = [discovered_datasets]
-            else:
-                batches = discovered_datasets
+            batches = to_batches(datasets)
 
             for batch in batches:
                 dataset_identifiers = [
-                    Identifier.create_from(selector, **identifier)
+                    Identifier.create_from(selector, **dataset_resource.dataset_resource_id)
                     # We have to pass the data_spec_versions here as a Source can add some
                     # extra data to the identifier which is retrieved in a certain data format
-                    for identifier in batch
+                    for dataset_resource in batch
                 ]
 
                 # Load all available datasets based on the discovered dataset identifiers
