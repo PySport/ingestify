@@ -59,13 +59,17 @@ def load_file(
 
     if file_resource.json_content is not None:
         # Empty dictionary is allowed
-        return DraftFile.from_input(
+        file = DraftFile.from_input(
             file_=json.dumps(file_resource.json_content, indent=4),
             data_serialization_format="json",
             data_feed_key=file_resource.data_feed_key,
             data_spec_version=file_resource.data_spec_version,
             modified_at=file_resource.last_modified,
         )
+        if current_file and current_file.tag == file.tag:
+            # Nothing changed
+            return None
+        return file
     elif file_resource.url:
         http_options = {}
         if file_resource.http_options:
