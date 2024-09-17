@@ -33,7 +33,12 @@ def to_batches(input_):
         batches = [input_]
     else:
         # Assume it's an iterator. Peek what's inside, and put it back
-        peek = next(input_)
+        try:
+            peek = next(input_)
+        except StopIteration:
+            # Nothing to batch
+            return []
+
         input_ = itertools.chain([peek], input_)
 
         if not isinstance(peek, list):
@@ -140,7 +145,7 @@ class Loader:
     def add_extract_job(self, extract_job: ExtractJob):
         self.extract_jobs.append(extract_job)
 
-    def collect_and_run(self):
+    def collect_and_run(self, dry_run: bool = False):
         total_dataset_count = 0
 
         # First collect all selectors, before discovering datasets
@@ -154,7 +159,9 @@ class Loader:
             dynamic_selectors = [
                 selector for selector in extract_job.selectors if selector.is_dynamic
             ]
-            if dynamic_selectors:
+
+            no_selectors = len(static_selectors) == 1 and not bool(static_selectors[0])
+            if dynamic_selectors or no_selectors:
                 if hasattr(extract_job.source, "discover_selectors"):
                     logger.debug(
                         f"Discovering selectors from {extract_job.source.__class__.__name__}"
@@ -165,29 +172,44 @@ class Loader:
                     all_selectors = extract_job.source.discover_selectors(
                         extract_job.dataset_type
                     )
-                    extra_static_selectors = []
-                    for dynamic_selector in dynamic_selectors:
-                        dynamic_job_selectors = [
+                    if no_selectors:
+                        # When there were no selectors specified, just use all of them
+                        extra_static_selectors = [
                             Selector.build(
                                 job_selector,
                                 data_spec_versions=extract_job.data_spec_versions,
                             )
                             for job_selector in all_selectors
-                            if dynamic_selector.is_match(job_selector)
                         ]
-                        extra_static_selectors.extend(dynamic_job_selectors)
-                        logger.info(f"Added {len(dynamic_job_selectors)} selectors")
+                        static_selectors = []
+                    else:
+                        extra_static_selectors = []
+                        for dynamic_selector in dynamic_selectors:
+                            dynamic_job_selectors = [
+                                Selector.build(
+                                    job_selector,
+                                    data_spec_versions=extract_job.data_spec_versions,
+                                )
+                                for job_selector in all_selectors
+                                if dynamic_selector.is_match(job_selector)
+                            ]
+                            extra_static_selectors.extend(dynamic_job_selectors)
+                            logger.info(f"Added {len(dynamic_job_selectors)} selectors")
 
                     static_selectors.extend(extra_static_selectors)
+
                     logger.info(
                         f"Discovered {len(extra_static_selectors)} selectors from {extract_job.source.__class__.__name__}"
                     )
                 else:
-                    raise ConfigurationError(
-                        f"Dynamic selectors cannot be used for "
-                        f"{extract_job.source.__class__.__name__} because it doesn't support"
-                        f" selector discovery"
-                    )
+                    if not no_selectors:
+                        # When there are no selectors and no discover_selectors, just pass it through. It might break
+                        # later on
+                        raise ConfigurationError(
+                            f"Dynamic selectors cannot be used for "
+                            f"{extract_job.source.__class__.__name__} because it doesn't support"
+                            f" selector discovery"
+                        )
 
             # Merge selectors when source, dataset_type and actual selector is the same. This makes
             # sure there will be only 1 dataset for this combination
@@ -204,7 +226,7 @@ class Loader:
             logger.info(f"Running task {task}")
             task.run()
 
-        task_executor = TaskExecutor()
+        task_executor = TaskExecutor(dry_run=dry_run)
 
         for extract_job, selector in selectors.values():
             logger.debug(

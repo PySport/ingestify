@@ -57,8 +57,16 @@ def cli():
     help="bucket",
     type=str,
 )
-@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
-def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
+# @click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
+@click.option(
+    "--dry-run",
+    "dry_run",
+    required=False,
+    help="Dry run - don't store anything",
+    is_flag=True,
+    type=bool,
+)
+def run(config_file: str, bucket: Optional[str], dry_run: Optional[bool]):
     try:
         engine = get_engine(config_file, bucket)
     except ConfigurationError as e:
@@ -68,7 +76,7 @@ def run(config_file: str, bucket: Optional[str], debug: Optional[bool]):
             logger.exception(f"Failed due a configuration error: {e}")
             sys.exit(1)
 
-    engine.load()
+    engine.load(dry_run=dry_run)
 
     logger.info("Done")
 

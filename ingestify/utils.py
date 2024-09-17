@@ -1,5 +1,6 @@
 import abc
 import inspect
+import logging
 import os
 import time
 import re
@@ -14,6 +15,9 @@ from typing_extensions import Self
 
 
 from itertools import islice
+
+
+logger = logging.getLogger(__name__)
 
 
 def chunker(it, size):
@@ -219,9 +223,23 @@ class SyncPool:
         return True
 
 
+class DummyPool:
+    def map_async(self, func, iterable):
+        logger.info(f"DummyPool: not running {len(list(iterable))} tasks")
+        return None
+
+    def join(self):
+        return True
+
+    def close(self):
+        return True
+
+
 class TaskExecutor:
-    def __init__(self, processes=0):
-        if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
+    def __init__(self, processes=0, dry_run: bool = False):
+        if dry_run:
+            pool = DummyPool()
+        elif os.environ.get("INGESTIFY_RUN_EAGER") == "true":
             pool = SyncPool()
         else:
             if not processes:
