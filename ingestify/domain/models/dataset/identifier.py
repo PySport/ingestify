@@ -1,33 +1,24 @@
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING
 
-from ingestify.utils import AttributeBag
+from ingestify.utils import key_from_dict
 
 if TYPE_CHECKING:
-    from ingestify.domain.models.dataset.dataset import DatasetState
+    from ingestify.domain import Selector
 
 
-class Identifier(AttributeBag):
-    @property
-    def last_modified(self) -> Optional[datetime]:
-        return self.attributes.get("_last_modified")
-
-    @property
-    def name(self) -> Optional[str]:
-        return self.attributes.get("_name")
+class Identifier(dict):
+    @classmethod
+    def create_from_selector(cls, selector: "Selector", **kwargs):
+        identifier = cls(**selector.filtered_attributes)
+        identifier.update(kwargs)
+        return identifier
 
     @property
-    def metadata(self) -> dict:
-        return self.attributes.get("_metadata", {})
+    def key(self):
+        return key_from_dict(self)
 
-    @property
-    def state(self) -> "DatasetState":
-        from ingestify.domain.models.dataset.dataset import DatasetState
+    def __hash__(self):
+        return hash(self.key)
 
-        return self.attributes.get("_state", DatasetState.SCHEDULED)
-
-    @property
-    def files_last_modified(self) -> Optional[Dict[str, datetime]]:
-        """Return last modified per file. This makes it possible to detect when a file is added with an older
-        last_modified than current dataset."""
-        return self.attributes.get("_files_last_modified")
+    def __str__(self):
+        return "/".join([f"{k}={v}" for k, v in self.items()])

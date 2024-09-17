@@ -1,22 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Iterable, Iterator, Union
 
-# from ingestify.utils import ComponentFactory, ComponentRegistry
-
-from . import DraftFile
 from .data_spec_version_collection import DataSpecVersionCollection
-from .dataset import Identifier, Revision
 from .dataset.collection_metadata import DatasetCollectionMetadata
+from .resources.dataset_resource import DatasetResource
 
 
 class Source(ABC):
     def __init__(self, name: str, **kwargs):
         self.name = name
-
-    @property
-    @abstractmethod
-    def provider(self) -> str:
-        pass
 
     # TODO: consider making this required...
     # @abstractmethod
@@ -24,23 +16,13 @@ class Source(ABC):
     #     pass
 
     @abstractmethod
-    def discover_datasets(
+    def find_datasets(
         self,
         dataset_type: str,
         data_spec_versions: DataSpecVersionCollection,
         dataset_collection_metadata: DatasetCollectionMetadata,
         **kwargs
-    ) -> Union[List[Dict], Iterator[List[Dict]]]:
-        pass
-
-    @abstractmethod
-    def fetch_dataset_files(
-        self,
-        dataset_type: str,
-        identifier: Identifier,
-        data_spec_versions: DataSpecVersionCollection,
-        current_revision: Optional[Revision],
-    ) -> Dict[str, Optional[DraftFile]]:
+    ) -> Iterator[List[DatasetResource]]:
         pass
 
     def __repr__(self):

@@ -1,6 +1,7 @@
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain.models import (
     Dataset,
+    DatasetResource,
     DraftFile,
     File,
     Identifier,
@@ -15,6 +16,7 @@ __all__ = [
     "Source",
     "DatasetStore",
     "Dataset",
+    "DatasetResource",
     "Revision",
     "File",
     "DraftFile",
