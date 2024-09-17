@@ -25,7 +25,7 @@ else:
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CHUNK_SIZE = 100
+DEFAULT_CHUNK_SIZE = 1000
 
 
 def to_batches(input_):
@@ -52,7 +52,8 @@ def load_file(
             file_resource.file_id
         )
 
-    if file_resource.json_content:
+    if file_resource.json_content is not None:
+        # Empty dictionary is allowed
         return DraftFile.from_input(
             file_=json.dumps(file_resource.json_content, indent=4),
             data_serialization_format="json",
@@ -93,7 +94,7 @@ class UpdateDatasetTask(Task):
     def run(self):
         self.store.update_dataset(
             dataset=self.dataset,
-            dataset_identifier=Identifier(self.dataset_resource.dataset_resource_id),
+            dataset_resource=self.dataset_resource,
             files={
                 file_id: load_file(file_resource, dataset=self.dataset)
                 for file_id, file_resource in self.dataset_resource.files.items()

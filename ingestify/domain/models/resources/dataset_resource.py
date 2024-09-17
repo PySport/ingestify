@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Callable, TYPE_CHECKING
 
+from ingestify.exceptions import DuplicateFile
+
 if TYPE_CHECKING:
     from ingestify.domain import DraftFile, File
     from ingestify.domain.models.dataset.dataset import DatasetState
@@ -27,6 +29,12 @@ class FileResource:
     file_loader: Optional[
         Callable[["FileResource", Optional["File"]], Optional["DraftFile"]]
     ] = None
+
+    def __post_init__(self):
+        if self.json_content is None and not self.url and not self.file_loader:
+            raise TypeError(
+                "You need to specify `json_content`, `url` or a custom `file_loader`"
+            )
 
 
 class DatasetResource:
@@ -55,7 +63,8 @@ class DatasetResource:
         self,
         last_modified: datetime,
         data_feed_key: str,
-        data_spec_version: str,
+        # Some sources might not have a DataSpecVersion. Set a default
+        data_spec_version: str = "v1",
         json_content: Optional[dict] = None,
         url: Optional[str] = None,
         http_options: Optional[dict] = None,

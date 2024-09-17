@@ -17,6 +17,7 @@ from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
     DatasetRepository,
+    DatasetResource,
     DraftFile,
     File,
     LoadedFile,
@@ -205,14 +206,14 @@ class DatasetStore:
     def update_dataset(
         self,
         dataset: Dataset,
-        dataset_identifier: Identifier,
+        dataset_resource: DatasetResource,
         files: Dict[str, DraftFile],
     ):
         """The add_revision will also save the dataset."""
         metadata_changed = False
-        # if dataset.update_from_identifier(dataset_identifier):
-        #     self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
-        #     metadata_changed = True
+        if dataset.update_from_resource(dataset_resource):
+            self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+            metadata_changed = True
 
         self.add_revision(dataset, files)
 
