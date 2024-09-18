@@ -1,10 +1,11 @@
+import json
 from datetime import datetime
 from typing import Type, Any, TypeVar
 
 from dataclass_factory import Schema, Factory, NameStyle
 from dataclass_factory.schema_helpers import type_checker
 
-from ingestify.domain import DatasetCreated
+from ingestify.domain import DatasetCreated, Identifier
 from ingestify.domain.models.dataset.events import MetadataUpdated, RevisionAdded
 
 isotime_schema = Schema(
@@ -12,9 +13,15 @@ isotime_schema = Schema(
     serializer=lambda x: datetime.isoformat(x).replace("+00:00", "Z"),
 )
 
+identifier_schema = Schema(
+    parser=lambda x: Identifier(json.loads(x)),
+    serializer=lambda x: json.dumps(x)
+)
+
 factory = Factory(
     schemas={
         datetime: isotime_schema,
+        Identifier: identifier_schema,
         DatasetCreated: Schema(
             pre_parse=type_checker(DatasetCreated.event_type, "event_type")
         ),

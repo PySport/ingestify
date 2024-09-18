@@ -10,13 +10,14 @@ from ingestify.domain import (
     Selector,
     DataSpecVersionCollection,
     DraftFile,
-    Revision,
+    Revision, Dataset,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
 from ingestify.domain.models.extract_job import ExtractJob
 from ingestify.domain.models.fetch_policy import FetchPolicy
+from ingestify.infra.serialization import serialize, unserialize
 from ingestify.main import get_engine
 
 
@@ -39,15 +40,18 @@ def file_loader(file_resource, current_file):
         if not current_file:
             return DraftFile.from_input(
                 "content1",
+                data_feed_key="file1",
             )
         else:
             return DraftFile.from_input(
                 "different_content",
+                data_feed_key="file1",
             )
 
     elif file_resource.file_id == "file2__v1":
         return DraftFile.from_input(
-            "some_content" + str(file_resource.dataset_resource.dataset_resource_id)
+            "some_content" + str(file_resource.dataset_resource.dataset_resource_id),
+            data_feed_key="file2",
         )
 
 
@@ -232,3 +236,9 @@ def test_iterator_source(config_file):
     assert len(datasets) == 100
     for dataset in datasets:
         assert len(dataset.revisions) == 2
+
+
+    # Sneaked in an extra test for serialization. This just shouldn't break
+    s = serialize(datasets.first())
+    unserialize(s, Dataset)
+
