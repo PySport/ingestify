@@ -29,7 +29,7 @@ class DraftFile:
         cls,
         file_,
         data_feed_key,
-        data_spec_version='v1',
+        data_spec_version="v1",
         data_serialization_format="txt",
         modified_at=None,
     ):

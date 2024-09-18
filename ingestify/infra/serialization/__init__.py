@@ -14,8 +14,7 @@ isotime_schema = Schema(
 )
 
 identifier_schema = Schema(
-    parser=lambda x: Identifier(json.loads(x)),
-    serializer=lambda x: json.dumps(x)
+    parser=lambda x: Identifier(json.loads(x)), serializer=lambda x: json.dumps(x)
 )
 
 factory = Factory(

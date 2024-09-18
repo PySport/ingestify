@@ -10,7 +10,8 @@ from ingestify.domain import (
     Selector,
     DataSpecVersionCollection,
     DraftFile,
-    Revision, Dataset,
+    Revision,
+    Dataset,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
@@ -237,8 +238,6 @@ def test_iterator_source(config_file):
     for dataset in datasets:
         assert len(dataset.revisions) == 2
 
-
     # Sneaked in an extra test for serialization. This just shouldn't break
     s = serialize(datasets.first())
     unserialize(s, Dataset)
-
