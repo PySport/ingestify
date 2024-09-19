@@ -251,7 +251,7 @@ class Loader:
                 dataset_type=extract_job.dataset_type,
                 data_spec_versions=selector.data_spec_versions,
                 dataset_collection_metadata=dataset_collection_metadata,
-                **selector.filtered_attributes,
+                **selector.attributes,
             )
 
             batches = to_batches(datasets)
