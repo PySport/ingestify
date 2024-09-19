@@ -27,3 +27,11 @@ class Selector(AttributeBag):
     @property
     def data_spec_versions(self):
         return self._data_spec_versions
+
+    @property
+    def custom_attributes(self):
+        return {
+            k: v
+            for k, v in self.items()
+            if k not in ('_matcher', '_data_spec_versions')
+        }
