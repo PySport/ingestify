@@ -33,5 +33,5 @@ class Selector(AttributeBag):
         return {
             k: v
             for k, v in self.items()
-            if k not in ('_matcher', '_data_spec_versions')
+            if k not in ("_matcher", "_data_spec_versions")
         }
