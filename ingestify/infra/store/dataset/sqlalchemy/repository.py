@@ -107,6 +107,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         self.url = state["url"]
         self._init_engine()
 
+    def __del__(self):
+        self.session.close()
+        self.engine.dispose()
+
     def _filter_query(
         self,
         query,
