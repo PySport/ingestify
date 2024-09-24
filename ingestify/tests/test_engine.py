@@ -66,35 +66,36 @@ class SimpleFakeSource(Source):
         season_id,
         **kwargs
     ):
-        dataset_resource = DatasetResource(
-            dict(
-                competition_id=competition_id,
-                season_id=season_id,
-            ),
-            provider="fake",
-            dataset_type="match",
-            name="Test Dataset",
-        )
-
         last_modified = datetime.now(pytz.utc)
 
-        dataset_resource.add_file(
-            last_modified=last_modified,
-            data_feed_key="file1",
-            data_spec_version="v1",
-            file_loader=file_loader,
-        )
-        dataset_resource.add_file(
-            last_modified=last_modified,
-            data_feed_key="file2",
-            data_spec_version="v1",
-            file_loader=file_loader,
-        )
-        dataset_resource.add_file(
-            last_modified=last_modified,
-            data_feed_key="file3",
-            data_spec_version="v1",
-            json_content={"test": "some-content"},
+        yield (
+            DatasetResource(
+                dict(
+                    competition_id=competition_id,
+                    season_id=season_id,
+                ),
+                provider="fake",
+                dataset_type="match",
+                name="Test Dataset",
+            )
+            .add_file(
+                last_modified=last_modified,
+                data_feed_key="file1",
+                data_spec_version="v1",
+                file_loader=file_loader,
+            )
+            .add_file(
+                last_modified=last_modified,
+                data_feed_key="file2",
+                data_spec_version="v1",
+                file_loader=file_loader,
+            )
+            .add_file(
+                last_modified=last_modified,
+                data_feed_key="file3",
+                data_spec_version="v1",
+                json_content={"test": "some-content"},
+            )
         )
         # dataset_resource.add_file(
         #     last_modified=last_modified,
@@ -103,8 +104,6 @@ class SimpleFakeSource(Source):
         #     url="https://raw.githubusercontent.com/statsbomb/open-data/refs/heads/master/data/three-sixty/3788741.json",
         #     data_serialization_format="json"
         # )
-
-        yield dataset_resource
 
 
 class BatchSource(Source):
@@ -128,30 +127,31 @@ class BatchSource(Source):
             for i in range(10):
                 match_id = self.idx
                 self.idx += 1
-                dataset_resource = DatasetResource(
-                    dict(
-                        competition_id=competition_id,
-                        season_id=season_id,
-                        match_id=match_id,
-                    ),
-                    name="Test dataset",
-                    provider="fake",
-                    dataset_type="match",
-                )
 
                 last_modified = datetime.now(pytz.utc)
-
-                dataset_resource.add_file(
-                    last_modified=last_modified,
-                    data_feed_key="file1",
-                    data_spec_version="v1",
-                    file_loader=file_loader,
-                )
-                dataset_resource.add_file(
-                    last_modified=last_modified,
-                    data_feed_key="file2",
-                    data_spec_version="v1",
-                    file_loader=file_loader,
+                dataset_resource = (
+                    DatasetResource(
+                        dict(
+                            competition_id=competition_id,
+                            season_id=season_id,
+                            match_id=match_id,
+                        ),
+                        name="Test dataset",
+                        provider="fake",
+                        dataset_type="match",
+                    )
+                    .add_file(
+                        last_modified=last_modified,
+                        data_feed_key="file1",
+                        data_spec_version="v1",
+                        file_loader=file_loader,
+                    )
+                    .add_file(
+                        last_modified=last_modified,
+                        data_feed_key="file2",
+                        data_spec_version="v1",
+                        file_loader=file_loader,
+                    )
                 )
 
                 items.append(dataset_resource)

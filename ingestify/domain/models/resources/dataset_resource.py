@@ -94,3 +94,6 @@ class DatasetResource:
         )
 
         self.files[file_id] = file_resource
+
+        # Allow chaining
+        return self
