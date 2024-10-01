@@ -14,7 +14,11 @@ isotime_schema = Schema(
 )
 
 identifier_schema = Schema(
-    parser=lambda x: Identifier(json.loads(x)), serializer=lambda x: json.dumps(x)
+    # json.loads(x) for backwards compatibility
+    parser=lambda x: Identifier(
+        x if isinstance(x, dict) else json.loads(x)
+    ),
+    serializer=lambda x: dict(x)
 )
 
 factory = Factory(
