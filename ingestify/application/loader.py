@@ -230,8 +230,6 @@ class Loader:
             logger.info(f"Running task {task}")
             task.run()
 
-        task_executor = TaskExecutor(dry_run=dry_run)
-
         for extract_job, selector in selectors.values():
             logger.debug(
                 f"Discovering datasets from {extract_job.source.__class__.__name__} using selector {selector}"
@@ -307,14 +305,18 @@ class Loader:
                         else:
                             skip_count += 1
 
-                logger.info(
-                    f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
-                    f"using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
-                )
-
-                task_executor.run(run_task, task_set)
-                logger.info(f"Scheduled {len(task_set)} tasks")
-
-        task_executor.join()
+                if task_set:
+                    logger.info(
+                        f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
+                        f"using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
+                    )
+                    logger.info(f"Running {len(task_set)} tasks")
+                    with TaskExecutor(dry_run=dry_run) as task_executor:
+                        task_executor.run(run_task, task_set)
+                else:
+                    logger.info(
+                        f"Discovered {len(dataset_identifiers)} datasets from {extract_job.source.__class__.__name__} "
+                        f"using selector {selector} => nothing to do"
+                    )
 
         logger.info("Done")

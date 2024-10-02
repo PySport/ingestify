@@ -213,7 +213,7 @@ def map_in_pool(func, iterable, processes=0):
 
 
 class SyncPool:
-    def map_async(self, func, iterable):
+    def map(self, func, iterable):
         return [func(item) for item in iterable]
 
     def join(self):
@@ -224,7 +224,7 @@ class SyncPool:
 
 
 class DummyPool:
-    def map_async(self, func, iterable):
+    def map(self, func, iterable):
         logger.info(f"DummyPool: not running {len(list(iterable))} tasks")
         return None
 
@@ -253,11 +253,23 @@ class TaskExecutor:
             pool = ctx.Pool(processes or cpu_count())
         self.pool = pool
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.join()
+
     def run(self, func, iterable):
         wrapped_fn = cloudpickle.dumps(func)
-        self.pool.map_async(
+        start_time = time.time()
+        res = self.pool.map(
             cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
         )
+        if res:
+            took = time.time() - start_time
+            logger.info(
+                f"Finished {len(res)} tasks in {took:.1f} seconds. {(len(res)/took):.1f} tasks/sec"
+            )
 
     def join(self):
         self.pool.close()

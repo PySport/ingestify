@@ -16,3 +16,6 @@ class TaskSet:
 
     def __add__(self, other: "TaskSet"):
         return TaskSet(self.tasks + other.tasks)
+
+    def __bool__(self):
+        return len(self) > 0
