@@ -17,8 +17,8 @@ _session = None
 
 def get_session():
     """Initialize the session when it's needed. This will make sure it's initialized
-       within the correct context, and we don't get issues when the session is created
-       in process #1 and used in process #2
+    within the correct context, and we don't get issues when the session is created
+    in process #1 and used in process #2
     """
     global _session
 
