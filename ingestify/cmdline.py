@@ -201,6 +201,11 @@ def delete_dataset(
 )
 @click.argument("project_name")
 def init(template: str, project_name: str):
+    logger.warning(
+        "`ingestify init` is currently not supported. See https://github.com/PySport/ingestify/issues/11"
+    )
+    return
+
     directory = Path(project_name)
     if directory.exists():
         logger.warning(f"Directory '{directory}' already exists")
