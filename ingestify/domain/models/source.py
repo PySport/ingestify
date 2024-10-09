@@ -10,6 +10,11 @@ class Source(ABC):
     def __init__(self, name: str, **kwargs):
         self.name = name
 
+    @property
+    @abstractmethod
+    def provider(self) -> str:
+        raise NotImplemented
+
     # TODO: consider making this required...
     # @abstractmethod
     # def discover_selectors(self, dataset_type: str) -> List[Dict]:

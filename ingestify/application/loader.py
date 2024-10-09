@@ -149,12 +149,19 @@ class Loader:
     def add_extract_job(self, extract_job: ExtractJob):
         self.extract_jobs.append(extract_job)
 
-    def collect_and_run(self, dry_run: bool = False):
+    def collect_and_run(self, dry_run: bool = False, provider: Optional[str] = None):
         total_dataset_count = 0
 
         # First collect all selectors, before discovering datasets
         selectors = {}
         for extract_job in self.extract_jobs:
+            if provider is not None:
+                if extract_job.source.provider != provider:
+                    logger.info(
+                        f"Skipping {extract_job } because provider doesn't match '{provider}'"
+                    )
+                    continue
+
             static_selectors = [
                 selector
                 for selector in extract_job.selectors
