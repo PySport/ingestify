@@ -23,8 +23,8 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 
 # Create a new session object
 session = requests.Session()
-session.mount('http://', adapter)
-session.mount('https://', adapter)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
 
 
 def retrieve_http(
