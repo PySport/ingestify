@@ -21,8 +21,8 @@ class IngestionEngine:
     def add_extract_job(self, extract_job: ExtractJob):
         self.loader.add_extract_job(extract_job)
 
-    def load(self, dry_run: bool = False):
-        self.loader.collect_and_run(dry_run=dry_run)
+    def load(self, dry_run: bool = False, provider: Optional[str] = None):
+        self.loader.collect_and_run(dry_run=dry_run, provider=provider)
 
     def list_datasets(self, as_count: bool = False):
         """Consider moving this to DataStore"""

@@ -66,7 +66,19 @@ def cli():
     is_flag=True,
     type=bool,
 )
-def run(config_file: str, bucket: Optional[str], dry_run: Optional[bool]):
+@click.option(
+    "--provider",
+    "provider",
+    required=False,
+    help="Provider - only run tasks for a single provider",
+    type=str,
+)
+def run(
+    config_file: str,
+    bucket: Optional[str],
+    dry_run: Optional[bool],
+    provider: Optional[str],
+):
     try:
         engine = get_engine(config_file, bucket)
     except ConfigurationError as e:
@@ -76,7 +88,7 @@ def run(config_file: str, bucket: Optional[str], dry_run: Optional[bool]):
             logger.exception(f"Failed due a configuration error: {e}")
             sys.exit(1)
 
-    engine.load(dry_run=dry_run)
+    engine.load(dry_run=dry_run, provider=provider)
 
     logger.info("Done")
 
