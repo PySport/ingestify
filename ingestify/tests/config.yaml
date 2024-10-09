@@ -5,4 +5,4 @@ main:
   default_bucket: main
 
 sources: {}
-extract_jobs: []
+extraction_plans: []

@@ -9,7 +9,7 @@ from ingestify.domain.models.fetch_policy import FetchPolicy
 
 
 @dataclass
-class ExtractJob:
+class ExtractionPlan:
     source: Source
     selectors: List[Selector]
     fetch_policy: FetchPolicy

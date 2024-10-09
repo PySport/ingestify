@@ -270,6 +270,7 @@ class TaskExecutor:
             logger.info(
                 f"Finished {len(res)} tasks in {took:.1f} seconds. {(len(res)/took):.1f} tasks/sec"
             )
+        return res
 
     def join(self):
         self.pool.close()

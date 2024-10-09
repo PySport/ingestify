@@ -16,17 +16,17 @@ from ingestify.domain import (
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
-from ingestify.domain.models.extract_job import ExtractJob
+from ingestify.domain.models.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
 from ingestify.main import get_engine
 
 
-def add_extract_job(engine: IngestionEngine, source: Source, **selector):
+def add_extraction_plan(engine: IngestionEngine, source: Source, **selector):
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
 
-    engine.add_extract_job(
-        ExtractJob(
+    engine.add_extraction_plan(
+        ExtractionPlan(
             source=source,
             fetch_policy=FetchPolicy(),
             selectors=[Selector.build(selector, data_spec_versions=data_spec_versions)],
@@ -162,7 +162,7 @@ class BatchSource(Source):
 def test_engine(config_file):
     engine = get_engine(config_file, "main")
 
-    add_extract_job(
+    add_extraction_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
     )
     engine.load()
@@ -183,7 +183,7 @@ def test_engine(config_file):
     assert len(dataset.revisions[0].modified_files) == 3
     assert len(dataset.revisions[1].modified_files) == 1
 
-    add_extract_job(
+    add_extraction_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=3
     )
     engine.load()
@@ -214,7 +214,7 @@ def test_iterator_source(config_file):
 
     batch_source = BatchSource("fake-source", callback)
 
-    add_extract_job(engine, batch_source, competition_id=1, season_id=2)
+    add_extraction_plan(engine, batch_source, competition_id=1, season_id=2)
     engine.load()
 
     datasets = engine.store.get_dataset_collection()

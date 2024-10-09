@@ -182,26 +182,27 @@ class DatasetStore:
             # It can happen an API tells us data is changed, but it was not changed. In this case
             # we decide to ignore it.
             # Make sure there are files changed before creating a new revision
-            dataset.add_revision(
-                Revision(
-                    revision_id=revision_id,
-                    created_at=created_at,
-                    description=description,
-                    modified_files=persisted_files_,
-                )
+            revision = Revision(
+                revision_id=revision_id,
+                created_at=created_at,
+                description=description,
+                modified_files=persisted_files_,
             )
+
+            dataset.add_revision(revision)
 
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             self.dispatch(RevisionAdded(dataset=dataset))
             logger.info(
                 f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}"
             )
-            return True
         else:
             logger.info(
                 f"Ignoring a new revision without changed files -> {dataset.identifier}"
             )
-            return False
+            revision = None
+
+        return revision
 
     def update_dataset(
         self,
@@ -215,12 +216,14 @@ class DatasetStore:
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             metadata_changed = True
 
-        self.add_revision(dataset, files)
+        revision = self.add_revision(dataset, files)
 
         if metadata_changed:
             # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
             # the new revision
             self.dispatch(MetadataUpdated(dataset=dataset))
+
+        return revision
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around
@@ -251,9 +254,10 @@ class DatasetStore:
             created_at=now,
             updated_at=now,
         )
-        self.add_revision(dataset, files, description)
+        revision = self.add_revision(dataset, files, description)
 
         self.dispatch(DatasetCreated(dataset=dataset))
+        return revision
 
     def load_files(
         self,
