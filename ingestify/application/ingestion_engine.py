@@ -21,8 +21,8 @@ class IngestionEngine:
     def add_extraction_plan(self, extraction_plan: ExtractionPlan):
         self.loader.add_extraction_plan(extraction_plan)
 
-    def load(self, dry_run: bool = False):
-        self.loader.collect_and_run(dry_run=dry_run)
+    def load(self, dry_run: bool = False, provider: Optional[str] = None):
+        self.loader.collect_and_run(dry_run=dry_run, provider=provider)
 
     def list_datasets(self, as_count: bool = False):
         """Consider moving this to DataStore"""

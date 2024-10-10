@@ -8,4 +8,4 @@ if not __INGESTIFY_SETUP__:
     from .infra import retrieve_http
     from .source_base import Source, DatasetResource
 
-__version__ = "0.0.5"
+__version__ = "0.1.1"

@@ -22,7 +22,7 @@ Ingestify focus' on Ingestion of data.
 2. All available `Datasets` are compared with what's already fetched, and if it's changed (using a `FetchPolicy`)
 3. A `TaskQueue` is filled with `Tasks` to fetch all missing or stale `Datasets`
 
-<img src="docs/overview.svg" />
+<img src="https://raw.githubusercontent.com/PySport/ingestify/refs/heads/main/docs/overview.svg" />
 
 - [Source](blob/main/ingestify/domain/models/source.py) is the main entrance from Ingestify to external sources. A Source must always define:
   - `discover_datasets` - Creates a list of all available datasets on the Source

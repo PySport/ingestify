@@ -6,9 +6,37 @@ from io import BytesIO
 from typing import Optional, Callable, Tuple
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
 
 from ingestify.domain.models import DraftFile, File
 from ingestify.utils import utcnow
+
+_session = None
+
+
+def get_session():
+    """Initialize the session when it's needed. This will make sure it's initialized
+    within the correct context, and we don't get issues when the session is created
+    in process #1 and used in process #2
+    """
+    global _session
+
+    if not _session:
+        retry_strategy = Retry(
+            total=4,  # Maximum number of retries
+            backoff_factor=2,  # Exponential backoff factor (e.g., 2 means 1, 2, 4, 8 seconds, ...)
+            status_forcelist=[429, 500, 502, 503, 504],  # HTTP status codes to retry on
+        )
+
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+
+        # Create a new session object
+        _session = requests.Session()
+        _session.mount("http://", adapter)
+        _session.mount("https://", adapter)
+
+    return _session
 
 
 def retrieve_http(
@@ -41,7 +69,7 @@ def retrieve_http(
         else:
             raise Exception(f"Don't know how to use {key}")
 
-    response = requests.get(url, headers=headers, **http_kwargs)
+    response = get_session().get(url, headers=headers, **http_kwargs)
     response.raise_for_status()
     if response.status_code == 304:
         # Not modified

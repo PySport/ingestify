@@ -17,12 +17,18 @@ def setup_package():
     builtins.__INGESTIFY_SETUP__ = True
     import ingestify
 
+    with open("README.md", "r") as f:
+        readme = f.read()
+
     setup(
         name="ingestify",
         version=ingestify.__version__,
         author="Koen Vossen",
         author_email="info@koenvossen.nl",
         license="AGPL",
+        description="Standardizing soccer tracking- and event data",
+        long_description=readme,
+        long_description_content_type="text/markdown",
         packages=setuptools.find_packages(exclude=["tests"]),
         package_data={
             "": package_files("ingestify/static"),

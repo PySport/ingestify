@@ -57,6 +57,8 @@ def file_loader(file_resource, current_file):
 
 
 class SimpleFakeSource(Source):
+    provider = "fake"
+
     def find_datasets(
         self,
         dataset_type: str,
@@ -107,6 +109,8 @@ class SimpleFakeSource(Source):
 
 
 class BatchSource(Source):
+    provider = "batch"
+
     def __init__(self, name, callback):
         super().__init__(name)
         self.callback = callback

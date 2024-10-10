@@ -57,7 +57,7 @@ def cli():
     help="bucket",
     type=str,
 )
-# @click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
+@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
 @click.option(
     "--dry-run",
     "dry_run",
@@ -66,7 +66,20 @@ def cli():
     is_flag=True,
     type=bool,
 )
-def run(config_file: str, bucket: Optional[str], dry_run: Optional[bool]):
+@click.option(
+    "--provider",
+    "provider",
+    required=False,
+    help="Provider - only run tasks for a single provider",
+    type=str,
+)
+def run(
+    config_file: str,
+    bucket: Optional[str],
+    dry_run: Optional[bool],
+    provider: Optional[str],
+    debug: Optional[bool],
+):
     try:
         engine = get_engine(config_file, bucket)
     except ConfigurationError as e:
@@ -76,7 +89,7 @@ def run(config_file: str, bucket: Optional[str], dry_run: Optional[bool]):
             logger.exception(f"Failed due a configuration error: {e}")
             sys.exit(1)
 
-    engine.load(dry_run=dry_run)
+    engine.load(dry_run=dry_run, provider=provider)
 
     logger.info("Done")
 
@@ -188,6 +201,11 @@ def delete_dataset(
 )
 @click.argument("project_name")
 def init(template: str, project_name: str):
+    logger.warning(
+        "`ingestify init` is currently not supported. See https://github.com/PySport/ingestify/issues/11"
+    )
+    return
+
     directory = Path(project_name)
     if directory.exists():
         logger.warning(f"Directory '{directory}' already exists")
