@@ -2,16 +2,17 @@ import itertools
 import json
 import logging
 import platform
-from multiprocessing import set_start_method, cpu_count
+from multiprocessing import set_start_method
 from typing import List, Optional
 
-from ingestify.domain.models import Dataset, Identifier, Selector, Source, Task, TaskSet
-from ingestify.utils import map_in_pool, TaskExecutor, chunker
+from ingestify.domain.models import Dataset, Identifier, Selector, Task, TaskSet
+from ingestify.utils import TaskExecutor, chunker
 
 from .dataset_store import DatasetStore
 from .. import DatasetResource, retrieve_http
 from ..domain import DraftFile
-from ..domain.models.extraction_plan import ExtractionPlan
+from ingestify.domain.models.extraction.extraction_job_summary import ExtractionJobSummary
+from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
 from ..domain.models.resources.dataset_resource import FileResource
 from ..domain.models.task.task_summary import TaskSummary
 from ..exceptions import ConfigurationError
@@ -186,7 +187,7 @@ class Loader:
                     )
 
                     # TODO: consider making this lazy and fetch once per Source instead of
-                    #       once per ExtractJob
+                    #       once per ExtractionPlan
                     all_selectors = extraction_plan.source.discover_selectors(
                         extraction_plan.dataset_type
                     )
@@ -270,103 +271,108 @@ class Loader:
                 f"Discovering datasets from {extraction_plan.source.__class__.__name__} using selector {selector}"
             )
 
-            extraction_job_summary = ExtractionJobSummary()
+            with ExtractionJobSummary(
+                extraction_plan=extraction_plan,
+                selector=selector
+            ) as extraction_job_summary:
 
-            with extraction_job_summary.timing("get_dataset_collection"):
-                dataset_collection_metadata = self.store.get_dataset_collection(
-                    dataset_type=extraction_plan.dataset_type,
-                    data_spec_versions=selector.data_spec_versions,
-                    selector=selector,
-                    metadata_only=True,
-                ).metadata
-
-            # There are two different, but similar flows here:
-            # 1. The discover_datasets returns a list, and the entire list can be processed at once
-            # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
-            with extraction_job_summary.timing("find_datasets"):
-                # Timing might be incorrect as it is an iterator
-                datasets = extraction_plan.source.find_datasets(
-                    dataset_type=extraction_plan.dataset_type,
-                    data_spec_versions=selector.data_spec_versions,
-                    dataset_collection_metadata=dataset_collection_metadata,
-                    **selector.custom_attributes,
-                )
-
-            batches = to_batches(datasets)
-
-            with extraction_job_summary.timing("tasks"):
-                for batch in batches:
-                    dataset_identifiers = [
-                        Identifier.create_from_selector(
-                            selector, **dataset_resource.dataset_resource_id
-                        )
-                        # We have to pass the data_spec_versions here as a Source can add some
-                        # extra data to the identifier which is retrieved in a certain data format
-                        for dataset_resource in batch
-                    ]
-
-                    # Load all available datasets based on the discovered dataset identifiers
-                    dataset_collection = self.store.get_dataset_collection(
+                with extraction_job_summary.record_timing("get_dataset_collection"):
+                    dataset_collection_metadata = self.store.get_dataset_collection(
                         dataset_type=extraction_plan.dataset_type,
-                        # Assume all DatasetResources share the same provider
-                        provider=batch[0].provider,
-                        selector=dataset_identifiers,
+                        data_spec_versions=selector.data_spec_versions,
+                        selector=selector,
+                        metadata_only=True,
+                    ).metadata
+
+                # There are two different, but similar flows here:
+                # 1. The discover_datasets returns a list, and the entire list can be processed at once
+                # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
+                with extraction_job_summary.record_timing("find_datasets"):
+                    # Timing might be incorrect as it is an iterator
+                    datasets = extraction_plan.source.find_datasets(
+                        dataset_type=extraction_plan.dataset_type,
+                        data_spec_versions=selector.data_spec_versions,
+                        dataset_collection_metadata=dataset_collection_metadata,
+                        **selector.custom_attributes,
                     )
 
-                    skip_count = 0
-                    total_dataset_count += len(dataset_identifiers)
+                batches = to_batches(datasets)
 
-                    task_set = TaskSet()
-                    for dataset_resource in batch:
-                        dataset_identifier = Identifier.create_from_selector(
-                            selector, **dataset_resource.dataset_resource_id
-                        )
-
-                        if dataset := dataset_collection.get(dataset_identifier):
-                            if extraction_plan.fetch_policy.should_refetch(
-                                dataset, dataset_resource
-                            ):
-                                task_set.add(
-                                    UpdateDatasetTask(
-                                        dataset=dataset,  # Current dataset from the database
-                                        dataset_resource=dataset_resource,  # Most recent dataset_resource
-                                        store=self.store,
-                                    )
-                                )
-                            else:
-                                skip_count += 1
-                        else:
-                            if extraction_plan.fetch_policy.should_fetch(dataset_resource):
-                                task_set.add(
-                                    CreateDatasetTask(
-                                        dataset_resource=dataset_resource,
-                                        store=self.store,
-                                    )
-                                )
-                            else:
-                                skip_count += 1
-
-                    if task_set:
-                        logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {extraction_plan.source.__class__.__name__} "
-                            f"using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
-                        )
-                        logger.info(f"Running {len(task_set)} tasks")
-                        with TaskExecutor(dry_run=dry_run) as task_executor:
-                            extraction_job_summary.add_task_summaries(
-                                task_executor.run(run_task, task_set)
+                with extraction_job_summary.record_timing("tasks"):
+                    for batch in batches:
+                        dataset_identifiers = [
+                            Identifier.create_from_selector(
+                                selector, **dataset_resource.dataset_resource_id
                             )
-                    else:
-                        logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {extraction_plan.source.__class__.__name__} "
-                            f"using selector {selector} => nothing to do"
+                            # We have to pass the data_spec_versions here as a Source can add some
+                            # extra data to the identifier which is retrieved in a certain data format
+                            for dataset_resource in batch
+                        ]
+
+                        # Load all available datasets based on the discovered dataset identifiers
+                        dataset_collection = self.store.get_dataset_collection(
+                            dataset_type=extraction_plan.dataset_type,
+                            # Assume all DatasetResources share the same provider
+                            provider=batch[0].provider,
+                            selector=dataset_identifiers,
                         )
 
-            # TODO: handle task_summaries
-            #       Summarize to a ExtractionJobSummary, and save to a database. This Summary can later be used in a
-            #       next run to determine where to resume.
-            # TODO 2: Do we want to add additional information from the summary back to the Task, so it can use
-            #      extra information to determine how/where to resume
+                        skip_count = 0
+                        total_dataset_count += len(dataset_identifiers)
+
+                        task_set = TaskSet()
+                        for dataset_resource in batch:
+                            dataset_identifier = Identifier.create_from_selector(
+                                selector, **dataset_resource.dataset_resource_id
+                            )
+
+                            if dataset := dataset_collection.get(dataset_identifier):
+                                if extraction_plan.fetch_policy.should_refetch(
+                                    dataset, dataset_resource
+                                ):
+                                    task_set.add(
+                                        UpdateDatasetTask(
+                                            dataset=dataset,  # Current dataset from the database
+                                            dataset_resource=dataset_resource,  # Most recent dataset_resource
+                                            store=self.store,
+                                        )
+                                    )
+                                else:
+                                    skip_count += 1
+                            else:
+                                if extraction_plan.fetch_policy.should_fetch(dataset_resource):
+                                    task_set.add(
+                                        CreateDatasetTask(
+                                            dataset_resource=dataset_resource,
+                                            store=self.store,
+                                        )
+                                    )
+                                else:
+                                    skip_count += 1
+
+                        if task_set:
+                            logger.info(
+                                f"Discovered {len(dataset_identifiers)} datasets from {extraction_plan.source.__class__.__name__} "
+                                f"using selector {selector} => {len(task_set)} tasks. {skip_count} skipped."
+                            )
+                            logger.info(f"Running {len(task_set)} tasks")
+                            with TaskExecutor(dry_run=dry_run) as task_executor:
+                                extraction_job_summary.add_task_summaries(
+                                    task_executor.run(run_task, task_set)
+                                )
+                        else:
+                            logger.info(
+                                f"Discovered {len(dataset_identifiers)} datasets from {extraction_plan.source.__class__.__name__} "
+                                f"using selector {selector} => nothing to do"
+                            )
+
+                # TODO: handle task_summaries
+                #       Summarize to a ExtractionJobSummary, and save to a database. This Summary can later be used in a
+                #       next run to determine where to resume.
+                # TODO 2: Do we want to add additional information from the summary back to the Task, so it can use
+                #      extra information to determine how/where to resume
+                extraction_job_summary.set_finished()
+
             extraction_job_summary.output_report()
 
         logger.info("Done")

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 import pytz
 
@@ -10,13 +9,12 @@ from ingestify.domain import (
     Selector,
     DataSpecVersionCollection,
     DraftFile,
-    Revision,
     Dataset,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
-from ingestify.domain.models.extraction_plan import ExtractionPlan
+from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
 from ingestify.main import get_engine

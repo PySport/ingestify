@@ -17,7 +17,7 @@ class ExtractionPlan:
     data_spec_versions: DataSpecVersionCollection
 
     def __repr__(self):
-        return f'<ExtractJob source="{self.source.name}" dataset_type="{self.dataset_type}">'
+        return f'<ExtractionPlan source="{self.source.name}" dataset_type="{self.dataset_type}">'
 
     def __str__(self):
         return repr(self)

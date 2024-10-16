@@ -21,7 +21,7 @@ from ingestify.domain.models.data_spec_version_collection import (
 )
 from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
-from ingestify.domain.models.extraction_plan import ExtractionPlan
+from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.exceptions import ConfigurationError
 
