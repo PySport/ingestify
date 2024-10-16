@@ -12,6 +12,7 @@ from ingestify.exceptions import ConfigurationError
 from ingestify.main import get_engine
 
 from ingestify import __version__
+from ingestify.utils import try_number
 
 logger = logging.getLogger(__name__)
 #
@@ -174,7 +175,7 @@ def delete_dataset(
     if "=" in dataset_id:
         selector = {
             # TODO: this `int` will might break stuff. Issue here is the int != str
-            _[0]: int(_[1])
+            _[0]: try_number(_[1])
             for _ in [_.split("=") for _ in dataset_id.split("/")]
         }
     else:
