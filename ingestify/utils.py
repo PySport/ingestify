@@ -274,3 +274,13 @@ class TaskExecutor:
     def join(self):
         self.pool.close()
         self.pool.join()
+
+
+def try_number(s: str):
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return float(s)
+        except ValueError:
+            return s
