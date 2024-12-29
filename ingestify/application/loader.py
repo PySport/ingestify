@@ -85,9 +85,15 @@ def load_file(
             file_data_serialization_format=file_resource.data_serialization_format
             or "txt",
             **http_options,
+            **file_resource.loader_kwargs,
         )
     else:
-        return file_resource.file_loader(file_resource, current_file)
+        return file_resource.file_loader(
+            file_resource,
+            current_file,
+            # TODO: check how to fix this with typehints
+            **file_resource.loader_kwargs,
+        )
 
 
 class UpdateDatasetTask(Task):

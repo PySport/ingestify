@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Callable, TYPE_CHECKING
 
@@ -29,6 +29,7 @@ class FileResource:
     file_loader: Optional[
         Callable[["FileResource", Optional["File"]], Optional["DraftFile"]]
     ] = None
+    loader_kwargs: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.json_content is None and not self.url and not self.file_loader:
@@ -75,6 +76,7 @@ class DatasetResource:
                 Optional["DraftFile"],
             ]
         ] = None,
+        loader_kwargs: Optional[dict] = None,
     ):
         file_id = f"{data_feed_key}__{data_spec_version}"
         if file_id in self.files:
@@ -91,6 +93,7 @@ class DatasetResource:
             http_options=http_options,
             data_serialization_format=data_serialization_format,
             file_loader=file_loader,
+            loader_kwargs=loader_kwargs or {},
         )
 
         self.files[file_id] = file_resource

@@ -34,7 +34,11 @@ def add_extraction_plan(engine: IngestionEngine, source: Source, **selector):
     )
 
 
-def file_loader(file_resource, current_file):
+def file_loader(file_resource, current_file, some_extract_config=None):
+    if some_extract_config is not None and some_extract_config != "test123":
+        # Test loader_kwargs are passed correctly
+        raise Exception(f"Incorrect value for this test value: {some_extract_config}")
+
     if file_resource.file_id == "file1__v1":
         if not current_file:
             return DraftFile.from_input(
@@ -64,7 +68,7 @@ class SimpleFakeSource(Source):
         dataset_collection_metadata: DatasetCollectionMetadata,
         competition_id,
         season_id,
-        **kwargs
+        **kwargs,
     ):
         last_modified = datetime.now(pytz.utc)
 
@@ -83,6 +87,7 @@ class SimpleFakeSource(Source):
                 data_feed_key="file1",
                 data_spec_version="v1",
                 file_loader=file_loader,
+                loader_kwargs={"some_extract_config": "test123"},
             )
             .add_file(
                 last_modified=last_modified,
@@ -122,7 +127,7 @@ class BatchSource(Source):
         dataset_collection_metadata: DatasetCollectionMetadata,
         competition_id,
         season_id,
-        **kwargs
+        **kwargs,
     ):
         while not self.should_stop:
             items = []
