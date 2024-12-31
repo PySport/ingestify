@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from .loader import Loader
 from .dataset_store import DatasetStore
-from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
+from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 
 logger = logging.getLogger(__name__)
 

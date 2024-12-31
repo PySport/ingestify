@@ -14,7 +14,7 @@ from ingestify.domain import (
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
-from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
+from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
 from ingestify.main import get_engine
@@ -166,6 +166,42 @@ class BatchSource(Source):
             self.callback and self.callback(self.idx)
 
 
+class FailingSource(Source):
+    provider = "fake"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        competition_id,
+        season_id,
+        **kwargs,
+    ):
+        last_modified = datetime.now(pytz.utc)
+
+        def failing_loader(*args, **kwargs):
+            raise Exception("This is a failing task")
+
+        yield (
+            DatasetResource(
+                dict(
+                    competition_id=competition_id,
+                    season_id=season_id,
+                ),
+                provider="fake",
+                dataset_type="match",
+                name="Test Dataset",
+            ).add_file(
+                last_modified=last_modified,
+                data_feed_key="file1",
+                data_spec_version="v1",
+                file_loader=failing_loader,
+                loader_kwargs={"some_extract_config": "test123"},
+            )
+        )
+
+
 def test_engine(config_file):
     engine = get_engine(config_file, "main")
 
@@ -248,3 +284,12 @@ def test_iterator_source(config_file):
     # Sneaked in an extra test for serialization. This just shouldn't break
     s = serialize(datasets.first())
     unserialize(s, Dataset)
+
+
+def test_extraction_plan_failing_task(config_file):
+    engine = get_engine(config_file, "main")
+
+    source = FailingSource("fake-source")
+
+    add_extraction_plan(engine, source, competition_id=1, season_id=2)
+    engine.load()

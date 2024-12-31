@@ -21,7 +21,7 @@ from ingestify.domain.models.data_spec_version_collection import (
 )
 from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
-from ingestify.domain.models.execution.extraction_plan import ExtractionPlan
+from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.exceptions import ConfigurationError
 
@@ -180,7 +180,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     # Previous naming
     extraction_plans = config.get("extract_jobs", [])
     # New naming
-    extraction_plans.extend(config.get('extraction_plans', []))
+    extraction_plans.extend(config.get("extraction_plans", []))
 
     for extraction_plan in extraction_plans:
         data_spec_versions = DataSpecVersionCollection.from_dict(
