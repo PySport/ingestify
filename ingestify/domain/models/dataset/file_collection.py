@@ -3,7 +3,7 @@ from typing import Optional
 from .file import LoadedFile
 
 
-class FileCollection(dict):
+class FileCollection(dict[str, LoadedFile]):
     def __init__(self, seq, auto_rewind: bool = True, **kwargs):
         super().__init__(seq, **kwargs)
 
@@ -27,6 +27,8 @@ class FileCollection(dict):
                 should_auto_rewind = auto_rewind
                 if should_auto_rewind is None:
                     should_auto_rewind = self._auto_rewind
+
+                file.load_stream()
 
                 if should_auto_rewind and file.stream.tell() > 0:
                     file.stream.seek(0)

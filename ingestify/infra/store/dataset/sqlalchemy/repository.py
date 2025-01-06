@@ -64,7 +64,7 @@ def isint(x):
         return a == b
 
 
-class SqlAlchemyDatasetRepository(DatasetRepository):
+class SqlAlchemySessionProvider:
     @staticmethod
     def fix_url(url: str) -> str:
         if url.startswith("postgres://"):
@@ -110,6 +110,18 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def __del__(self):
         self.session.close()
         self.engine.dispose()
+
+    def get(self):
+        return self.session
+
+
+class SqlAlchemyDatasetRepository(DatasetRepository):
+    def __init__(self, session_provider: SqlAlchemySessionProvider):
+        self.session_provider = session_provider
+
+    @property
+    def session(self):
+        return self.session_provider.get()
 
     def _filter_query(
         self,

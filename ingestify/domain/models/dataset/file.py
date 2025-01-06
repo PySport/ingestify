@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import BinaryIO, Optional, Union, Callable
+from typing import BinaryIO, Optional, Union, Callable, Coroutine, Awaitable
 
 from ingestify.utils import utcnow
 
@@ -131,15 +131,19 @@ class LoadedFile:
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
 
-    _stream: Union[BinaryIO, Callable[[], BinaryIO]]
+    _stream: Union[BinaryIO, Callable[[], Awaitable[BinaryIO]]]
 
     # This can be used when a Revision is squashed
     revision_id: Optional[int] = None
 
+    def load_stream(self):
+        if callable(self._stream):
+            self._stream = self._stream(self)
+
     @property
     def stream(self):
         if callable(self._stream):
-            self._stream = self._stream(self)
+            raise Exception("You should load the stream first using `load_stream`")
         return self._stream
 
 

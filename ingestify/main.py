@@ -11,11 +11,7 @@ from ingestify import Source
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.application.ingestion_engine import IngestionEngine
 from ingestify.application.secrets_manager import SecretsManager
-from ingestify.domain import Selector
-from ingestify.domain.models import (
-    dataset_repository_factory,
-    file_repository_factory,
-)
+from ingestify.domain import Selector, FileRepository
 from ingestify.domain.models.data_spec_version_collection import (
     DataSpecVersionCollection,
 )
@@ -24,6 +20,9 @@ from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.exceptions import ConfigurationError
+from ingestify.infra import S3FileRepository, LocalFileRepository
+from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
+from ingestify.infra.store.dataset.sqlalchemy.repository import SqlAlchemySessionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +58,23 @@ def import_cls(name):
     return getattr(mod, components[-1])
 
 
+def build_file_repository(file_url: str) -> FileRepository:
+    if file_url.startswith("s3://"):
+        repository = S3FileRepository(
+            url=file_url
+        )
+    elif file_url.startswith("file://"):
+        repository = LocalFileRepository(
+            url=file_url
+        )
+    else:
+        raise Exception(f"Cannot find repository to handle file {file_url}")
+
+    return repository
+
+
 def get_dataset_store_by_urls(
-    dataset_url: str, file_url: str, bucket: str
+    metadata_url: str, file_url: str, bucket: str
 ) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
@@ -68,15 +82,20 @@ def get_dataset_store_by_urls(
     if not bucket:
         raise Exception("Bucket is not specified")
 
-    file_repository = file_repository_factory.build_if_supports(url=file_url)
+    file_repository = build_file_repository(file_url)
 
-    if secrets_manager.supports(dataset_url):
-        dataset_url = secrets_manager.load_as_db_url(dataset_url)
+    if secrets_manager.supports(metadata_url):
+        metadata_url = secrets_manager.load_as_db_url(metadata_url)
 
-    if dataset_url.startswith("postgres://"):
-        dataset_url = dataset_url.replace("postgress://", "postgress+")
+    if metadata_url.startswith("postgres://"):
+        metadata_url = metadata_url.replace("postgress://", "postgress+")
 
-    dataset_repository = dataset_repository_factory.build_if_supports(url=dataset_url)
+    sqlalchemy_session_provider = SqlAlchemySessionProvider(
+        metadata_url
+    )
+
+    dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
+
     return DatasetStore(
         dataset_repository=dataset_repository,
         file_repository=file_repository,
@@ -155,7 +174,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
 
     logger.info("Initializing IngestionEngine")
     store = get_dataset_store_by_urls(
-        dataset_url=config["main"]["dataset_url"],
+        metadata_url=config["main"]["metadata_url"],
         file_url=config["main"]["file_url"],
         bucket=bucket or config["main"].get("default_bucket"),
     )

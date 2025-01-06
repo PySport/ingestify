@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional
 
+from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
 from ingestify.domain.models.extraction.extraction_job_summary import (

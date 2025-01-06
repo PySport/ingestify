@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import pytest
 import pytz
 
 from ingestify import Source, DatasetResource
@@ -163,6 +164,7 @@ class BatchSource(Source):
 
                 items.append(dataset_resource)
             yield items
+
             self.callback and self.callback(self.idx)
 
 

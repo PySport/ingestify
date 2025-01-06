@@ -7,7 +7,7 @@ import shutil
 from dataclasses import asdict
 from io import BytesIO, StringIO
 
-from typing import Dict, List, Optional, Union, Callable, BinaryIO
+from typing import Dict, List, Optional, Union, Callable, BinaryIO, Coroutine, Awaitable
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
@@ -27,7 +27,7 @@ from ingestify.domain.models import (
     Revision,
     DatasetCreated,
 )
-from ingestify.utils import utcnow, map_in_pool
+from ingestify.utils import utcnow
 
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class DatasetStore:
 
         return stream, storage_size, suffix
 
-    def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], BytesIO], str]:
+    def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], Awaitable[BytesIO]], str]:
         if self.storage_compression_method == "gzip":
 
             def reader(fh: BinaryIO) -> BytesIO:
@@ -306,8 +306,8 @@ class DatasetStore:
 
             try:
                 return statsbomb.load(
-                    event_data=files.get_file("events").stream,
-                    lineup_data=files.get_file("lineups").stream,
+                    event_data=(files.get_file("events")).stream,
+                    lineup_data=(files.get_file("lineups")).stream,
                     **kwargs,
                 )
             except Exception as e:
@@ -337,7 +337,7 @@ class DatasetStore:
     #         filename=filename,
     #     )
 
-    def map(
-        self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
-    ):
-        return map_in_pool(fn, dataset_collection, processes)
+    # def map(
+    #     self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
+    # ):
+    #     return map_in_pool(fn, dataset_collection, processes)

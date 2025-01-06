@@ -1,6 +1,6 @@
 main:
   # Cannot use in memory data because database is shared between processes
-  dataset_url: !ENV "sqlite:///${TEST_DIR}/main.db"
+  metadata_url: !ENV "sqlite:///${TEST_DIR}/main.db"
   file_url: !ENV file://${TEST_DIR}/data
   default_bucket: main
 

@@ -1,12 +1,22 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, TYPE_CHECKING, Protocol, Any
 
 from ingestify.exceptions import DuplicateFile
 
 if TYPE_CHECKING:
     from ingestify.domain import DraftFile, File
     from ingestify.domain.models.dataset.dataset import DatasetState
+
+
+class FileLoaderProtocol(Protocol):
+    def __call__(
+        self,
+        file_resource: "FileResource",
+        file: Optional["File"] = None,
+        **kwargs: Any
+    ) -> Optional["DraftFile"]:
+        ...
 
 
 @dataclass(frozen=True)

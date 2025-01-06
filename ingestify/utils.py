@@ -1,4 +1,5 @@
 import abc
+import asyncio
 import inspect
 import logging
 import os
@@ -8,7 +9,7 @@ from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
 from string import Template
-from typing import Dict, Generic, Type, TypeVar, Tuple, Optional, Any
+from typing import Dict, Generic, Type, TypeVar, Tuple, Optional, Any, Callable, Awaitable, List, Iterable
 
 import cloudpickle
 from typing_extensions import Self
@@ -37,83 +38,6 @@ def sanitize_exception_message(exception_message):
     sanitized_message = re.sub(sensitive_info_pattern, ":******@", exception_message)
 
     return sanitized_message
-
-
-class ComponentRegistry:
-    def __init__(self):
-        self.__registered_components = {}
-
-        class _Registered(abc.ABCMeta):
-            def __new__(mcs, cls_name, bases, class_dict):
-                class_dict["name"] = cls_name
-                component_cls = super(_Registered, mcs).__new__(
-                    mcs, cls_name, bases, class_dict
-                )
-                if not inspect.isabstract(component_cls):
-                    self.register_component(cls_name, component_cls)
-                else:
-                    if bases[0] != abc.ABC:
-                        raise Exception(
-                            f"Class '{cls_name}' seems to be an concrete class, but missing some abstract methods"
-                        )
-                return component_cls
-
-        self.__metaclass = _Registered
-
-    @property
-    def metaclass(self):
-        return self.__metaclass
-
-    def register_component(self, cls_name, component_cls):
-        self.__registered_components[cls_name] = component_cls
-
-    def get_component(self, cls_name: str):
-        return self.__registered_components[cls_name]
-
-    def get_supporting_component(self, **kwargs) -> str:
-        for cls_name, class_ in self.__registered_components.items():
-            if not hasattr(class_, "supports"):
-                raise Exception(
-                    f"Class '{cls_name}' does not implemented a 'supports' classmethod. "
-                    f"This is required when using 'get_supporting_component'."
-                )
-
-            if class_.supports(**kwargs):
-                return cls_name
-
-        kwargs_str = sanitize_exception_message(str(kwargs))
-        raise Exception(f"No supporting class found for {kwargs_str}")
-
-
-T = TypeVar("T")
-R = TypeVar("R")
-
-
-class ComponentFactory(Generic[T]):
-    def __init__(self, registry: ComponentRegistry):
-        self.registry = registry
-
-    @classmethod
-    def build_factory(
-        cls, component_cls: Type[R], registry: ComponentRegistry
-    ) -> "ComponentFactory[R]":
-        return cls[component_cls](registry)
-
-    def build(self, cls_name, **kwargs) -> T:
-        component_cls = self.registry.get_component(cls_name)
-        try:
-            return component_cls.from_dict(**kwargs)
-        except AttributeError:
-            pass
-        try:
-            return component_cls(**kwargs)
-        except TypeError as e:
-            raise e
-            # raise TypeError(f"Could not initialize {cls_name}")
-
-    def build_if_supports(self, **kwargs) -> T:
-        cls_name = self.registry.get_supporting_component(**kwargs)
-        return self.build(cls_name, **kwargs)
 
 
 def key_from_dict(d: dict) -> str:
@@ -182,7 +106,6 @@ class AttributeBag:
         return self.attributes.get(attribute_name), self.__class__(
             **{k: v for k, v in self.attributes.items() if k != attribute_name}
         )
-
 
 def cloud_unpack_and_call(args):
     f_pickled, org_args = args
