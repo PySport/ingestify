@@ -1,5 +1,6 @@
 import logging
 import platform
+import uuid
 from multiprocessing import set_start_method
 from typing import List, Optional
 
@@ -143,7 +144,9 @@ class Loader:
             )
 
             extraction_job = ExtractionJob(
-                extraction_plan=extraction_plan, selector=selector
+                extraction_job_id=str(uuid.uuid1()),
+                extraction_plan=extraction_plan,
+                selector=selector
             )
 
             with TaskExecutor(dry_run=dry_run) as task_executor:
@@ -158,6 +161,9 @@ class Loader:
                 #      extra information to determine how/where to resume
                 extraction_job_summary.set_finished()
 
+            self.store.save_extraction_job_summary(
+                extraction_job_summary
+            )
             extraction_job_summary.output_report()
 
         logger.info("Done")

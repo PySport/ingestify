@@ -36,7 +36,8 @@ def json_serializer(o):
 def json_deserializer(o):
     o = json.loads(o)
     # THIS BREAKS WHEN USING OTHER JSON COLUMNS!!
-    o = Identifier(**o)
+    if o is not None:
+        o = Identifier(**o)
     return o
 
 
@@ -220,7 +221,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         if not metadata_only:
             dataset_query = apply_query_filter(
-                self.session.query(Dataset).options(joinedload(Dataset.revisions))
+                self.session.query(Dataset) #.options(joinedload(Dataset.revisions))
             )
             datasets = list(dataset_query)
         else:

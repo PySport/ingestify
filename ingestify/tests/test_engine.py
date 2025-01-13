@@ -15,6 +15,7 @@ from ingestify.domain import (
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.domain.models.extraction.extraction_job_summary import ExtractionJobSummary
 from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
@@ -238,6 +239,9 @@ def test_engine(config_file):
 
     datasets = engine.store.get_dataset_collection(season_id=3)
     assert len(datasets) == 1
+
+    items = list(engine.store.dataset_repository.session.query(ExtractionJobSummary))
+    print(items)
 
 
 def test_iterator_source(config_file):

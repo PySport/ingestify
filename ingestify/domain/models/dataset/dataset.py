@@ -53,18 +53,18 @@ class Dataset:
         self.revisions.append(revision)
         self.updated_at = utcnow()
 
-    def update_from_resource(self, dataset_resource) -> bool:
+    def update_metadata(self, name, metadata, state) -> bool:
         changed = False
-        if self.name != dataset_resource.name:
-            self.name = dataset_resource.name
+        if self.name != name:
+            self.name = name
             changed = True
 
-        if self.metadata != dataset_resource.metadata:
-            self.metadata = dataset_resource.metadata
+        if self.metadata != metadata:
+            self.metadata = metadata
             changed = True
 
-        if self.state != dataset_resource.state:
-            self.state = dataset_resource.state
+        if self.state != state:
+            self.state = state
             changed = True
 
         if changed:

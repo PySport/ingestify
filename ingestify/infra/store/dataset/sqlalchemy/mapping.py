@@ -1,4 +1,5 @@
 import datetime
+from dataclasses import is_dataclass, asdict
 from pathlib import Path
 
 from sqlalchemy import (
@@ -16,8 +17,26 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import registry, relationship
 
+from ingestify.domain import Selector
 from ingestify.domain.models import Dataset, File, Revision
 from ingestify.domain.models.dataset.dataset import DatasetState
+from ingestify.domain.models.extraction.extraction_job_summary import ExtractionJobSummary
+
+
+def JSONType(serializer=None, deserializer=None):
+    class _JsonType(TypeDecorator):
+        impl = JSON
+
+        def process_bind_param(self, value, dialect):
+            if serializer is not None:
+                return serializer(value)
+            return value
+
+        def process_result_value(self, value, dialect):
+            if deserializer is not None:
+                return deserializer(value)
+            return value
+    return _JsonType
 
 
 class TZDateTime(TypeDecorator):
@@ -129,7 +148,7 @@ mapper_registry.map_imperatively(
             Revision,
             backref="dataset",
             order_by=revision_table.c.revision_id,
-            lazy="joined",
+            lazy="selectin",
             cascade="all, delete-orphan",
         ),
     },
@@ -143,7 +162,7 @@ mapper_registry.map_imperatively(
             File,
             order_by=file_table.c.file_id,
             primaryjoin="and_(Revision.revision_id==File.revision_id, Revision.dataset_id==File.dataset_id)",
-            lazy="joined",
+            lazy="selectin",
             cascade="all, delete-orphan",
         )
     },
@@ -151,3 +170,23 @@ mapper_registry.map_imperatively(
 
 
 mapper_registry.map_imperatively(File, file_table)
+
+
+extraction_job_summary = Table(
+    "extraction_job_summary",
+    metadata,
+    Column("extraction_job_id", String(255), primary_key=True),
+
+    # From the ExtractionPlan
+    Column("source_name", String(255)),
+    Column("dataset_type", String(255)),
+    Column("data_spec_versions", JSONType()),
+    Column("selector", JSONType(serializer=lambda selector: selector.filtered_attributes)),
+
+    Column("started_at", TZDateTime(6)),
+    Column("finished_at", TZDateTime(6)),
+    # Column("timings", DataClassJSONType),
+    # Column("task_summaries", DataClassJSONType)
+)
+
+mapper_registry.map_imperatively(ExtractionJobSummary, extraction_job_summary)

@@ -5,9 +5,9 @@ import mimetypes
 import os
 import shutil
 from dataclasses import asdict
-from io import BytesIO, StringIO
+from io import BytesIO
 
-from typing import Dict, List, Optional, Union, Callable, BinaryIO, Coroutine, Awaitable
+from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
@@ -55,6 +55,10 @@ class DatasetStore:
     def dispatch(self, event):
         if self.event_bus:
             self.event_bus.dispatch(event)
+
+    def save_extraction_job_summary(self, extraction_job_summary):
+        self.dataset_repository.session.add(extraction_job_summary)
+        self.dataset_repository.session.commit()
 
     def get_dataset_collection(
         self,
@@ -207,12 +211,14 @@ class DatasetStore:
     def update_dataset(
         self,
         dataset: Dataset,
-        dataset_resource: DatasetResource,
+        name: str,
+        state: DatasetState,
+        metadata: dict,
         files: Dict[str, DraftFile],
     ):
         """The add_revision will also save the dataset."""
         metadata_changed = False
-        if dataset.update_from_resource(dataset_resource):
+        if dataset.update_metadata(name, metadata, state):
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             metadata_changed = True
 

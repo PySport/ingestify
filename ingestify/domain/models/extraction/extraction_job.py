@@ -110,14 +110,16 @@ class UpdateDatasetTask(Task):
         with TaskSummary.update() as task_summary:
             revision = self.store.update_dataset(
                 dataset=self.dataset,
-                dataset_resource=self.dataset_resource,
+                name=self.dataset_resource.name,
+                state=self.dataset_resource.state,
+                metadata=self.dataset_resource.metadata,
                 files={
                     file_id: task_summary.record_load_file(
                         lambda: load_file(file_resource, dataset=self.dataset),
                         metadata={"file_id": file_id},
                     )
                     for file_id, file_resource in self.dataset_resource.files.items()
-                },
+                }
             )
             task_summary.set_stats_from_revision(revision)
 
@@ -165,15 +167,16 @@ class CreateDatasetTask(Task):
 
 
 class ExtractionJob:
-    def __init__(self, extraction_plan: ExtractionPlan, selector: Selector):
+    def __init__(self, extraction_job_id: str, extraction_plan: ExtractionPlan, selector: Selector):
+        self.extraction_job_id = extraction_job_id
         self.extraction_plan = extraction_plan
         self.selector = selector
 
     def execute(
         self, store: DatasetStore, task_executor: TaskExecutor
     ) -> ExtractionJobSummary:
-        with ExtractionJobSummary(
-            extraction_plan=self.extraction_plan, selector=self.selector
+        with ExtractionJobSummary.new(
+            extraction_job=self
         ) as extraction_job_summary:
             with extraction_job_summary.record_timing("get_dataset_collection"):
                 dataset_collection_metadata = store.get_dataset_collection(
