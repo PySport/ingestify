@@ -111,7 +111,9 @@ class DatasetStore:
 
         return stream, storage_size, suffix
 
-    def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], Awaitable[BytesIO]], str]:
+    def _prepare_read_stream(
+        self,
+    ) -> tuple[Callable[[BinaryIO], Awaitable[BytesIO]], str]:
         if self.storage_compression_method == "gzip":
 
             def reader(fh: BinaryIO) -> BytesIO:

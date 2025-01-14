@@ -1,12 +1,11 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
 
 from .file import File
+from ..base import BaseModel
 
 
-@dataclass
-class Revision:
+class Revision(BaseModel):
     revision_id: int
     created_at: datetime
     description: str

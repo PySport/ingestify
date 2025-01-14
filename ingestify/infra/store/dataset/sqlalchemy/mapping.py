@@ -17,10 +17,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import registry, relationship
 
-from ingestify.domain import Selector
+from ingestify.domain import Selector, Identifier
 from ingestify.domain.models import Dataset, File, Revision
 from ingestify.domain.models.dataset.dataset import DatasetState
-from ingestify.domain.models.extraction.extraction_job_summary import ExtractionJobSummary
+from ingestify.domain.models.extraction.extraction_job_summary import (
+    ExtractionJobSummary,
+)
+from ingestify.domain.models.task.task_summary import TaskSummary
+from ingestify.domain.models.timing import Timing
 
 
 def JSONType(serializer=None, deserializer=None):
@@ -36,6 +40,7 @@ def JSONType(serializer=None, deserializer=None):
             if deserializer is not None:
                 return deserializer(value)
             return value
+
     return _JsonType
 
 
@@ -99,7 +104,7 @@ dataset_table = Table(
     Column("dataset_type", String(255)),
     Column("state", DatasetStateString),
     Column("name", String(255)),
-    Column("identifier", JSON),
+    Column("identifier", JSONType(deserializer=lambda item: Identifier(**item))),
     Column("metadata", JSON),
     Column("created_at", TZDateTime(6)),
     Column("updated_at", TZDateTime(6)),
@@ -139,6 +144,44 @@ file_table = Table(
     ),
 )
 
+extraction_job_summary = Table(
+    "extraction_job_summary",
+    metadata,
+    Column("extraction_job_id", String(255), primary_key=True),
+    # From the ExtractionPlan
+    Column("source_name", String(255)),
+    Column("dataset_type", String(255)),
+    Column("data_spec_versions", JSONType()),
+    Column(
+        "selector", JSONType(serializer=lambda selector: selector.filtered_attributes)
+    ),
+    Column("started_at", TZDateTime(6)),
+    Column("finished_at", TZDateTime(6)),
+    Column(
+        "timings",
+        JSONType(
+            serializer=lambda timings: [
+                timing.model_dump(mode="json") for timing in timings
+            ],
+            deserializer=lambda timings: [
+                Timing.model_validate(timing) for timing in timings
+            ],
+        ),
+    ),
+    Column(
+        "task_summaries",
+        JSONType(
+            serializer=lambda task_summaries: [
+                task_summary.model_dump(mode="json") for task_summary in task_summaries
+            ],
+            deserializer=lambda task_summaries: [
+                TaskSummary.model_validate(task_summary)
+                for task_summary in task_summaries
+            ],
+        ),
+    ),
+)
+
 
 mapper_registry.map_imperatively(
     Dataset,
@@ -171,22 +214,5 @@ mapper_registry.map_imperatively(
 
 mapper_registry.map_imperatively(File, file_table)
 
-
-extraction_job_summary = Table(
-    "extraction_job_summary",
-    metadata,
-    Column("extraction_job_id", String(255), primary_key=True),
-
-    # From the ExtractionPlan
-    Column("source_name", String(255)),
-    Column("dataset_type", String(255)),
-    Column("data_spec_versions", JSONType()),
-    Column("selector", JSONType(serializer=lambda selector: selector.filtered_attributes)),
-
-    Column("started_at", TZDateTime(6)),
-    Column("finished_at", TZDateTime(6)),
-    # Column("timings", DataClassJSONType),
-    # Column("task_summaries", DataClassJSONType)
-)
 
 mapper_registry.map_imperatively(ExtractionJobSummary, extraction_job_summary)

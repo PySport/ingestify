@@ -9,7 +9,19 @@ from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
 from string import Template
-from typing import Dict, Generic, Type, TypeVar, Tuple, Optional, Any, Callable, Awaitable, List, Iterable
+from typing import (
+    Dict,
+    Generic,
+    Type,
+    TypeVar,
+    Tuple,
+    Optional,
+    Any,
+    Callable,
+    Awaitable,
+    List,
+    Iterable,
+)
 
 import cloudpickle
 from typing_extensions import Self
@@ -106,6 +118,7 @@ class AttributeBag:
         return self.attributes.get(attribute_name), self.__class__(
             **{k: v for k, v in self.attributes.items() if k != attribute_name}
         )
+
 
 def cloud_unpack_and_call(args):
     f_pickled, org_args = args

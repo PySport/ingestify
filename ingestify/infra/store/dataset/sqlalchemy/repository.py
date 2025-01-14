@@ -88,8 +88,8 @@ class SqlAlchemySessionProvider:
             self.url,
             # Use the default isolation level, don't need SERIALIZABLE
             # isolation_level="SERIALIZABLE",
-            json_serializer=json_serializer,
-            json_deserializer=json_deserializer,
+            # json_serializer=json_serializer,
+            # json_deserializer=json_deserializer,
         )
         self.session = Session(bind=self.engine)
 
@@ -108,9 +108,16 @@ class SqlAlchemySessionProvider:
         self.url = state["url"]
         self._init_engine()
 
-    def __del__(self):
+    def _close_engine(self):
         self.session.close()
         self.engine.dispose()
+
+    def __del__(self):
+        self._close_engine()
+
+    def reset(self):
+        self._close_engine()
+        self._init_engine()
 
     def get(self):
         return self.session
@@ -221,7 +228,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         if not metadata_only:
             dataset_query = apply_query_filter(
-                self.session.query(Dataset) #.options(joinedload(Dataset.revisions))
+                self.session.query(Dataset)  # .options(joinedload(Dataset.revisions))
             )
             datasets = list(dataset_query)
         else:

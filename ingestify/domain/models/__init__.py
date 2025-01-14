@@ -10,7 +10,7 @@ from .dataset import (
     Identifier,
     LoadedFile,
     Selector,
-    Revision
+    Revision,
 )
 from .sink import Sink
 from .source import Source

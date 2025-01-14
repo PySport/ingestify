@@ -146,7 +146,7 @@ class Loader:
             extraction_job = ExtractionJob(
                 extraction_job_id=str(uuid.uuid1()),
                 extraction_plan=extraction_plan,
-                selector=selector
+                selector=selector,
             )
 
             with TaskExecutor(dry_run=dry_run) as task_executor:
@@ -161,9 +161,7 @@ class Loader:
                 #      extra information to determine how/where to resume
                 extraction_job_summary.set_finished()
 
-            self.store.save_extraction_job_summary(
-                extraction_job_summary
-            )
             extraction_job_summary.output_report()
+            self.store.save_extraction_job_summary(extraction_job_summary)
 
         logger.info("Done")

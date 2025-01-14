@@ -1,59 +1,41 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
+from pydantic import Field
 
 from ingestify.utils import utcnow
-
+from .dataset_state import DatasetState
 from .file import DraftFile
 from .identifier import Identifier
 from .revision import Revision
+from ..base import BaseModel
 
 
-class DatasetState(Enum):
-    SCHEDULED = "SCHEDULED"
-    PARTIAL = "PARTIAL"
-    COMPLETE = "COMPLETE"
-
-    @property
-    def is_complete(self):
-        return self == DatasetState.COMPLETE
-
-    def __str__(self):
-        return self.value
-
-
-@dataclass
-class Dataset:
+class Dataset(BaseModel):
     bucket: str  # This must be set by the DatasetRepository
-
     dataset_id: str
     name: str
     state: DatasetState
-
     dataset_type: str
     provider: str
-
     identifier: Identifier
     metadata: dict
-
     created_at: datetime
     updated_at: datetime
-
-    revisions: List[Revision] = field(default_factory=list)
+    revisions: List[Revision] = Field(default_factory=list)
 
     @property
     def is_complete(self):
         return self.state.is_complete
 
-    def next_revision_id(self):
+    def next_revision_id(self) -> int:
         return len(self.revisions)
 
     def add_revision(self, revision: Revision):
         self.revisions.append(revision)
         self.updated_at = utcnow()
 
-    def update_metadata(self, name, metadata, state) -> bool:
+    def update_metadata(self, name: str, metadata: dict, state: DatasetState) -> bool:
         changed = False
         if self.name != name:
             self.name = name

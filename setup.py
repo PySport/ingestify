@@ -45,6 +45,7 @@ def setup_package():
             "pyaml_env",
             "boto3",
             "pytz",
+            "pydantic>=2.0.0",
         ],
         extras_require={"test": ["pytest>=6.2.5,<7"]},
     )

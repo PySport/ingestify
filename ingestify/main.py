@@ -22,7 +22,9 @@ from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.exceptions import ConfigurationError
 from ingestify.infra import S3FileRepository, LocalFileRepository
 from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
-from ingestify.infra.store.dataset.sqlalchemy.repository import SqlAlchemySessionProvider
+from ingestify.infra.store.dataset.sqlalchemy.repository import (
+    SqlAlchemySessionProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +62,9 @@ def import_cls(name):
 
 def build_file_repository(file_url: str) -> FileRepository:
     if file_url.startswith("s3://"):
-        repository = S3FileRepository(
-            url=file_url
-        )
+        repository = S3FileRepository(url=file_url)
     elif file_url.startswith("file://"):
-        repository = LocalFileRepository(
-            url=file_url
-        )
+        repository = LocalFileRepository(url=file_url)
     else:
         raise Exception(f"Cannot find repository to handle file {file_url}")
 
@@ -90,9 +88,7 @@ def get_dataset_store_by_urls(
     if metadata_url.startswith("postgres://"):
         metadata_url = metadata_url.replace("postgress://", "postgress+")
 
-    sqlalchemy_session_provider = SqlAlchemySessionProvider(
-        metadata_url
-    )
+    sqlalchemy_session_provider = SqlAlchemySessionProvider(metadata_url)
 
     dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
 

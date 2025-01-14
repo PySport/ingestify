@@ -15,7 +15,9 @@ from ingestify.domain import (
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
-from ingestify.domain.models.extraction.extraction_job_summary import ExtractionJobSummary
+from ingestify.domain.models.extraction.extraction_job_summary import (
+    ExtractionJobSummary,
+)
 from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
@@ -76,9 +78,8 @@ class SimpleFakeSource(Source):
 
         yield (
             DatasetResource(
-                dict(
-                    competition_id=competition_id,
-                    season_id=season_id,
+                dataset_resource_id=dict(
+                    competition_id=competition_id, season_id=season_id, match_id=1
                 ),
                 provider="fake",
                 dataset_type="match",
@@ -188,9 +189,8 @@ class FailingSource(Source):
 
         yield (
             DatasetResource(
-                dict(
-                    competition_id=competition_id,
-                    season_id=season_id,
+                dataset_resource_id=dict(
+                    competition_id=competition_id, season_id=season_id, match_id=1
                 ),
                 provider="fake",
                 dataset_type="match",
@@ -216,7 +216,7 @@ def test_engine(config_file):
     assert len(datasets) == 1
 
     dataset = datasets.first()
-    assert dataset.identifier == Identifier(competition_id=1, season_id=2)
+    assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
     assert len(dataset.revisions) == 1
 
     engine.load()
@@ -224,7 +224,7 @@ def test_engine(config_file):
     assert len(datasets) == 1
 
     dataset = datasets.first()
-    assert dataset.identifier == Identifier(competition_id=1, season_id=2)
+    assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
     assert len(dataset.revisions) == 2
     assert len(dataset.revisions[0].modified_files) == 3
     assert len(dataset.revisions[1].modified_files) == 1
@@ -239,6 +239,9 @@ def test_engine(config_file):
 
     datasets = engine.store.get_dataset_collection(season_id=3)
     assert len(datasets) == 1
+
+    # Make sure everything still works with a fresh connection
+    engine.store.dataset_repository.session_provider.reset()
 
     items = list(engine.store.dataset_repository.session.query(ExtractionJobSummary))
     print(items)
@@ -299,3 +302,6 @@ def test_extraction_plan_failing_task(config_file):
 
     add_extraction_plan(engine, source, competition_id=1, season_id=2)
     engine.load()
+
+    items = list(engine.store.dataset_repository.session.query(ExtractionJobSummary))
+    print(items)

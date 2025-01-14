@@ -1,7 +1,7 @@
+from .file import DraftFile, File, LoadedFile
 from .collection import DatasetCollection
 from .dataset import Dataset
 from .dataset_repository import DatasetRepository
-from .file import DraftFile, File, LoadedFile
 from .file_repository import FileRepository
 from .file_collection import FileCollection
 from .identifier import Identifier

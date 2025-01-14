@@ -107,7 +107,9 @@ class UpdateDatasetTask(Task):
         self.store = store
 
     def run(self):
-        with TaskSummary.update() as task_summary:
+        dataset_identifier = Identifier(**self.dataset_resource.dataset_resource_id)
+
+        with TaskSummary.update(dataset_identifier=dataset_identifier) as task_summary:
             revision = self.store.update_dataset(
                 dataset=self.dataset,
                 name=self.dataset_resource.name,
@@ -119,7 +121,7 @@ class UpdateDatasetTask(Task):
                         metadata={"file_id": file_id},
                     )
                     for file_id, file_resource in self.dataset_resource.files.items()
-                }
+                },
             )
             task_summary.set_stats_from_revision(revision)
 
@@ -139,13 +141,12 @@ class CreateDatasetTask(Task):
         self.store = store
 
     def run(self):
-        with TaskSummary.create() as task_summary:
+        dataset_identifier = Identifier(**self.dataset_resource.dataset_resource_id)
+        with TaskSummary.create(dataset_identifier) as task_summary:
             revision = self.store.create_dataset(
                 dataset_type=self.dataset_resource.dataset_type,
                 provider=self.dataset_resource.provider,
-                dataset_identifier=Identifier(
-                    **self.dataset_resource.dataset_resource_id
-                ),
+                dataset_identifier=dataset_identifier,
                 name=self.dataset_resource.name,
                 state=self.dataset_resource.state,
                 metadata=self.dataset_resource.metadata,
@@ -167,7 +168,12 @@ class CreateDatasetTask(Task):
 
 
 class ExtractionJob:
-    def __init__(self, extraction_job_id: str, extraction_plan: ExtractionPlan, selector: Selector):
+    def __init__(
+        self,
+        extraction_job_id: str,
+        extraction_plan: ExtractionPlan,
+        selector: Selector,
+    ):
         self.extraction_job_id = extraction_job_id
         self.extraction_plan = extraction_plan
         self.selector = selector
@@ -175,9 +181,7 @@ class ExtractionJob:
     def execute(
         self, store: DatasetStore, task_executor: TaskExecutor
     ) -> ExtractionJobSummary:
-        with ExtractionJobSummary.new(
-            extraction_job=self
-        ) as extraction_job_summary:
+        with ExtractionJobSummary.new(extraction_job=self) as extraction_job_summary:
             with extraction_job_summary.record_timing("get_dataset_collection"):
                 dataset_collection_metadata = store.get_dataset_collection(
                     dataset_type=self.extraction_plan.dataset_type,
