@@ -29,23 +29,6 @@ def parse_value(v):
         return v
 
 
-def json_serializer(o):
-    return json.dumps(o)
-
-
-def json_deserializer(o):
-    o = json.loads(o)
-    # THIS BREAKS WHEN USING OTHER JSON COLUMNS!!
-    if o is not None:
-        o = Identifier(**o)
-    return o
-
-
-# @compiles(DateTime, "mysql")
-# def compile_datetime_mysql(type_, compiler, **kw):
-#     return "DATETIME(6)"
-
-
 def isfloat(x):
     try:
         a = float(x)
@@ -88,8 +71,6 @@ class SqlAlchemySessionProvider:
             self.url,
             # Use the default isolation level, don't need SERIALIZABLE
             # isolation_level="SERIALIZABLE",
-            # json_serializer=json_serializer,
-            # json_deserializer=json_deserializer,
         )
         self.session = Session(bind=self.engine)
 
