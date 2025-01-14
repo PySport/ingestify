@@ -1,11 +1,13 @@
 import itertools
 import json
 import logging
+import uuid
 from typing import Optional
 
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
+from ingestify.domain.models.dataset.revision import RevisionSource, SourceType
 from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
 )
@@ -83,6 +85,7 @@ def load_file(
             file_data_spec_version=file_resource.data_spec_version,
             file_data_serialization_format=file_resource.data_serialization_format
             or "txt",
+            last_modified=file_resource.last_modified,
             **http_options,
             **file_resource.loader_kwargs,
         )
@@ -105,11 +108,18 @@ class UpdateDatasetTask(Task):
         self.dataset = dataset
         self.dataset_resource = dataset_resource
         self.store = store
+        self.task_id = str(uuid.uuid1())
 
     def run(self):
         dataset_identifier = Identifier(**self.dataset_resource.dataset_resource_id)
 
-        with TaskSummary.update(dataset_identifier=dataset_identifier) as task_summary:
+        revision_source = RevisionSource(
+            source_id=self.task_id, source_type=SourceType.TASK
+        )
+
+        with TaskSummary.update(
+            self.task_id, dataset_identifier=dataset_identifier
+        ) as task_summary:
             revision = self.store.update_dataset(
                 dataset=self.dataset,
                 name=self.dataset_resource.name,
@@ -122,6 +132,7 @@ class UpdateDatasetTask(Task):
                     )
                     for file_id, file_resource in self.dataset_resource.files.items()
                 },
+                revision_source=revision_source,
             )
             task_summary.set_stats_from_revision(revision)
 
@@ -139,10 +150,15 @@ class CreateDatasetTask(Task):
     ):
         self.dataset_resource = dataset_resource
         self.store = store
+        self.task_id = str(uuid.uuid1())
 
     def run(self):
         dataset_identifier = Identifier(**self.dataset_resource.dataset_resource_id)
-        with TaskSummary.create(dataset_identifier) as task_summary:
+        revision_source = RevisionSource(
+            source_id=self.task_id, source_type=SourceType.TASK
+        )
+
+        with TaskSummary.create(self.task_id, dataset_identifier) as task_summary:
             revision = self.store.create_dataset(
                 dataset_type=self.dataset_resource.dataset_type,
                 provider=self.dataset_resource.provider,
@@ -157,6 +173,7 @@ class CreateDatasetTask(Task):
                     )
                     for file_id, file_resource in self.dataset_resource.files.items()
                 },
+                revision_source=revision_source,
             )
 
             task_summary.set_stats_from_revision(revision)

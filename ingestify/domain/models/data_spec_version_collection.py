@@ -16,6 +16,12 @@ class DataSpecVersionCollection(dict):
 
         return cls(items_)
 
+    def to_dict(self):
+        return {
+            data_feed_key: list(data_spec_versions)
+            for data_feed_key, data_spec_versions in self.items()
+        }
+
     def copy(self):
         return DataSpecVersionCollection(copy.deepcopy(self))
 

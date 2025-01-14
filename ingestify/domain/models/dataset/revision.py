@@ -11,6 +11,7 @@ from ..base import BaseModel
 class SourceType(str, Enum):
     TASK = "TASK"
     MANUAL = "MANUAL"
+    SQUASHED = "SQUASHED"
 
 
 class RevisionSource(TypedDict):
@@ -31,7 +32,7 @@ class Revision(BaseModel):
     created_at: datetime
     description: str
     modified_files: List[File]
-    # source: RevisionSource
+    source: RevisionSource
     is_squashed: bool = False
     state: RevisionState = RevisionState.PENDING_VALIDATION
 

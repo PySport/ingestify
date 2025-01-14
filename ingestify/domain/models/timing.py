@@ -7,10 +7,10 @@ class Timing(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
-    start: datetime
-    end: datetime
+    started_at: datetime
+    ended_at: datetime
     metadata: Optional[dict[str, Optional[Exception | Any]]] = None
 
     @property
     def duration(self):
-        return self.end - self.start
+        return self.ended_at - self.started_at

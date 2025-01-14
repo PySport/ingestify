@@ -7,7 +7,7 @@ from ingestify.utils import utcnow
 from .dataset_state import DatasetState
 from .file import DraftFile
 from .identifier import Identifier
-from .revision import Revision
+from .revision import Revision, RevisionSource, SourceType
 from ..base import BaseModel
 
 
@@ -83,4 +83,5 @@ class Dataset(BaseModel):
                 description="Squashed revision",
                 is_squashed=True,
                 modified_files=list(files.values()),
+                source=RevisionSource(source_type=SourceType.SQUASHED, source_id=""),
             )

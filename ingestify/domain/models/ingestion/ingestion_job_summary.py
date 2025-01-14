@@ -25,7 +25,7 @@ class IngestionJobSummary(BaseModel):
     # From the IngestionPlan
     source_name: str
     dataset_type: str
-    # data_spec_versions: DataSpecVersionCollection
+    data_spec_versions: DataSpecVersionCollection
     selector: Selector
 
     started_at: datetime = Field(default_factory=utcnow)
@@ -35,7 +35,7 @@ class IngestionJobSummary(BaseModel):
 
     failed_tasks: int = 0
     successful_tasks: int = 0
-    successful_ignored_tasks: int = 0
+    ignored_successful_tasks: int = 0
 
     @classmethod
     def new(cls, ingestion_job: "IngestionJob"):
@@ -43,6 +43,7 @@ class IngestionJobSummary(BaseModel):
             ingestion_job_id=ingestion_job.ingestion_job_id,
             source_name=ingestion_job.ingestion_plan.source.name,
             dataset_type=ingestion_job.ingestion_plan.dataset_type,
+            data_spec_versions=ingestion_job.ingestion_plan.data_spec_versions,
             selector=ingestion_job.selector,
         )
         return cls(**args)
@@ -51,7 +52,7 @@ class IngestionJobSummary(BaseModel):
     def record_timing(self, name: str):
         start = utcnow()
         yield
-        self.timings.append(Timing(name=name, start=start, end=utcnow()))
+        self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
 
     def add_task_summaries(self, task_summaries: List[TaskSummary]):
         self.task_summaries.extend(task_summaries)
@@ -63,8 +64,12 @@ class IngestionJobSummary(BaseModel):
         self.successful_tasks = len(
             [task for task in self.task_summaries if task.status == TaskStatus.FINISHED]
         )
-        self.successful_ignored_tasks = len(
-            [task for task in self.task_summaries if task.status == TaskStatus.FINISHED_IGNORED]
+        self.ignored_successful_tasks = len(
+            [
+                task
+                for task in self.task_summaries
+                if task.status == TaskStatus.FINISHED_IGNORED
+            ]
         )
         self.finished_at = utcnow()
 
@@ -86,7 +91,11 @@ class IngestionJobSummary(BaseModel):
             f"  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        for status in [TaskStatus.FAILED, TaskStatus.FINISHED, TaskStatus.FINISHED_IGNORED]:
+        for status in [
+            TaskStatus.FAILED,
+            TaskStatus.FINISHED,
+            TaskStatus.FINISHED_IGNORED,
+        ]:
             print(
                 f"    - {status.value.lower()}: {len([task for task in self.task_summaries if task.status == status])}"
             )

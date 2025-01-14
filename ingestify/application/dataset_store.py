@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
 from ingestify.domain.models.dataset.file_collection import FileCollection
+from ingestify.domain.models.dataset.revision import RevisionSource
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
     Dataset,
@@ -174,7 +175,11 @@ class DatasetStore:
         return modified_files_
 
     def add_revision(
-        self, dataset: Dataset, files: Dict[str, DraftFile], description: str = "Update"
+        self,
+        dataset: Dataset,
+        files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
+        description: str = "Update",
     ):
         """
         Create new revision first, so FileRepository can use
@@ -193,6 +198,7 @@ class DatasetStore:
                 created_at=created_at,
                 description=description,
                 modified_files=persisted_files_,
+                source=revision_source,
             )
 
             dataset.add_revision(revision)
@@ -217,6 +223,7 @@ class DatasetStore:
         state: DatasetState,
         metadata: dict,
         files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
     ):
         """The add_revision will also save the dataset."""
         metadata_changed = False
@@ -224,7 +231,7 @@ class DatasetStore:
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             metadata_changed = True
 
-        revision = self.add_revision(dataset, files)
+        revision = self.add_revision(dataset, files, revision_source)
 
         if metadata_changed:
             # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
@@ -246,6 +253,7 @@ class DatasetStore:
         state: DatasetState,
         metadata: dict,
         files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
         description: str = "Create",
     ):
         now = utcnow()
@@ -262,7 +270,7 @@ class DatasetStore:
             created_at=now,
             updated_at=now,
         )
-        revision = self.add_revision(dataset, files, description)
+        revision = self.add_revision(dataset, files, revision_source, description)
 
         self.dispatch(DatasetCreated(dataset=dataset))
         return revision

@@ -4,8 +4,9 @@ from contextlib import contextmanager
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import Field, ConfigDict, field_validator
 
+from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.identifier import Identifier
 from ingestify.domain.models.timing import Timing
 from ingestify.exceptions import IngestifyError
@@ -28,12 +29,11 @@ class Operation(str, Enum):
 
 
 class TaskSummary(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    start: datetime
+    task_id: str
+    started_at: datetime
     operation: Operation
     dataset_identifier: Identifier
-    end: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
     persisted_file_count: int = 0
     bytes_retrieved: int = 0
     last_modified: Optional[datetime] = None
@@ -64,18 +64,21 @@ class TaskSummary(BaseModel):
             self.timings.append(
                 Timing(
                     name=f"Load of {metadata.get('file_id', 'file')}",
-                    start=start,
-                    end=utcnow(),
+                    started_at=start,
+                    ended_at=utcnow(),
                     metadata=metadata,
                 )
             )
 
     @classmethod
     @contextmanager
-    def new(cls, operation: Operation, dataset_identifier: Identifier):
+    def new(cls, task_id: str, operation: Operation, dataset_identifier: Identifier):
         start = utcnow()
         task_summary = cls(
-            start=start, operation=operation, dataset_identifier=dataset_identifier
+            task_id=task_id,
+            started_at=start,
+            operation=operation,
+            dataset_identifier=dataset_identifier,
         )
         try:
             yield task_summary
@@ -86,18 +89,19 @@ class TaskSummary(BaseModel):
             task_summary.set_status(TaskStatus.FAILED)
 
             # When the error comes from our own code, make sure it will be raised to the highest level
+            # raise
             if isinstance(e, IngestifyError):
                 raise
         finally:
-            task_summary.end = utcnow()
+            task_summary.ended_at = utcnow()
 
     @classmethod
-    def update(cls, dataset_identifier: Identifier):
-        return cls.new(Operation.UPDATE, dataset_identifier)
+    def update(cls, task_id: str, dataset_identifier: Identifier):
+        return cls.new(task_id, Operation.UPDATE, dataset_identifier)
 
     @classmethod
-    def create(cls, dataset_identifier: Identifier):
-        return cls.new(Operation.CREATE, dataset_identifier)
+    def create(cls, task_id: str, dataset_identifier: Identifier):
+        return cls.new(task_id, Operation.CREATE, dataset_identifier)
 
     def set_stats_from_revision(self, revision: Optional["Revision"]):
         if revision:

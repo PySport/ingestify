@@ -46,9 +46,7 @@ class Loader:
                 if not selector.is_dynamic
             ]
             dynamic_selectors = [
-                selector
-                for selector in ingestion_plan.selectors
-                if selector.is_dynamic
+                selector for selector in ingestion_plan.selectors if selector.is_dynamic
             ]
 
             no_selectors = len(static_selectors) == 1 and not bool(static_selectors[0])
