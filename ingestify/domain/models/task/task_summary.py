@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class TaskStatus(str, Enum):
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
+    FINISHED_IGNORED = "FINISHED_IGNORED"  # Finished, but didn't produce any new data
     FAILED = "FAILED"
 
 
@@ -78,10 +79,11 @@ class TaskSummary(BaseModel):
         )
         try:
             yield task_summary
-            task_summary.status = TaskStatus.FINISHED
+
+            task_summary.set_status(TaskStatus.FINISHED)
         except Exception as e:
             logger.exception(f"Failed to execute task.")
-            task_summary.status = TaskStatus.FAILED
+            task_summary.set_status(TaskStatus.FAILED)
 
             # When the error comes from our own code, make sure it will be raised to the highest level
             if isinstance(e, IngestifyError):
@@ -104,3 +106,9 @@ class TaskSummary(BaseModel):
             self.last_modified = max(
                 file.modified_at for file in revision.modified_files
             )
+        else:
+            self.status = TaskStatus.FINISHED_IGNORED
+
+    def set_status(self, status: TaskStatus):
+        if self.status == TaskStatus.RUNNING:
+            self.status = status

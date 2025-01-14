@@ -5,4 +5,4 @@ main:
   default_bucket: main
 
 sources: {}
-extraction_plans: []
+ingestion_plans: []

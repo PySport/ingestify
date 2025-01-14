@@ -90,8 +90,9 @@ class SqlAlchemySessionProvider:
         self._init_engine()
 
     def _close_engine(self):
-        self.session.close()
-        self.engine.dispose()
+        if hasattr(self, "session"):
+            self.session.close()
+            self.engine.dispose()
 
     def __del__(self):
         self._close_engine()

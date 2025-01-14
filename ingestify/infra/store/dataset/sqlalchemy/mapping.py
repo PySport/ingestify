@@ -14,21 +14,24 @@ from sqlalchemy import (
     String,
     Table,
     TypeDecorator,
+    Boolean,
 )
 from sqlalchemy.orm import registry, relationship
 
 from ingestify.domain import Selector, Identifier
 from ingestify.domain.models import Dataset, File, Revision
 from ingestify.domain.models.dataset.dataset import DatasetState
-from ingestify.domain.models.extraction.extraction_job_summary import (
-    ExtractionJobSummary,
+from ingestify.domain.models.ingestion.ingestion_job_summary import (
+    IngestionJobSummary,
 )
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.domain.models.timing import Timing
+from ingestify.domain.models.dataset.revision import RevisionState
 
 
 def JSONType(serializer=None, deserializer=None):
     class _JsonType(TypeDecorator):
+        cache_ok = True
         impl = JSON
 
         def process_bind_param(self, value, dialect):
@@ -91,6 +94,19 @@ class DatasetStateString(TypeDecorator):
         return DatasetState[value]
 
 
+class RevisionStateString(TypeDecorator):
+    impl = String(255)
+
+    def process_bind_param(self, value: RevisionState, dialect):
+        return value.value
+
+    def process_result_value(self, value, dialect):
+        if not value:
+            return value
+
+        return RevisionState[value]
+
+
 mapper_registry = registry()
 
 metadata = MetaData()
@@ -119,6 +135,8 @@ revision_table = Table(
     Column("revision_id", Integer, primary_key=True),
     Column("description", String(255)),
     Column("created_at", TZDateTime(6)),
+    Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
+    Column("source", JSONType())
 )
 file_table = Table(
     "file",
@@ -144,11 +162,11 @@ file_table = Table(
     ),
 )
 
-extraction_job_summary = Table(
-    "extraction_job_summary",
+ingestion_job_summary = Table(
+    "ingestion_job_summary",
     metadata,
-    Column("extraction_job_id", String(255), primary_key=True),
-    # From the ExtractionPlan
+    Column("ingestion_job_id", String(255), primary_key=True),
+    # From the IngestionPlan
     Column("source_name", String(255)),
     Column("dataset_type", String(255)),
     Column("data_spec_versions", JSONType()),
@@ -157,6 +175,11 @@ extraction_job_summary = Table(
     ),
     Column("started_at", TZDateTime(6)),
     Column("finished_at", TZDateTime(6)),
+
+    Column("successful_tasks", Integer),
+    Column("successful_ignored_tasks", Integer),
+    Column("failed_tasks", Integer),
+
     Column(
         "timings",
         JSONType(
@@ -215,4 +238,4 @@ mapper_registry.map_imperatively(
 mapper_registry.map_imperatively(File, file_table)
 
 
-mapper_registry.map_imperatively(ExtractionJobSummary, extraction_job_summary)
+mapper_registry.map_imperatively(IngestionJobSummary, ingestion_job_summary)

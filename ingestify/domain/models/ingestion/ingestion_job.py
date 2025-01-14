@@ -6,10 +6,10 @@ from typing import Optional
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
-from ingestify.domain.models.extraction.extraction_job_summary import (
-    ExtractionJobSummary,
+from ingestify.domain.models.ingestion.ingestion_job_summary import (
+    IngestionJobSummary,
 )
-from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
+from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
@@ -167,24 +167,24 @@ class CreateDatasetTask(Task):
         return f"CreateDatasetTask({self.dataset_resource.provider} -> {self.dataset_resource.dataset_resource_id})"
 
 
-class ExtractionJob:
+class IngestionJob:
     def __init__(
         self,
-        extraction_job_id: str,
-        extraction_plan: ExtractionPlan,
+        ingestion_job_id: str,
+        ingestion_plan: IngestionPlan,
         selector: Selector,
     ):
-        self.extraction_job_id = extraction_job_id
-        self.extraction_plan = extraction_plan
+        self.ingestion_job_id = ingestion_job_id
+        self.ingestion_plan = ingestion_plan
         self.selector = selector
 
     def execute(
         self, store: DatasetStore, task_executor: TaskExecutor
-    ) -> ExtractionJobSummary:
-        with ExtractionJobSummary.new(extraction_job=self) as extraction_job_summary:
-            with extraction_job_summary.record_timing("get_dataset_collection"):
+    ) -> IngestionJobSummary:
+        with IngestionJobSummary.new(ingestion_job=self) as ingestion_job_summary:
+            with ingestion_job_summary.record_timing("get_dataset_collection"):
                 dataset_collection_metadata = store.get_dataset_collection(
-                    dataset_type=self.extraction_plan.dataset_type,
+                    dataset_type=self.ingestion_plan.dataset_type,
                     data_spec_versions=self.selector.data_spec_versions,
                     selector=self.selector,
                     metadata_only=True,
@@ -193,10 +193,10 @@ class ExtractionJob:
             # There are two different, but similar flows here:
             # 1. The discover_datasets returns a list, and the entire list can be processed at once
             # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
-            with extraction_job_summary.record_timing("find_datasets"):
+            with ingestion_job_summary.record_timing("find_datasets"):
                 # Timing might be incorrect as it is an iterator
-                datasets = self.extraction_plan.source.find_datasets(
-                    dataset_type=self.extraction_plan.dataset_type,
+                datasets = self.ingestion_plan.source.find_datasets(
+                    dataset_type=self.ingestion_plan.dataset_type,
                     data_spec_versions=self.selector.data_spec_versions,
                     dataset_collection_metadata=dataset_collection_metadata,
                     **self.selector.custom_attributes,
@@ -204,7 +204,7 @@ class ExtractionJob:
 
             batches = to_batches(datasets)
 
-            with extraction_job_summary.record_timing("tasks"):
+            with ingestion_job_summary.record_timing("tasks"):
                 for batch in batches:
                     dataset_identifiers = [
                         Identifier.create_from_selector(
@@ -217,7 +217,7 @@ class ExtractionJob:
 
                     # Load all available datasets based on the discovered dataset identifiers
                     dataset_collection = store.get_dataset_collection(
-                        dataset_type=self.extraction_plan.dataset_type,
+                        dataset_type=self.ingestion_plan.dataset_type,
                         # Assume all DatasetResources share the same provider
                         provider=batch[0].provider,
                         selector=dataset_identifiers,
@@ -232,7 +232,7 @@ class ExtractionJob:
                         )
 
                         if dataset := dataset_collection.get(dataset_identifier):
-                            if self.extraction_plan.fetch_policy.should_refetch(
+                            if self.ingestion_plan.fetch_policy.should_refetch(
                                 dataset, dataset_resource
                             ):
                                 task_set.add(
@@ -245,7 +245,7 @@ class ExtractionJob:
                             else:
                                 skip_count += 1
                         else:
-                            if self.extraction_plan.fetch_policy.should_fetch(
+                            if self.ingestion_plan.fetch_policy.should_fetch(
                                 dataset_resource
                             ):
                                 task_set.add(
@@ -259,17 +259,17 @@ class ExtractionJob:
 
                     if task_set:
                         logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {self.extraction_plan.source.__class__.__name__} "
+                            f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
                             f"using selector {self.selector} => {len(task_set)} tasks. {skip_count} skipped."
                         )
                         logger.info(f"Running {len(task_set)} tasks")
-                        extraction_job_summary.add_task_summaries(
+                        ingestion_job_summary.add_task_summaries(
                             task_executor.run(run_task, task_set)
                         )
                     else:
                         logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {self.extraction_plan.source.__class__.__name__} "
+                            f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
                             f"using selector {self.selector} => nothing to do"
                         )
 
-        return extraction_job_summary
+        return ingestion_job_summary

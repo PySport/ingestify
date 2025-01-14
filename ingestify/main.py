@@ -17,7 +17,7 @@ from ingestify.domain.models.data_spec_version_collection import (
 )
 from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
-from ingestify.domain.models.extraction.extraction_plan import ExtractionPlan
+from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.exceptions import ConfigurationError
 from ingestify.infra import S3FileRepository, LocalFileRepository
@@ -193,19 +193,19 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
     fetch_policy = FetchPolicy()
 
     # Previous naming
-    extraction_plans = config.get("extract_jobs", [])
+    ingestion_plans = config.get("extract_jobs", [])
     # New naming
-    extraction_plans.extend(config.get("extraction_plans", []))
+    ingestion_plans.extend(config.get("ingestion_plans", []))
 
-    for extraction_plan in extraction_plans:
+    for ingestion_plan in ingestion_plans:
         data_spec_versions = DataSpecVersionCollection.from_dict(
-            extraction_plan.get("data_spec_versions", {"default": {"v1"}})
+            ingestion_plan.get("data_spec_versions", {"default": {"v1"}})
         )
 
-        if "selectors" in extraction_plan:
+        if "selectors" in ingestion_plan:
             selectors = [
                 Selector.build(selector, data_spec_versions=data_spec_versions)
-                for selector_args in extraction_plan["selectors"]
+                for selector_args in ingestion_plan["selectors"]
                 for selector in _product_selectors(selector_args)
             ]
         else:
@@ -213,13 +213,13 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
             # but makes it easier later one where we loop over selectors.
             selectors = [Selector.build({}, data_spec_versions=data_spec_versions)]
 
-        extraction_plan = ExtractionPlan(
-            source=sources[extraction_plan["source"]],
-            dataset_type=extraction_plan["dataset_type"],
+        ingestion_plan = IngestionPlan(
+            source=sources[ingestion_plan["source"]],
+            dataset_type=ingestion_plan["dataset_type"],
             selectors=selectors,
             fetch_policy=fetch_policy,
             data_spec_versions=data_spec_versions,
         )
-        ingestion_engine.add_extraction_plan(extraction_plan)
+        ingestion_engine.add_ingestion_plan(ingestion_plan)
 
     return ingestion_engine

@@ -69,7 +69,12 @@ def retrieve_http(
         else:
             raise Exception(f"Don't know how to use {key}")
 
+    skip_404 = http_kwargs.pop("skip_404", False)
+
     response = get_session().get(url, headers=headers, **http_kwargs)
+    if response.status_code == 404 and skip_404:
+        return None
+
     response.raise_for_status()
     if response.status_code == 304:
         # Not modified

@@ -8,7 +8,7 @@ from ingestify.domain.models.data_spec_version_collection import (
 from ingestify.domain.models.fetch_policy import FetchPolicy
 
 
-class ExtractionPlan(BaseModel):
+class IngestionPlan(BaseModel):
 
     source: Source
     selectors: List[Selector]
@@ -17,7 +17,7 @@ class ExtractionPlan(BaseModel):
     data_spec_versions: DataSpecVersionCollection
 
     def __repr__(self):
-        return f'<ExtractionPlan source="{self.source.name}" dataset_type="{self.dataset_type}">'
+        return f'<IngestionPlan source="{self.source.name}" dataset_type="{self.dataset_type}">'
 
     def __str__(self):
         return repr(self)

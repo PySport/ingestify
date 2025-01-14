@@ -10,7 +10,7 @@ from ingestify.domain.models.timing import Timing
 from ingestify.utils import utcnow
 
 if TYPE_CHECKING:
-    from ingestify.domain.models.extraction.extraction_job import ExtractionJob
+    from ingestify.domain.models.ingestion.ingestion_job import IngestionJob
 
 
 def format_duration(duration: timedelta):
@@ -19,10 +19,10 @@ def format_duration(duration: timedelta):
     return naturaldelta(duration, minimum_unit="MILLISECONDS")
 
 
-class ExtractionJobSummary(BaseModel):
-    extraction_job_id: str
+class IngestionJobSummary(BaseModel):
+    ingestion_job_id: str
 
-    # From the ExtractionPlan
+    # From the IngestionPlan
     source_name: str
     dataset_type: str
     # data_spec_versions: DataSpecVersionCollection
@@ -35,14 +35,15 @@ class ExtractionJobSummary(BaseModel):
 
     failed_tasks: int = 0
     successful_tasks: int = 0
+    successful_ignored_tasks: int = 0
 
     @classmethod
-    def new(cls, extraction_job: "ExtractionJob"):
+    def new(cls, ingestion_job: "IngestionJob"):
         args = dict(
-            extraction_job_id=extraction_job.extraction_job_id,
-            source_name=extraction_job.extraction_plan.source.name,
-            dataset_type=extraction_job.extraction_plan.dataset_type,
-            selector=extraction_job.selector,
+            ingestion_job_id=ingestion_job.ingestion_job_id,
+            source_name=ingestion_job.ingestion_plan.source.name,
+            dataset_type=ingestion_job.ingestion_plan.dataset_type,
+            selector=ingestion_job.selector,
         )
         return cls(**args)
 
@@ -62,6 +63,9 @@ class ExtractionJobSummary(BaseModel):
         self.successful_tasks = len(
             [task for task in self.task_summaries if task.status == TaskStatus.FINISHED]
         )
+        self.successful_ignored_tasks = len(
+            [task for task in self.task_summaries if task.status == TaskStatus.FINISHED_IGNORED]
+        )
         self.finished_at = utcnow()
 
     @property
@@ -69,9 +73,9 @@ class ExtractionJobSummary(BaseModel):
         return self.finished_at - self.started_at
 
     def output_report(self):
-        print(f"\nExtractionJobSummary finished in {format_duration(self.duration)}")
+        print(f"\nIngestionJobSummary finished in {format_duration(self.duration)}")
         print("--------------------")
-        print(f"  - ExtractionPlan:")
+        print(f"  - IngestionPlan:")
         print(f"        Source: {self.source_name}")
         print(f"        DatasetType: {self.dataset_type}")
         print(f"  - Selector: {self.selector}")
@@ -82,7 +86,7 @@ class ExtractionJobSummary(BaseModel):
             f"  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        for status in [TaskStatus.FAILED, TaskStatus.FINISHED]:
+        for status in [TaskStatus.FAILED, TaskStatus.FINISHED, TaskStatus.FINISHED_IGNORED]:
             print(
                 f"    - {status.value.lower()}: {len([task for task in self.task_summaries if task.status == status])}"
             )
