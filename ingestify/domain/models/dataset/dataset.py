@@ -1,70 +1,52 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
+from pydantic import Field
 
 from ingestify.utils import utcnow
-
+from .dataset_state import DatasetState
 from .file import DraftFile
 from .identifier import Identifier
-from .revision import Revision
+from .revision import Revision, RevisionSource, SourceType
+from ..base import BaseModel
 
 
-class DatasetState(Enum):
-    SCHEDULED = "SCHEDULED"
-    PARTIAL = "PARTIAL"
-    COMPLETE = "COMPLETE"
-
-    @property
-    def is_complete(self):
-        return self == DatasetState.COMPLETE
-
-    def __str__(self):
-        return self.value
-
-
-@dataclass
-class Dataset:
+class Dataset(BaseModel):
     bucket: str  # This must be set by the DatasetRepository
-
     dataset_id: str
     name: str
     state: DatasetState
-
     dataset_type: str
     provider: str
-
     identifier: Identifier
     metadata: dict
-
     created_at: datetime
     updated_at: datetime
-
-    revisions: List[Revision] = field(default_factory=list)
+    revisions: List[Revision] = Field(default_factory=list)
 
     @property
     def is_complete(self):
         return self.state.is_complete
 
-    def next_revision_id(self):
+    def next_revision_id(self) -> int:
         return len(self.revisions)
 
     def add_revision(self, revision: Revision):
         self.revisions.append(revision)
         self.updated_at = utcnow()
 
-    def update_from_resource(self, dataset_resource) -> bool:
+    def update_metadata(self, name: str, metadata: dict, state: DatasetState) -> bool:
         changed = False
-        if self.name != dataset_resource.name:
-            self.name = dataset_resource.name
+        if self.name != name:
+            self.name = name
             changed = True
 
-        if self.metadata != dataset_resource.metadata:
-            self.metadata = dataset_resource.metadata
+        if self.metadata != metadata:
+            self.metadata = metadata
             changed = True
 
-        if self.state != dataset_resource.state:
-            self.state = dataset_resource.state
+        if self.state != state:
+            self.state = state
             changed = True
 
         if changed:
@@ -101,4 +83,5 @@ class Dataset:
                 description="Squashed revision",
                 is_squashed=True,
                 modified_files=list(files.values()),
+                source=RevisionSource(source_type=SourceType.SQUASHED, source_id=""),
             )

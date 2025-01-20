@@ -5,13 +5,14 @@ import mimetypes
 import os
 import shutil
 from dataclasses import asdict
-from io import BytesIO, StringIO
+from io import BytesIO
 
-from typing import Dict, List, Optional, Union, Callable, BinaryIO
+from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
 from ingestify.domain.models.dataset.file_collection import FileCollection
+from ingestify.domain.models.dataset.revision import RevisionSource
 from ingestify.domain.models.event import EventBus
 from ingestify.domain.models import (
     Dataset,
@@ -27,7 +28,7 @@ from ingestify.domain.models import (
     Revision,
     DatasetCreated,
 )
-from ingestify.utils import utcnow, map_in_pool
+from ingestify.utils import utcnow
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,10 @@ class DatasetStore:
     def dispatch(self, event):
         if self.event_bus:
             self.event_bus.dispatch(event)
+
+    def save_ingestion_job_summary(self, ingestion_job_summary):
+        self.dataset_repository.session.add(ingestion_job_summary)
+        self.dataset_repository.session.commit()
 
     def get_dataset_collection(
         self,
@@ -107,7 +112,9 @@ class DatasetStore:
 
         return stream, storage_size, suffix
 
-    def _prepare_read_stream(self) -> tuple[Callable[[BinaryIO], BytesIO], str]:
+    def _prepare_read_stream(
+        self,
+    ) -> tuple[Callable[[BinaryIO], Awaitable[BytesIO]], str]:
         if self.storage_compression_method == "gzip":
 
             def reader(fh: BinaryIO) -> BytesIO:
@@ -168,7 +175,11 @@ class DatasetStore:
         return modified_files_
 
     def add_revision(
-        self, dataset: Dataset, files: Dict[str, DraftFile], description: str = "Update"
+        self,
+        dataset: Dataset,
+        files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
+        description: str = "Update",
     ):
         """
         Create new revision first, so FileRepository can use
@@ -182,45 +193,52 @@ class DatasetStore:
             # It can happen an API tells us data is changed, but it was not changed. In this case
             # we decide to ignore it.
             # Make sure there are files changed before creating a new revision
-            dataset.add_revision(
-                Revision(
-                    revision_id=revision_id,
-                    created_at=created_at,
-                    description=description,
-                    modified_files=persisted_files_,
-                )
+            revision = Revision(
+                revision_id=revision_id,
+                created_at=created_at,
+                description=description,
+                modified_files=persisted_files_,
+                source=revision_source,
             )
+
+            dataset.add_revision(revision)
 
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             self.dispatch(RevisionAdded(dataset=dataset))
             logger.info(
                 f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}"
             )
-            return True
         else:
             logger.info(
                 f"Ignoring a new revision without changed files -> {dataset.identifier}"
             )
-            return False
+            revision = None
+
+        return revision
 
     def update_dataset(
         self,
         dataset: Dataset,
-        dataset_resource: DatasetResource,
+        name: str,
+        state: DatasetState,
+        metadata: dict,
         files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
     ):
         """The add_revision will also save the dataset."""
         metadata_changed = False
-        if dataset.update_from_resource(dataset_resource):
+        if dataset.update_metadata(name, metadata, state):
             self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
             metadata_changed = True
 
-        self.add_revision(dataset, files)
+        revision = self.add_revision(dataset, files, revision_source)
 
         if metadata_changed:
             # Dispatch after revision added. Otherwise, the downstream handlers are not able to see
             # the new revision
             self.dispatch(MetadataUpdated(dataset=dataset))
+
+        return revision
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around
@@ -235,6 +253,7 @@ class DatasetStore:
         state: DatasetState,
         metadata: dict,
         files: Dict[str, DraftFile],
+        revision_source: RevisionSource,
         description: str = "Create",
     ):
         now = utcnow()
@@ -251,9 +270,10 @@ class DatasetStore:
             created_at=now,
             updated_at=now,
         )
-        self.add_revision(dataset, files, description)
+        revision = self.add_revision(dataset, files, revision_source, description)
 
         self.dispatch(DatasetCreated(dataset=dataset))
+        return revision
 
     def load_files(
         self,
@@ -302,8 +322,8 @@ class DatasetStore:
 
             try:
                 return statsbomb.load(
-                    event_data=files.get_file("events").stream,
-                    lineup_data=files.get_file("lineups").stream,
+                    event_data=(files.get_file("events")).stream,
+                    lineup_data=(files.get_file("lineups")).stream,
                     **kwargs,
                 )
             except Exception as e:
@@ -333,7 +353,7 @@ class DatasetStore:
     #         filename=filename,
     #     )
 
-    def map(
-        self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
-    ):
-        return map_in_pool(fn, dataset_collection, processes)
+    # def map(
+    #     self, fn, dataset_collection: DatasetCollection, processes: Optional[int] = None
+    # ):
+    #     return map_in_pool(fn, dataset_collection, processes)

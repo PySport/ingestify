@@ -1,37 +1,32 @@
-import hashlib
-import mimetypes
-
-from dataclasses import dataclass
 from datetime import datetime
-from io import BytesIO, StringIO
 from pathlib import Path
-from typing import BinaryIO, Optional, Union, Callable
+from typing import BinaryIO, Optional, Union, Callable, Awaitable
+from io import BytesIO, StringIO
+import hashlib
 
+from ingestify.domain.models.base import BaseModel
 from ingestify.utils import utcnow
 
 
-@dataclass
-class DraftFile:
+class DraftFile(BaseModel):
     created_at: datetime
     modified_at: datetime
     tag: str
     size: int
     content_type: Optional[str]
-
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
     data_serialization_format: str  # Example: 'json'
-
-    stream: BinaryIO
+    stream: BytesIO
 
     @classmethod
     def from_input(
         cls,
         file_,
-        data_feed_key,
-        data_spec_version="v1",
-        data_serialization_format="txt",
-        modified_at=None,
+        data_feed_key: str,
+        data_spec_version: str = "v1",
+        data_serialization_format: str = "txt",
+        modified_at: Optional[datetime] = None,
     ):
         # Pass-through for these types
         if isinstance(file_, DraftFile) or file_ is None:
@@ -67,25 +62,20 @@ class DraftFile:
         )
 
 
-@dataclass
-class File:
+class File(BaseModel):
     file_id: str
     created_at: datetime
     modified_at: datetime
     tag: str
     size: int
     content_type: Optional[str]
-
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
     data_serialization_format: str  # Example: 'json'
-
     storage_size: int
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
-
-    # This can be used when a Version is squashed
-    revision_id: Optional[int] = None
+    revision_id: Optional[int] = None  # This can be used when a Version is squashed
 
     @classmethod
     def from_draft(
@@ -93,7 +83,7 @@ class File:
         draft_file: DraftFile,
         file_id: str,
         storage_size: int,
-        storage_compression_method,
+        storage_compression_method: str,
         path: Path,
     ) -> "File":
         return cls(
@@ -112,8 +102,7 @@ class File:
         )
 
 
-@dataclass
-class LoadedFile:
+class LoadedFile(BaseModel):
     # Unique key to identify this File within a Dataset
     file_id: str
     created_at: datetime
@@ -122,24 +111,22 @@ class LoadedFile:
     size: int
     storage_size: int
     content_type: Optional[str]
-
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
-    data_serialization_format: Optional[str]  # Example: 'gzip'
-
-    storage_size: int
+    data_serialization_format: Optional[str]  # Example: 'json'
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
+    _stream: Union[BinaryIO, Callable[[], Awaitable[BinaryIO]]]
+    revision_id: Optional[int] = None  # This can be used when a Revision is squashed
 
-    _stream: Union[BinaryIO, Callable[[], BinaryIO]]
-
-    # This can be used when a Revision is squashed
-    revision_id: Optional[int] = None
+    def load_stream(self):
+        if callable(self._stream):
+            self._stream = self._stream(self)
 
     @property
     def stream(self):
         if callable(self._stream):
-            self._stream = self._stream(self)
+            raise Exception("You should load the stream first using `load_stream`")
         return self._stream
 
 

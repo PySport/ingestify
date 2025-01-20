@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from .loader import Loader
 from .dataset_store import DatasetStore
-from ..domain.models.extract_job import ExtractJob
+from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,8 @@ class IngestionEngine:
         self.store = store
         self.loader = Loader(self.store)
 
-    def add_extract_job(self, extract_job: ExtractJob):
-        self.loader.add_extract_job(extract_job)
+    def add_ingestion_plan(self, ingestion_plan: IngestionPlan):
+        self.loader.add_ingestion_plan(ingestion_plan)
 
     def load(self, dry_run: bool = False, provider: Optional[str] = None):
         self.loader.collect_and_run(dry_run=dry_run, provider=provider)

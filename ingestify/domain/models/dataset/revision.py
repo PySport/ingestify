@@ -1,17 +1,40 @@
-from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from typing import Dict, List
 
+from typing_extensions import TypedDict
+
 from .file import File
+from ..base import BaseModel
 
 
-@dataclass
-class Revision:
+class SourceType(str, Enum):
+    TASK = "TASK"
+    MANUAL = "MANUAL"
+    SQUASHED = "SQUASHED"
+
+
+class RevisionSource(TypedDict):
+    source_type: SourceType
+    source_id: str
+
+
+class RevisionState(str, Enum):
+    PENDING_VALIDATION = "PENDING_VALIDATION"
+    VALIDATING = "VALIDATING"
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class Revision(BaseModel):
     revision_id: int
     created_at: datetime
     description: str
     modified_files: List[File]
+    source: RevisionSource
     is_squashed: bool = False
+    state: RevisionState = RevisionState.PENDING_VALIDATION
 
     @property
     def modified_files_map(self) -> Dict[str, File]:

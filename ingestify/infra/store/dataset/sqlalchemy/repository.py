@@ -29,22 +29,6 @@ def parse_value(v):
         return v
 
 
-def json_serializer(o):
-    return json.dumps(o)
-
-
-def json_deserializer(o):
-    o = json.loads(o)
-    # THIS BREAKS WHEN USING OTHER JSON COLUMNS!!
-    o = Identifier(**o)
-    return o
-
-
-# @compiles(DateTime, "mysql")
-# def compile_datetime_mysql(type_, compiler, **kw):
-#     return "DATETIME(6)"
-
-
 def isfloat(x):
     try:
         a = float(x)
@@ -64,7 +48,7 @@ def isint(x):
         return a == b
 
 
-class SqlAlchemyDatasetRepository(DatasetRepository):
+class SqlAlchemySessionProvider:
     @staticmethod
     def fix_url(url: str) -> str:
         if url.startswith("postgres://"):
@@ -87,8 +71,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             self.url,
             # Use the default isolation level, don't need SERIALIZABLE
             # isolation_level="SERIALIZABLE",
-            json_serializer=json_serializer,
-            json_deserializer=json_deserializer,
         )
         self.session = Session(bind=self.engine)
 
@@ -107,9 +89,29 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         self.url = state["url"]
         self._init_engine()
 
+    def _close_engine(self):
+        if hasattr(self, "session"):
+            self.session.close()
+            self.engine.dispose()
+
     def __del__(self):
-        self.session.close()
-        self.engine.dispose()
+        self._close_engine()
+
+    def reset(self):
+        self._close_engine()
+        self._init_engine()
+
+    def get(self):
+        return self.session
+
+
+class SqlAlchemyDatasetRepository(DatasetRepository):
+    def __init__(self, session_provider: SqlAlchemySessionProvider):
+        self.session_provider = session_provider
+
+    @property
+    def session(self):
+        return self.session_provider.get()
 
     def _filter_query(
         self,
@@ -208,7 +210,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         if not metadata_only:
             dataset_query = apply_query_filter(
-                self.session.query(Dataset).options(joinedload(Dataset.revisions))
+                self.session.query(Dataset)  # .options(joinedload(Dataset.revisions))
             )
             datasets = list(dataset_query)
         else:

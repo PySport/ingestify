@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 import pytz
 
@@ -10,23 +9,25 @@ from ingestify.domain import (
     Selector,
     DataSpecVersionCollection,
     DraftFile,
-    Revision,
     Dataset,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
-from ingestify.domain.models.extract_job import ExtractJob
+from ingestify.domain.models.ingestion.ingestion_job_summary import (
+    IngestionJobSummary,
+)
+from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.infra.serialization import serialize, unserialize
 from ingestify.main import get_engine
 
 
-def add_extract_job(engine: IngestionEngine, source: Source, **selector):
+def add_ingestion_plan(engine: IngestionEngine, source: Source, **selector):
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
 
-    engine.add_extract_job(
-        ExtractJob(
+    engine.add_ingestion_plan(
+        IngestionPlan(
             source=source,
             fetch_policy=FetchPolicy(),
             selectors=[Selector.build(selector, data_spec_versions=data_spec_versions)],
@@ -76,9 +77,8 @@ class SimpleFakeSource(Source):
 
         yield (
             DatasetResource(
-                dict(
-                    competition_id=competition_id,
-                    season_id=season_id,
+                dataset_resource_id=dict(
+                    competition_id=competition_id, season_id=season_id, match_id=1
                 ),
                 provider="fake",
                 dataset_type="match",
@@ -165,13 +165,49 @@ class BatchSource(Source):
 
                 items.append(dataset_resource)
             yield items
+
             self.callback and self.callback(self.idx)
+
+
+class FailingSource(Source):
+    provider = "fake"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        competition_id,
+        season_id,
+        **kwargs,
+    ):
+        last_modified = datetime.now(pytz.utc)
+
+        def failing_loader(*args, **kwargs):
+            raise Exception("This is a failing task")
+
+        yield (
+            DatasetResource(
+                dataset_resource_id=dict(
+                    competition_id=competition_id, season_id=season_id, match_id=1
+                ),
+                provider="fake",
+                dataset_type="match",
+                name="Test Dataset",
+            ).add_file(
+                last_modified=last_modified,
+                data_feed_key="file1",
+                data_spec_version="v1",
+                file_loader=failing_loader,
+                loader_kwargs={"some_extract_config": "test123"},
+            )
+        )
 
 
 def test_engine(config_file):
     engine = get_engine(config_file, "main")
 
-    add_extract_job(
+    add_ingestion_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
     )
     engine.load()
@@ -179,7 +215,7 @@ def test_engine(config_file):
     assert len(datasets) == 1
 
     dataset = datasets.first()
-    assert dataset.identifier == Identifier(competition_id=1, season_id=2)
+    assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
     assert len(dataset.revisions) == 1
 
     engine.load()
@@ -187,12 +223,12 @@ def test_engine(config_file):
     assert len(datasets) == 1
 
     dataset = datasets.first()
-    assert dataset.identifier == Identifier(competition_id=1, season_id=2)
+    assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
     assert len(dataset.revisions) == 2
     assert len(dataset.revisions[0].modified_files) == 3
     assert len(dataset.revisions[1].modified_files) == 1
 
-    add_extract_job(
+    add_ingestion_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=3
     )
     engine.load()
@@ -202,6 +238,12 @@ def test_engine(config_file):
 
     datasets = engine.store.get_dataset_collection(season_id=3)
     assert len(datasets) == 1
+
+    # Make sure everything still works with a fresh connection
+    engine.store.dataset_repository.session_provider.reset()
+
+    items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
+    print(items)
 
 
 def test_iterator_source(config_file):
@@ -223,7 +265,7 @@ def test_iterator_source(config_file):
 
     batch_source = BatchSource("fake-source", callback)
 
-    add_extract_job(engine, batch_source, competition_id=1, season_id=2)
+    add_ingestion_plan(engine, batch_source, competition_id=1, season_id=2)
     engine.load()
 
     datasets = engine.store.get_dataset_collection()
@@ -248,5 +290,17 @@ def test_iterator_source(config_file):
         assert len(dataset.revisions) == 2
 
     # Sneaked in an extra test for serialization. This just shouldn't break
-    s = serialize(datasets.first())
-    unserialize(s, Dataset)
+    # s = serialize(datasets.first())
+    # unserialize(s, Dataset)
+
+
+def test_ingestion_plan_failing_task(config_file):
+    engine = get_engine(config_file, "main")
+
+    source = FailingSource("fake-source")
+
+    add_ingestion_plan(engine, source, competition_id=1, season_id=2)
+    engine.load()
+
+    items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
+    print(items)

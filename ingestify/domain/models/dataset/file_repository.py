@@ -2,14 +2,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import BinaryIO
 
-from ingestify.utils import ComponentFactory, ComponentRegistry
-
 from .dataset import Dataset
 
-file_repository_registry = ComponentRegistry()
 
-
-class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
+class FileRepository(ABC):
     def __init__(self, url: str):
         self.base_dir = Path(url.split("://")[1])
 
@@ -52,8 +48,3 @@ class FileRepository(ABC, metaclass=file_repository_registry.metaclass):
     def get_relative_path(self, path: Path) -> Path:
         """Return the relative path to the base of the repository"""
         return path.relative_to(self.base_dir)
-
-
-file_repository_factory = ComponentFactory.build_factory(
-    FileRepository, file_repository_registry
-)

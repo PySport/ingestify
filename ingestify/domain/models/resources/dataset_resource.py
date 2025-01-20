@@ -1,35 +1,40 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Callable, TYPE_CHECKING
+from typing import Optional, Callable, Any, Protocol, TYPE_CHECKING  # noqa
+from pydantic import Field
 
+from ingestify.domain.models.base import BaseModel
+from ingestify.domain.models.dataset.dataset_state import DatasetState
 from ingestify.exceptions import DuplicateFile
 
-if TYPE_CHECKING:
-    from ingestify.domain import DraftFile, File
-    from ingestify.domain.models.dataset.dataset import DatasetState
+from ingestify.domain.models import File, DraftFile
 
 
-@dataclass(frozen=True)
-class FileResource:
+class FileLoaderProtocol(Protocol):
+    def __call__(
+        self,
+        file_resource: "FileResource",
+        file: Optional["File"] = None,
+        **kwargs: Any,
+    ) -> Optional["DraftFile"]:
+        ...
+
+
+class FileResource(BaseModel):
     dataset_resource: "DatasetResource"
     file_id: str
     last_modified: datetime
     data_feed_key: str
     data_spec_version: str
-
-    # DataSerializationFormat is "json" in case of json_content, otherwise file_loader will return it
-    # data_serialization_format: str
-
     json_content: Optional[dict] = None
-
     url: Optional[str] = None
     http_options: Optional[dict] = None
+    # DataSerializationFormat is "json" in case of json_content, otherwise file_loader will return it
     data_serialization_format: Optional[str] = None
-
     file_loader: Optional[
         Callable[["FileResource", Optional["File"]], Optional["DraftFile"]]
     ] = None
-    loader_kwargs: dict = field(default_factory=dict)
+    loader_kwargs: dict = Field(default_factory=dict)
 
     def __post_init__(self):
         if self.json_content is None and not self.url and not self.file_loader:
@@ -38,27 +43,14 @@ class FileResource:
             )
 
 
-class DatasetResource:
-    def __init__(
-        self,
-        dataset_resource_id: dict,
-        /,
-        dataset_type: str,
-        provider: str,
-        name: str,
-        metadata: Optional[dict] = None,
-        state: Optional["DatasetState"] = None,
-    ):
-        from ingestify.domain.models.dataset.dataset import DatasetState
-
-        self.dataset_type = dataset_type
-        self.provider = provider
-        self.dataset_resource_id = dataset_resource_id
-        self.name = name
-        self.metadata = metadata or {}
-        self.state = state or DatasetState.COMPLETE
-
-        self.files = {}
+class DatasetResource(BaseModel):
+    dataset_resource_id: dict
+    dataset_type: str
+    provider: str
+    name: str
+    metadata: dict = Field(default_factory=dict)
+    state: DatasetState = Field(default_factory=lambda: DatasetState.COMPLETE)
+    files: dict[str, FileResource] = Field(default_factory=dict)
 
     def add_file(
         self,
@@ -72,8 +64,8 @@ class DatasetResource:
         data_serialization_format: Optional[str] = None,
         file_loader: Optional[
             Callable[
-                ["FileResource", Optional["File"]],
-                Optional["DraftFile"],
+                [FileResource, Optional[File]],
+                Optional[DraftFile],
             ]
         ] = None,
         loader_kwargs: Optional[dict] = None,
