@@ -9,7 +9,7 @@ class Timing(BaseModel):
     name: str
     started_at: datetime
     ended_at: datetime
-    metadata: Optional[dict[str, Optional[Exception | Any]]] = None
+    metadata: Optional[dict[str, Any]] = None
 
     @property
     def duration(self):

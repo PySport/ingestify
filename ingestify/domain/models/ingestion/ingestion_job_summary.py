@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 
 
 def format_duration(duration: timedelta):
-    from humanize import naturaldelta
-
-    return naturaldelta(duration, minimum_unit="MILLISECONDS")
+    return f"{duration.total_seconds():.2}sec"
 
 
 class IngestionJobSummary(BaseModel):
