@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List
-from pydantic import Field, ConfigDict, field_validator
+from pydantic import Field, field_validator
 
 from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.identifier import Identifier

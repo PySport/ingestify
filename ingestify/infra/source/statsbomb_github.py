@@ -99,7 +99,7 @@ class StatsbombGithub(Source):
                         data_spec_version=DATA_SPEC_VERSION,
                         url=f"{BASE_URL}/three-sixty/{match['match_id']}.json",
                         data_serialization_format="json",
-                        http_options={"skip_404": True},
+                        http_options={"ignore_not_found": True},
                     )
 
             yield dataset_resource
