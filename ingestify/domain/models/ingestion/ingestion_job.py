@@ -2,7 +2,7 @@ import itertools
 import json
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, Iterator
 
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
@@ -22,7 +22,7 @@ from ingestify.utils import TaskExecutor, chunker
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_SIZE = 1_000
 
 
 def run_task(task):
@@ -184,6 +184,9 @@ class CreateDatasetTask(Task):
         return f"CreateDatasetTask({self.dataset_resource.provider} -> {self.dataset_resource.dataset_resource_id})"
 
 
+MAX_TASKS_PER_CHUNK = 10_000
+
+
 class IngestionJob:
     def __init__(
         self,
@@ -197,96 +200,115 @@ class IngestionJob:
 
     def execute(
         self, store: DatasetStore, task_executor: TaskExecutor
-    ) -> IngestionJobSummary:
-        with IngestionJobSummary.new(ingestion_job=self) as ingestion_job_summary:
-            with ingestion_job_summary.record_timing("get_dataset_collection"):
-                dataset_collection_metadata = store.get_dataset_collection(
-                    dataset_type=self.ingestion_plan.dataset_type,
-                    data_spec_versions=self.selector.data_spec_versions,
-                    selector=self.selector,
-                    metadata_only=True,
-                ).metadata
+    ) -> Iterator[IngestionJobSummary]:
+        ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
+        # Process all items in batches. Yield a IngestionJobSummary per batch
 
-            # There are two different, but similar flows here:
-            # 1. The discover_datasets returns a list, and the entire list can be processed at once
-            # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
-            with ingestion_job_summary.record_timing("find_datasets"):
-                # Timing might be incorrect as it is an iterator
-                datasets = self.ingestion_plan.source.find_datasets(
-                    dataset_type=self.ingestion_plan.dataset_type,
-                    data_spec_versions=self.selector.data_spec_versions,
-                    dataset_collection_metadata=dataset_collection_metadata,
-                    **self.selector.custom_attributes,
+        logger.info("Finding metadata")
+        with ingestion_job_summary.record_timing("get_dataset_collection"):
+            dataset_collection_metadata = store.get_dataset_collection(
+                dataset_type=self.ingestion_plan.dataset_type,
+                data_spec_versions=self.selector.data_spec_versions,
+                selector=self.selector,
+                metadata_only=True,
+            ).metadata
+        logger.info(f"Done: {dataset_collection_metadata}")
+
+        # There are two different, but similar flows here:
+        # 1. The discover_datasets returns a list, and the entire list can be processed at once
+        # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
+        with ingestion_job_summary.record_timing("find_datasets"):
+            # Timing might be incorrect as it is an iterator
+            datasets = self.ingestion_plan.source.find_datasets(
+                dataset_type=self.ingestion_plan.dataset_type,
+                data_spec_versions=self.selector.data_spec_versions,
+                dataset_collection_metadata=dataset_collection_metadata,
+                **self.selector.custom_attributes,
+            )
+
+        batches = to_batches(datasets)
+
+        finish_task_timer = ingestion_job_summary.start_timing("tasks")
+
+        for batch in batches:
+            dataset_identifiers = [
+                Identifier.create_from_selector(
+                    self.selector, **dataset_resource.dataset_resource_id
+                )
+                # We have to pass the data_spec_versions here as a Source can add some
+                # extra data to the identifier which is retrieved in a certain data format
+                for dataset_resource in batch
+            ]
+
+            # Load all available datasets based on the discovered dataset identifiers
+            dataset_collection = store.get_dataset_collection(
+                dataset_type=self.ingestion_plan.dataset_type,
+                # Assume all DatasetResources share the same provider
+                provider=batch[0].provider,
+                selector=dataset_identifiers,
+            )
+
+            skipped_datasets = 0
+
+            task_set = TaskSet()
+            for dataset_resource in batch:
+                dataset_identifier = Identifier.create_from_selector(
+                    self.selector, **dataset_resource.dataset_resource_id
                 )
 
-            batches = to_batches(datasets)
-
-            with ingestion_job_summary.record_timing("tasks"):
-                for batch in batches:
-                    dataset_identifiers = [
-                        Identifier.create_from_selector(
-                            self.selector, **dataset_resource.dataset_resource_id
-                        )
-                        # We have to pass the data_spec_versions here as a Source can add some
-                        # extra data to the identifier which is retrieved in a certain data format
-                        for dataset_resource in batch
-                    ]
-
-                    # Load all available datasets based on the discovered dataset identifiers
-                    dataset_collection = store.get_dataset_collection(
-                        dataset_type=self.ingestion_plan.dataset_type,
-                        # Assume all DatasetResources share the same provider
-                        provider=batch[0].provider,
-                        selector=dataset_identifiers,
-                    )
-
-                    skip_count = 0
-
-                    task_set = TaskSet()
-                    for dataset_resource in batch:
-                        dataset_identifier = Identifier.create_from_selector(
-                            self.selector, **dataset_resource.dataset_resource_id
-                        )
-
-                        if dataset := dataset_collection.get(dataset_identifier):
-                            if self.ingestion_plan.fetch_policy.should_refetch(
-                                dataset, dataset_resource
-                            ):
-                                task_set.add(
-                                    UpdateDatasetTask(
-                                        dataset=dataset,  # Current dataset from the database
-                                        dataset_resource=dataset_resource,  # Most recent dataset_resource
-                                        store=store,
-                                    )
-                                )
-                            else:
-                                skip_count += 1
-                        else:
-                            if self.ingestion_plan.fetch_policy.should_fetch(
-                                dataset_resource
-                            ):
-                                task_set.add(
-                                    CreateDatasetTask(
-                                        dataset_resource=dataset_resource,
-                                        store=store,
-                                    )
-                                )
-                            else:
-                                skip_count += 1
-
-                    if task_set:
-                        logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                            f"using selector {self.selector} => {len(task_set)} tasks. {skip_count} skipped."
-                        )
-                        logger.info(f"Running {len(task_set)} tasks")
-                        ingestion_job_summary.add_task_summaries(
-                            task_executor.run(run_task, task_set)
+                if dataset := dataset_collection.get(dataset_identifier):
+                    if self.ingestion_plan.fetch_policy.should_refetch(
+                        dataset, dataset_resource
+                    ):
+                        task_set.add(
+                            UpdateDatasetTask(
+                                dataset=dataset,  # Current dataset from the database
+                                dataset_resource=dataset_resource,  # Most recent dataset_resource
+                                store=store,
+                            )
                         )
                     else:
-                        logger.info(
-                            f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                            f"using selector {self.selector} => nothing to do"
+                        skipped_datasets += 1
+                else:
+                    if self.ingestion_plan.fetch_policy.should_fetch(dataset_resource):
+                        task_set.add(
+                            CreateDatasetTask(
+                                dataset_resource=dataset_resource,
+                                store=store,
+                            )
                         )
+                    else:
+                        skipped_datasets += 1
 
-        return ingestion_job_summary
+            if task_set:
+                logger.info(
+                    f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
+                    f"using selector {self.selector} => {len(task_set)} tasks. {skipped_datasets} skipped."
+                )
+                logger.info(f"Running {len(task_set)} tasks")
+                ingestion_job_summary.add_task_summaries(
+                    task_executor.run(run_task, task_set)
+                )
+            else:
+                logger.info(
+                    f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
+                    f"using selector {self.selector} => nothing to do"
+                )
+
+            ingestion_job_summary.increase_skipped_datasets(skipped_datasets)
+
+            if ingestion_job_summary.task_count() >= MAX_TASKS_PER_CHUNK:
+                finish_task_timer()
+                ingestion_job_summary.set_finished()
+                yield ingestion_job_summary
+
+                # Start a new one
+                ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
+
+                # We will resume tasks, start timer right away
+                finish_task_timer = ingestion_job_summary.start_timing("tasks")
+
+        if ingestion_job_summary.task_count() > 0:
+            finish_task_timer()
+            ingestion_job_summary.set_finished()
+            yield ingestion_job_summary

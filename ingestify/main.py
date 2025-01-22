@@ -19,6 +19,7 @@ from ingestify.domain.models.event import EventBus, Publisher, Subscriber
 
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
+from ingestify.domain.services.identifier_key_transformer import IdentifierTransformer
 from ingestify.exceptions import ConfigurationError
 from ingestify.infra import S3FileRepository, LocalFileRepository
 from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
@@ -60,11 +61,15 @@ def import_cls(name):
     return getattr(mod, components[-1])
 
 
-def build_file_repository(file_url: str) -> FileRepository:
+def build_file_repository(file_url: str, identifier_transformer) -> FileRepository:
     if file_url.startswith("s3://"):
-        repository = S3FileRepository(url=file_url)
+        repository = S3FileRepository(
+            url=file_url, identifier_transformer=identifier_transformer
+        )
     elif file_url.startswith("file://"):
-        repository = LocalFileRepository(url=file_url)
+        repository = LocalFileRepository(
+            url=file_url, identifier_transformer=identifier_transformer
+        )
     else:
         raise Exception(f"Cannot find repository to handle file {file_url}")
 
@@ -72,7 +77,7 @@ def build_file_repository(file_url: str) -> FileRepository:
 
 
 def get_dataset_store_by_urls(
-    metadata_url: str, file_url: str, bucket: str
+    metadata_url: str, file_url: str, bucket: str, dataset_types
 ) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
@@ -80,7 +85,19 @@ def get_dataset_store_by_urls(
     if not bucket:
         raise Exception("Bucket is not specified")
 
-    file_repository = build_file_repository(file_url)
+    identifier_transformer = IdentifierTransformer()
+    for dataset_type in dataset_types:
+        for id_key, id_config in dataset_type["identifier_keys"].items():
+            identifier_transformer.register_transformation(
+                provider=dataset_type["provider"],
+                dataset_type=dataset_type["dataset_type"],
+                id_key=id_key,
+                transformation=id_config["transformation"],
+            )
+
+    file_repository = build_file_repository(
+        file_url, identifier_transformer=identifier_transformer
+    )
 
     if secrets_manager.supports(metadata_url):
         metadata_url = secrets_manager.load_as_db_url(metadata_url)
@@ -103,14 +120,15 @@ def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
     config = parse_config(config_file, default_value="")
 
     return get_dataset_store_by_urls(
-        dataset_url=config["main"]["dataset_url"],
+        metadata_url=config["main"]["metadata_url"],
         file_url=config["main"]["file_url"],
         bucket=bucket or config["main"].get("default_bucket"),
+        dataset_types=config.get("dataset_types", []),
     )
 
 
 def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
-    return get_dataset_store_by_urls(dataset_url=url, file_url=url, bucket=bucket)
+    return get_dataset_store_by_urls(metadata_url=url, file_url=url, bucket=bucket)
 
 
 def get_source_cls(key: str) -> Type[Source]:
@@ -173,6 +191,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
         metadata_url=config["main"]["metadata_url"],
         file_url=config["main"]["file_url"],
         bucket=bucket or config["main"].get("default_bucket"),
+        dataset_types=config.get("dataset_types", []),
     )
 
     # Setup an EventBus and wire some more components
@@ -188,7 +207,7 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
         store=store,
     )
 
-    logger.info("Determining tasks...")
+    logger.info("Adding IngestionPlans...")
 
     fetch_policy = FetchPolicy()
 
