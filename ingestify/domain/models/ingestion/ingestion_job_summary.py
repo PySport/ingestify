@@ -1,3 +1,4 @@
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional, List, TYPE_CHECKING
@@ -14,13 +15,15 @@ if TYPE_CHECKING:
 
 
 def format_duration(duration: timedelta):
-    return f"{duration.total_seconds():.2}sec"
+    return f"{duration.total_seconds():.2f}sec"
 
 
 class IngestionJobSummary(BaseModel):
+    ingestion_job_summary_id: str
     ingestion_job_id: str
 
     # From the IngestionPlan
+    provider: str
     source_name: str
     dataset_type: str
     data_spec_versions: DataSpecVersionCollection
@@ -31,6 +34,7 @@ class IngestionJobSummary(BaseModel):
     timings: List[Timing] = Field(default_factory=list)
     task_summaries: List[TaskSummary] = Field(default_factory=list)
 
+    skipped_datasets: int = 0
     failed_tasks: int = 0
     successful_tasks: int = 0
     ignored_successful_tasks: int = 0
@@ -38,7 +42,9 @@ class IngestionJobSummary(BaseModel):
     @classmethod
     def new(cls, ingestion_job: "IngestionJob"):
         args = dict(
+            ingestion_job_summary_id=str(uuid.uuid1()),
             ingestion_job_id=ingestion_job.ingestion_job_id,
+            provider=ingestion_job.ingestion_plan.source.provider,
             source_name=ingestion_job.ingestion_plan.source.name,
             dataset_type=ingestion_job.ingestion_plan.dataset_type,
             data_spec_versions=ingestion_job.ingestion_plan.data_spec_versions,
@@ -52,8 +58,22 @@ class IngestionJobSummary(BaseModel):
         yield
         self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
 
+    def start_timing(self, name):
+        start = utcnow()
+
+        def finish():
+            self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
+
+        return finish
+
     def add_task_summaries(self, task_summaries: List[TaskSummary]):
         self.task_summaries.extend(task_summaries)
+
+    def increase_skipped_datasets(self, skipped_datasets: int):
+        self.skipped_datasets += skipped_datasets
+
+    def task_count(self):
+        return len(self.task_summaries)
 
     def set_finished(self):
         self.failed_tasks = len(
@@ -80,6 +100,7 @@ class IngestionJobSummary(BaseModel):
         print("--------------------")
         print(f"  - IngestionPlan:")
         print(f"        Source: {self.source_name}")
+        print(f"        Provider: {self.provider}")
         print(f"        DatasetType: {self.dataset_type}")
         print(f"  - Selector: {self.selector}")
         print(f"  - Timings: ")
@@ -89,14 +110,10 @@ class IngestionJobSummary(BaseModel):
             f"  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        for status in [
-            TaskStatus.FAILED,
-            TaskStatus.FINISHED,
-            TaskStatus.FINISHED_IGNORED,
-        ]:
-            print(
-                f"    - {status.value.lower()}: {len([task for task in self.task_summaries if task.status == status])}"
-            )
+        print(f"    - Failed tasks: {self.failed_tasks}")
+        print(f"    - Successful tasks: {self.successful_tasks}")
+        print(f"    - Successful ignored tasks: {self.successful_tasks}")
+        print(f"    - Skipped datasets: {self.skipped_datasets}")
         print("--------------------")
 
     def __enter__(self):

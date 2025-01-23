@@ -304,3 +304,11 @@ def test_ingestion_plan_failing_task(config_file):
 
     items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
     print(items)
+
+
+def test_change_partition_key_transformer():
+    """When the partition key transformer is changed after a file is written, it
+    must still be possible to read an existing file.
+
+    This probably means we need to use the storage_path for reading.
+    """

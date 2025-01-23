@@ -229,9 +229,11 @@ mapper_registry.map_imperatively(File, file_table)
 ingestion_job_summary = Table(
     "ingestion_job_summary",
     metadata,
-    Column("ingestion_job_id", String(255), primary_key=True),
+    Column("ingestion_job_summary_id", String(255), primary_key=True),
+    Column("ingestion_job_id", String(255), index=True),
     # From the IngestionPlan
     Column("source_name", String(255)),
+    Column("provider", String(255)),
     Column("dataset_type", String(255)),
     Column(
         "data_spec_versions",
@@ -250,6 +252,7 @@ ingestion_job_summary = Table(
     # Some task counters
     Column("successful_tasks", Integer),
     Column("ignored_successful_tasks", Integer),
+    Column("skipped_datasets", Integer),
     Column("failed_tasks", Integer),
     Column(
         "timings",
@@ -281,9 +284,9 @@ task_summary_table = Table(
     "task_summary",
     metadata,
     Column(
-        "ingestion_job_id",
+        "ingestion_job_summary_id",
         String(255),
-        ForeignKey("ingestion_job_summary.ingestion_job_id"),
+        ForeignKey("ingestion_job_summary.ingestion_job_summary_id"),
         primary_key=True,
     ),
     Column("task_id", Integer, primary_key=True),

@@ -33,6 +33,8 @@ class Loader:
         # First collect all selectors, before discovering datasets
         selectors = {}
         for ingestion_plan in self.ingestion_plans:
+            logger.info(f"Determining selectors for {ingestion_plan}")
+
             if provider is not None:
                 if ingestion_plan.source.provider != provider:
                     logger.info(
@@ -137,7 +139,7 @@ class Loader:
             IngestionJobSummary holds the summary for an IngestionPlan and a single Selector
         """
         for ingestion_plan, selector in selectors.values():
-            logger.debug(
+            logger.info(
                 f"Discovering datasets from {ingestion_plan.source.__class__.__name__} using selector {selector}"
             )
 
@@ -148,18 +150,16 @@ class Loader:
             )
 
             with TaskExecutor(dry_run=dry_run) as task_executor:
-                ingestion_job_summary = ingestion_job.execute(
+                for ingestion_job_summary in ingestion_job.execute(
                     self.store, task_executor=task_executor
-                )
-
-                # TODO: handle task_summaries
-                #       Summarize to a IngestionJobSummary, and save to a database. This Summary can later be used in a
-                #       next run to determine where to resume.
-                # TODO 2: Do we want to add additional information from the summary back to the Task, so it can use
-                #      extra information to determine how/where to resume
-                ingestion_job_summary.set_finished()
-
-            ingestion_job_summary.output_report()
-            self.store.save_ingestion_job_summary(ingestion_job_summary)
+                ):
+                    # TODO: handle task_summaries
+                    #       Summarize to a IngestionJobSummary, and save to a database. This Summary can later be used in a
+                    #       next run to determine where to resume.
+                    # TODO 2: Do we want to add additional information from the summary back to the Task, so it can use
+                    #      extra information to determine how/where to resume
+                    ingestion_job_summary.output_report()
+                    logger.info(f"Storing IngestionJobSummary")
+                    self.store.save_ingestion_job_summary(ingestion_job_summary)
 
         logger.info("Done")

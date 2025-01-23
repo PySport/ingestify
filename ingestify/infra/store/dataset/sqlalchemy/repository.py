@@ -209,9 +209,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             )
 
         if not metadata_only:
-            dataset_query = apply_query_filter(
-                self.session.query(Dataset)  # .options(joinedload(Dataset.revisions))
-            )
+            dataset_query = apply_query_filter(self.session.query(Dataset))
             datasets = list(dataset_query)
         else:
             datasets = []

@@ -66,6 +66,7 @@ class DatasetStore:
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
+        metadata_only: Optional[bool] = False,
         **selector,
     ) -> DatasetCollection:
         if "selector" in selector:
@@ -86,6 +87,7 @@ class DatasetStore:
             dataset_type=dataset_type,
             dataset_id=dataset_id,
             provider=provider,
+            metadata_only=metadata_only,
             selector=selector,
         )
         return dataset_collection
@@ -291,20 +293,9 @@ class DatasetStore:
                 continue
 
             def get_stream(file_):
-                revision_id = file_.revision_id
-                if revision_id is None:
-                    revision_id = current_revision.revision_id
-
                 return reader(
                     self.file_repository.load_content(
-                        bucket=self.bucket,
-                        dataset=dataset,
-                        # When file.revision_id is set we must use it.
-                        revision_id=revision_id,
-                        filename=file_.file_id
-                        + "."
-                        + file_.data_serialization_format
-                        + suffix,
+                        bucket=self.bucket, storage_path=file_.storage_path
                     )
                 )
 

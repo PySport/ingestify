@@ -8,10 +8,7 @@ from ingestify.domain.models import FileRepository
 
 
 class S3FileRepository(FileRepository):
-    def __init__(self, url):
-        super().__init__(url)
-
-        self._s3 = None
+    _s3 = None
 
     @property
     def s3(self):
@@ -30,16 +27,14 @@ class S3FileRepository(FileRepository):
         filename: str,
         stream: BinaryIO,
     ) -> Path:
-        key = self.get_path(bucket, dataset, revision_id, filename)
+        key = self.get_write_path(bucket, dataset, revision_id, filename)
         s3_bucket = Path(key.parts[0])
 
         self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).put(Body=stream)
         return key
 
-    def load_content(
-        self, bucket: str, dataset: Dataset, revision_id: int, filename: str
-    ) -> BinaryIO:
-        key = self.get_path(bucket, dataset, revision_id, filename)
+    def load_content(self, storage_path: str) -> BinaryIO:
+        key = self.get_read_path(storage_path)
         s3_bucket = Path(key.parts[0])
         return self.s3.Object(str(s3_bucket), str(key.relative_to(s3_bucket))).get()[
             "Body"
