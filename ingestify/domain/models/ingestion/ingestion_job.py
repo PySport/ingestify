@@ -227,9 +227,9 @@ class IngestionJob:
                 **self.selector.custom_attributes,
             )
 
-        batches = to_batches(dataset_resources)
-
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
+
+        batches = to_batches(dataset_resources)
 
         while True:
             try:

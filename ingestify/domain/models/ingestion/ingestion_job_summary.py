@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def format_duration(duration: timedelta):
-    return f"{duration.total_seconds():.2}sec"
+    return f"{duration.total_seconds():.2f}sec"
 
 
 class IngestionJobSummary(BaseModel):
@@ -100,6 +100,7 @@ class IngestionJobSummary(BaseModel):
         print("--------------------")
         print(f"  - IngestionPlan:")
         print(f"        Source: {self.source_name}")
+        print(f"        Provider: {self.provider}")
         print(f"        DatasetType: {self.dataset_type}")
         print(f"  - Selector: {self.selector}")
         print(f"  - Timings: ")
@@ -109,14 +110,10 @@ class IngestionJobSummary(BaseModel):
             f"  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        for status in [
-            TaskStatus.FAILED,
-            TaskStatus.FINISHED,
-            TaskStatus.FINISHED_IGNORED,
-        ]:
-            print(
-                f"    - {status.value.lower()}: {len([task for task in self.task_summaries if task.status == status])}"
-            )
+        print(f"    - Failed tasks: {self.failed_tasks}")
+        print(f"    - Successful tasks: {self.successful_tasks}")
+        print(f"    - Successful ignored tasks: {self.successful_tasks}")
+        print(f"    - Skipped datasets: {self.skipped_datasets}")
         print("--------------------")
 
     def __enter__(self):
