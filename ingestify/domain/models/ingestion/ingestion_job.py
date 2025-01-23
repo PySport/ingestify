@@ -32,14 +32,14 @@ def run_task(task):
 
 def to_batches(input_):
     if isinstance(input_, list):
-        batches = [input_]
+        batches = iter(input_)
     else:
         # Assume it's an iterator. Peek what's inside, and put it back
         try:
             peek = next(input_)
         except StopIteration:
             # Nothing to batch
-            return []
+            return iter([])
 
         input_ = itertools.chain([peek], input_)
 
@@ -201,6 +201,7 @@ class IngestionJob:
     def execute(
         self, store: DatasetStore, task_executor: TaskExecutor
     ) -> Iterator[IngestionJobSummary]:
+        is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
         # Process all items in batches. Yield a IngestionJobSummary per batch
 
@@ -219,18 +220,26 @@ class IngestionJob:
         # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
         with ingestion_job_summary.record_timing("find_datasets"):
             # Timing might be incorrect as it is an iterator
-            datasets = self.ingestion_plan.source.find_datasets(
+            dataset_resources = self.ingestion_plan.source.find_datasets(
                 dataset_type=self.ingestion_plan.dataset_type,
                 data_spec_versions=self.selector.data_spec_versions,
                 dataset_collection_metadata=dataset_collection_metadata,
                 **self.selector.custom_attributes,
             )
 
-        batches = to_batches(datasets)
+        batches = to_batches(dataset_resources)
 
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
 
-        for batch in batches:
+        while True:
+            try:
+                batch = next(batches)
+            except StopIteration:
+                break
+            except Exception:
+                # TODO: handle exception on IngestionJob level
+                raise
+
             dataset_identifiers = [
                 Identifier.create_from_selector(
                     self.selector, **dataset_resource.dataset_resource_id
@@ -303,12 +312,14 @@ class IngestionJob:
                 yield ingestion_job_summary
 
                 # Start a new one
+                is_first_chunk = False
                 ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
 
                 # We will resume tasks, start timer right away
                 finish_task_timer = ingestion_job_summary.start_timing("tasks")
 
-        if ingestion_job_summary.task_count() > 0:
+        if ingestion_job_summary.task_count() > 0 or is_first_chunk:
+            # When there is interesting information to store, or there was no data at all, store it
             finish_task_timer()
             ingestion_job_summary.set_finished()
             yield ingestion_job_summary

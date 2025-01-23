@@ -66,6 +66,7 @@ class DatasetStore:
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
+        metadata_only: Optional[bool] = False,
         **selector,
     ) -> DatasetCollection:
         if "selector" in selector:
@@ -86,6 +87,7 @@ class DatasetStore:
             dataset_type=dataset_type,
             dataset_id=dataset_id,
             provider=provider,
+            metadata_only=metadata_only,
             selector=selector,
         )
         return dataset_collection
