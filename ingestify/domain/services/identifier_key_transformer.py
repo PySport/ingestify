@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from ingestify.exceptions import IngestifyError
 
@@ -22,7 +22,7 @@ class Transformation(ABC):
         return self.transformation_type == TransformationType.IDENTITY
 
     @abstractmethod
-    def __call__(self, id_key_value: str | int) -> str:
+    def __call__(self, id_key_value: Union[str, int]) -> str:
         pass
 
     @classmethod
@@ -37,7 +37,7 @@ class Transformation(ABC):
 class IdentityTransformation(Transformation):
     transformation_type = TransformationType.IDENTITY
 
-    def __call__(self, id_key_value: str | int) -> str:
+    def __call__(self, id_key_value: Union[str, int]) -> str:
         # Return the original value as a string
         return str(id_key_value)
 
@@ -49,7 +49,7 @@ class BucketTransformation(Transformation):
         self.bucket_size = bucket_size
         self.bucket_count = bucket_count
 
-    def __call__(self, id_key_value: str | int) -> str:
+    def __call__(self, id_key_value: Union[str, int]) -> str:
         if self.bucket_count:
             return str(int(id_key_value) % self.bucket_count)
         elif self.bucket_size:
@@ -70,7 +70,7 @@ class IdentifierTransformer:
         provider: str,
         dataset_type: str,
         id_key: str,
-        transformation: Transformation | dict,
+        transformation: Union[Transformation, dict],
     ):
         """
         Registers a transformation for a specific (provider, dataset_type, id_key).
