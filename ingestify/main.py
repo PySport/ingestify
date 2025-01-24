@@ -26,6 +26,7 @@ from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
 from ingestify.infra.store.dataset.sqlalchemy.repository import (
     SqlAlchemySessionProvider,
 )
+from ingestify.infra.store.file.dummy_file_repository import DummyFileRepository
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,10 @@ def build_file_repository(file_url: str, identifier_transformer) -> FileReposito
         )
     elif file_url.startswith("file://"):
         repository = LocalFileRepository(
+            url=file_url, identifier_transformer=identifier_transformer
+        )
+    elif file_url.startswith("dummy://"):
+        repository = DummyFileRepository(
             url=file_url, identifier_transformer=identifier_transformer
         )
     else:
