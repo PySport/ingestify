@@ -294,9 +294,7 @@ class DatasetStore:
 
             def get_stream(file_):
                 return reader(
-                    self.file_repository.load_content(
-                        storage_path=file_.storage_path
-                    )
+                    self.file_repository.load_content(storage_path=file_.storage_path)
                 )
 
             loaded_file = LoadedFile(
