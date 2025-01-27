@@ -26,7 +26,7 @@ def setup_package():
         author="Koen Vossen",
         author_email="info@koenvossen.nl",
         license="AGPL",
-        description="Standardizing soccer tracking- and event data",
+        description="Data Ingestion Framework",
         long_description=readme,
         long_description_content_type="text/markdown",
         packages=setuptools.find_packages(exclude=["tests"]),
