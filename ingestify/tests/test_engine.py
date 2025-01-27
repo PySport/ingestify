@@ -245,6 +245,13 @@ def test_engine(config_file):
     items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
     print(items)
 
+    # Make sure we can load the files
+    files = engine.store.load_files(datasets.first(), lazy=True)
+    assert files.get_file("file1").stream.read() == b"content1"
+
+    files = engine.store.load_files(datasets.first(), lazy=False)
+    assert files.get_file("file1").stream.read() == b"content1"
+
 
 def test_iterator_source(config_file):
     """Test when a Source returns a Iterator to do Batch processing.
