@@ -112,7 +112,7 @@ class IngestionJobSummary(BaseModel):
 
         print(f"    - Failed tasks: {self.failed_tasks}")
         print(f"    - Successful tasks: {self.successful_tasks}")
-        print(f"    - Successful ignored tasks: {self.successful_tasks}")
+        print(f"    - Successful ignored tasks: {self.ignored_successful_tasks}")
         print(f"    - Skipped datasets: {self.skipped_datasets}")
         print("--------------------")
 

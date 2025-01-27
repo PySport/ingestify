@@ -116,7 +116,7 @@ class LoadedFile(BaseModel):
     data_serialization_format: Optional[str]  # Example: 'json'
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
-    _stream: Union[BinaryIO, Callable[[], Awaitable[BinaryIO]]]
+    _stream: Union[BinaryIO, BytesIO, Callable[[], Awaitable[Union[BinaryIO, BytesIO]]]]
     revision_id: Optional[int] = None  # This can be used when a Revision is squashed
 
     def load_stream(self):
