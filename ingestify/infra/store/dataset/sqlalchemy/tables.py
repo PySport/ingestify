@@ -1,5 +1,4 @@
 import datetime
-from dataclasses import is_dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
@@ -15,17 +14,12 @@ from sqlalchemy import (
     String,
     Table,
     TypeDecorator,
-    Boolean,
 )
-from sqlalchemy.orm import registry, relationship
 
-from ingestify.domain import Selector, Identifier, DataSpecVersionCollection
-from ingestify.domain.models import Dataset, File, Revision
+from ingestify.domain import Identifier, DataSpecVersionCollection
 from ingestify.domain.models.dataset.dataset import DatasetState
-from ingestify.domain.models.ingestion.ingestion_job_summary import (
-    IngestionJobSummary,
-)
-from ingestify.domain.models.task.task_summary import TaskSummary, Operation, TaskStatus
+
+from ingestify.domain.models.task.task_summary import Operation, TaskStatus
 from ingestify.domain.models.timing import Timing
 from ingestify.domain.models.dataset.revision import RevisionState
 
@@ -137,8 +131,6 @@ class TaskStatusString(TypeDecorator):
         return TaskStatus[value]
 
 
-mapper_registry = registry()
-
 metadata = MetaData()
 
 dataset_table = Table(
@@ -192,39 +184,6 @@ file_table = Table(
         ondelete="CASCADE",
     ),
 )
-
-
-mapper_registry.map_imperatively(
-    Dataset,
-    dataset_table,
-    properties={
-        "revisions": relationship(
-            Revision,
-            backref="dataset",
-            order_by=revision_table.c.revision_id,
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        ),
-    },
-)
-
-mapper_registry.map_imperatively(
-    Revision,
-    revision_table,
-    properties={
-        "modified_files": relationship(
-            File,
-            order_by=file_table.c.file_id,
-            primaryjoin="and_(Revision.revision_id==File.revision_id, Revision.dataset_id==File.dataset_id)",
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        )
-    },
-)
-
-
-mapper_registry.map_imperatively(File, file_table)
-
 
 ingestion_job_summary = Table(
     "ingestion_job_summary",
@@ -316,21 +275,54 @@ task_summary_table = Table(
     # Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
     # Column("source", JSONType()),
 )
-
-
-mapper_registry.map_imperatively(
-    IngestionJobSummary,
-    ingestion_job_summary,
-    properties={
-        "task_summaries": relationship(
-            TaskSummary,
-            backref="ingestion_job_summary",
-            # order_by=task_summary_table.c.revision_id,
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        ),
-    },
-)
-
-
-mapper_registry.map_imperatively(TaskSummary, task_summary_table)
+#
+#
+# mapper_registry = registry()
+#
+# mapper_registry.map_imperatively(
+#     Dataset,
+#     dataset_table,
+#     properties={
+#         "revisions": relationship(
+#             Revision,
+#             backref="dataset",
+#             order_by=revision_table.c.revision_id,
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         ),
+#     },
+# )
+#
+# mapper_registry.map_imperatively(
+#     Revision,
+#     revision_table,
+#     properties={
+#         "modified_files": relationship(
+#             File,
+#             order_by=file_table.c.file_id,
+#             primaryjoin="and_(Revision.revision_id==File.revision_id, Revision.dataset_id==File.dataset_id)",
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         )
+#     },
+# )
+#
+#
+# mapper_registry.map_imperatively(File, file_table)
+#
+# mapper_registry.map_imperatively(
+#     IngestionJobSummary,
+#     ingestion_job_summary,
+#     properties={
+#         "task_summaries": relationship(
+#             TaskSummary,
+#             backref="ingestion_job_summary",
+#             # order_by=task_summary_table.c.revision_id,
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         ),
+#     },
+# )
+#
+#
+# mapper_registry.map_imperatively(TaskSummary, task_summary_table)

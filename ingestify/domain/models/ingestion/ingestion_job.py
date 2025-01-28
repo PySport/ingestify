@@ -17,6 +17,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.task.task_summary import TaskSummary
+from ingestify.exceptions import SaveError
 from ingestify.utils import TaskExecutor, chunker
 
 logger = logging.getLogger(__name__)
@@ -120,21 +121,27 @@ class UpdateDatasetTask(Task):
         with TaskSummary.update(
             self.task_id, dataset_identifier=dataset_identifier
         ) as task_summary:
-            revision = self.store.update_dataset(
-                dataset=self.dataset,
-                name=self.dataset_resource.name,
-                state=self.dataset_resource.state,
-                metadata=self.dataset_resource.metadata,
-                files={
-                    file_id: task_summary.record_load_file(
-                        lambda: load_file(file_resource, dataset=self.dataset),
-                        metadata={"file_id": file_id},
-                    )
-                    for file_id, file_resource in self.dataset_resource.files.items()
-                },
-                revision_source=revision_source,
-            )
-            task_summary.set_stats_from_revision(revision)
+
+            files = {
+                file_id: task_summary.record_load_file(
+                    lambda: load_file(file_resource, dataset=self.dataset),
+                    metadata={"file_id": file_id},
+                )
+                for file_id, file_resource in self.dataset_resource.files.items()
+            }
+
+            try:
+                revision = self.store.update_dataset(
+                    dataset=self.dataset,
+                    name=self.dataset_resource.name,
+                    state=self.dataset_resource.state,
+                    metadata=self.dataset_resource.metadata,
+                    files=files,
+                    revision_source=revision_source,
+                )
+                task_summary.set_stats_from_revision(revision)
+            except Exception as e:
+                raise SaveError("Could not update dataset") from e
 
         return task_summary
 
@@ -159,24 +166,28 @@ class CreateDatasetTask(Task):
         )
 
         with TaskSummary.create(self.task_id, dataset_identifier) as task_summary:
-            revision = self.store.create_dataset(
-                dataset_type=self.dataset_resource.dataset_type,
-                provider=self.dataset_resource.provider,
-                dataset_identifier=dataset_identifier,
-                name=self.dataset_resource.name,
-                state=self.dataset_resource.state,
-                metadata=self.dataset_resource.metadata,
-                files={
-                    file_id: task_summary.record_load_file(
-                        lambda: load_file(file_resource, dataset=None),
-                        metadata={"file_id": file_id},
-                    )
-                    for file_id, file_resource in self.dataset_resource.files.items()
-                },
-                revision_source=revision_source,
-            )
+            files = {
+                file_id: task_summary.record_load_file(
+                    lambda: load_file(file_resource, dataset=None),
+                    metadata={"file_id": file_id},
+                )
+                for file_id, file_resource in self.dataset_resource.files.items()
+            }
+            try:
+                revision = self.store.create_dataset(
+                    dataset_type=self.dataset_resource.dataset_type,
+                    provider=self.dataset_resource.provider,
+                    dataset_identifier=dataset_identifier,
+                    name=self.dataset_resource.name,
+                    state=self.dataset_resource.state,
+                    metadata=self.dataset_resource.metadata,
+                    files=files,
+                    revision_source=revision_source,
+                )
 
-            task_summary.set_stats_from_revision(revision)
+                task_summary.set_stats_from_revision(revision)
+            except Exception as e:
+                raise SaveError("Could not create dataset") from e
 
         return task_summary
 

@@ -8,3 +8,7 @@ class ConfigurationError(IngestifyError):
 
 class DuplicateFile(IngestifyError):
     pass
+
+
+class SaveError(IngestifyError):
+    pass

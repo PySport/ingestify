@@ -58,8 +58,7 @@ class DatasetStore:
             self.event_bus.dispatch(event)
 
     def save_ingestion_job_summary(self, ingestion_job_summary):
-        self.dataset_repository.session.add(ingestion_job_summary)
-        self.dataset_repository.session.commit()
+        self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
     def get_dataset_collection(
         self,

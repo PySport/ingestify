@@ -205,23 +205,23 @@ dataset_collection = store.get_dataset_collection(
 store.map(
     lambda dataset: (
         store
-        
-        # As it's related to https://github.com/PySport/kloppy the store can load files using kloppy
-        .load_with_kloppy(dataset)
-        
-        # Convert it into a polars dataframe using all columns in the original data and some more additional ones
-        .to_df(
-            "*", 
-            match_id=dataset.identifier.match_id,
-            competition_id=dataset.identifier.competition_id,
-            season_id=dataset.identifier.season_id, 
-            
+
+            # As it's related to https://github.com/PySport/kloppy the store can load files using kloppy
+            .load_with_kloppy(dataset)
+
+            # Convert it into a polars dataframe using all columns in the original data and some more additional ones
+            .to_df(
+            "*",
+            match_id=dataset.dataset_resource_id.match_id,
+            competition_id=dataset.dataset_resource_id.competition_id,
+            season_id=dataset.dataset_resource_id.season_id,
+
             engine="polars"
         )
-        
-        # Write to parquet format
-        .write_parquet(
-            f"/tmp/files/blaat/{dataset.identifier.match_id}.parquet"
+
+            # Write to parquet format
+            .write_parquet(
+            f"/tmp/files/blaat/{dataset.dataset_resource_id.match_id}.parquet"
         )
     ),
     dataset_collection,

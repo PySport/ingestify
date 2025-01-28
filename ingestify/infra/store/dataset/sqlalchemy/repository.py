@@ -1,13 +1,15 @@
+import itertools
 import json
 import uuid
+from collections import defaultdict
 from typing import Optional, Union, List
 
-from sqlalchemy import create_engine, func, text, tuple_
+from sqlalchemy import create_engine, func, text, tuple_, Table, insert, Transaction, Connection
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, joinedload
 
-from ingestify.domain import File
+from ingestify.domain import File, Revision
 from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
@@ -15,11 +17,13 @@ from ingestify.domain.models import (
     Identifier,
     Selector,
 )
+from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.exceptions import IngestifyError
 
-from .mapping import dataset_table, metadata
+from .tables import metadata, dataset_table, file_table, revision_table
 
 
 def parse_value(v):
@@ -113,6 +117,41 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def session(self):
         return self.session_provider.get()
 
+    def _upsert(self, connection: Connection, table: Table, entities: list[dict], primary_key_columns: list[str]):
+        dialect = self.session.bind.dialect.name
+        match dialect:
+            case "mysql":
+                from sqlalchemy.dialects.mysql import insert
+
+            case "postgresql":
+                from sqlalchemy.dialects.postgresql import insert
+
+            case "sqlite":
+                from sqlalchemy.dialects.sqlite import insert
+
+            case _:
+                raise IngestifyError(f"Don't know how to do an upsert in {dialect}")
+
+        stmt = insert(table).values(entities)
+
+        index_elements = [
+            getattr(table.c, primary_key_column)
+            for primary_key_column in primary_key_columns
+        ]
+
+        set_ = {
+            name: getattr(stmt.excluded, name)
+            for name, column in table.columns.items()
+            if name not in primary_key_columns
+        }
+
+        stmt = stmt.on_conflict_do_update(
+            index_elements=index_elements,
+            set_=set_
+        )
+
+        connection.execute(stmt)
+
     def _filter_query(
         self,
         query,
@@ -122,11 +161,11 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
     ):
-        query = query.filter(Dataset.bucket == bucket)
+        query = query.filter(dataset_table.c.bucket == bucket)
         if dataset_type:
-            query = query.filter(Dataset.dataset_type == dataset_type)
+            query = query.filter(dataset_table.c.dataset_type == dataset_type)
         if provider:
-            query = query.filter(Dataset.provider == provider)
+            query = query.filter(dataset_table.c.provider == provider)
         if dataset_id is not None:
             if isinstance(dataset_id, list):
                 if len(dataset_id) == 0:
@@ -134,9 +173,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     # return an empty DatasetCollection
                     return DatasetCollection()
 
-                query = query.filter(Dataset.dataset_id.in_(dataset_id))
+                query = query.filter(dataset_table.c.dataset_id.in_(dataset_id))
             else:
-                query = query.filter(Dataset.dataset_id == dataset_id)
+                query = query.filter(dataset_table.c.dataset_id == dataset_id)
 
         dialect = self.session.bind.dialect.name
 
@@ -175,7 +214,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     else:
                         column = column.as_string()
                 else:
-                    column = func.json_extract(Dataset.identifier, f"$.{k}")
+                    column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
                 columns.append(column)
 
             values = []
@@ -209,17 +248,60 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             )
 
         if not metadata_only:
-            dataset_query = apply_query_filter(self.session.query(Dataset))
-            datasets = list(dataset_query)
+            dataset_query = apply_query_filter(self.session.query(dataset_table))
+            dataset_rows = list(dataset_query)
+            dataset_ids = [row.dataset_id for row in dataset_rows]
+
+            revisions_per_dataset = {}
+            rows = self.session.query(revision_table)\
+                .filter(revision_table.c.dataset_id.in_(dataset_ids))\
+                .order_by(revision_table.c.dataset_id)
+
+            for dataset_id, revisions in itertools.groupby(rows, key=lambda row: row.dataset_id):
+                revisions_per_dataset[dataset_id] = list(revisions)
+
+            files_per_revision = {}
+            rows = self.session.query(file_table)\
+                .filter(file_table.c.dataset_id.in_(dataset_ids))\
+                .order_by(file_table.c.dataset_id, file_table.c.revision_id)
+
+            for (dataset_id, revision_id), files in itertools.groupby(rows, key=lambda row: (row.dataset_id, row.revision_id)):
+                files_per_revision[(dataset_id, revision_id)] = list(files)
+
+            datasets = []
+            for dataset_row in dataset_rows:
+                dataset_id = dataset_row.dataset_id
+                revisions = []
+                for revision_row in revisions_per_dataset.get(dataset_id, []):
+                    files = [
+                        File.model_validate(file_row)
+                        for file_row in files_per_revision.get((dataset_id, revision_row.revision_id), [])
+                    ]
+                    revision = Revision.model_validate(
+                        {
+                            **revision_row._mapping,
+                            "modified_files": files
+                        }
+                    )
+                    revisions.append(revision)
+
+                datasets.append(
+                    Dataset.model_validate(
+                        {
+                            **dataset_row._mapping,
+                            "revisions": revisions
+                        }
+                    )
+                )
         else:
             datasets = []
 
         metadata_result_row = apply_query_filter(
             self.session.query(
-                func.min(File.modified_at).label("first_modified_at"),
-                func.max(File.modified_at).label("last_modified_at"),
+                func.min(file_table.c.modified_at).label("first_modified_at"),
+                func.max(file_table.c.modified_at).label("last_modified_at"),
                 func.count().label("row_count"),
-            ).join(Dataset, Dataset.dataset_id == File.dataset_id)
+            ).join(dataset_table, dataset_table.c.dataset_id == file_table.c.dataset_id)
         ).first()
         dataset_collection_metadata = DatasetCollectionMetadata(*metadata_result_row)
 
@@ -228,12 +310,48 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def save(self, bucket: str, dataset: Dataset):
         # Just make sure
         dataset.bucket = bucket
-        self.session.add(dataset)
-        self.session.commit()
+
+        self._save([dataset])
+
+    def _save(self, datasets: list[Dataset]):
+        """Only do upserts. Never delete. Rows get only deleted when an entire Dataset is removed."""
+        with self.session_provider.engine.connect() as connection:
+            datasets_entities = []
+            revision_entities = []
+            file_entities = []
+
+            for dataset in datasets:
+                datasets_entities.append(dataset.model_dump(exclude={"revisions"}))
+                for revision in dataset.revisions:
+                    revision_entities.append(
+                        {
+                            **revision.model_dump(exclude={"is_squashed", "modified_files"}),
+                            "dataset_id": dataset.dataset_id
+                        }
+                    )
+                    for file in revision.modified_files:
+                        file_entities.append(
+                            {
+                                **file.model_dump(),
+                                "dataset_id": dataset.dataset_id,
+                                "revision_id": revision.revision_id
+                            }
+                        )
+
+            self._upsert(connection, dataset_table, datasets_entities, primary_key_columns=["dataset_id"])
+            self._upsert(connection, revision_table, revision_entities, primary_key_columns=["dataset_id", "revision_id"])
+            self._upsert(connection, file_table, file_entities, primary_key_columns=["dataset_id", "revision_id", "file_id"])
+
+            connection.commit()
 
     def destroy(self, dataset: Dataset):
+        # with self.session_provider.engine.connect() as connection:
+        #
         self.session.delete(dataset)
         self.session.commit()
 
     def next_identity(self):
         return str(uuid.uuid4())
+
+    def save_ingestion_job_summary(self, ingestion_job_summary):
+        self.session.commit()

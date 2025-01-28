@@ -9,17 +9,18 @@ from ingestify.domain import (
     Selector,
     DataSpecVersionCollection,
     DraftFile,
-    Dataset,
+    Dataset, DatasetCreated,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.domain.models.dataset.events import RevisionAdded
 from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
 )
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
-from ingestify.infra.serialization import serialize, unserialize
+from ingestify.infra.serialization import serialize, deserialize
 from ingestify.main import get_engine
 
 
@@ -140,7 +141,7 @@ class BatchSource(Source):
                 last_modified = datetime.now(pytz.utc)
                 dataset_resource = (
                     DatasetResource(
-                        dict(
+                        dataset_resource_id=dict(
                             competition_id=competition_id,
                             season_id=season_id,
                             match_id=match_id,
@@ -319,3 +320,25 @@ def test_change_partition_key_transformer():
 
     This probably means we need to use the storage_path for reading.
     """
+
+
+def test_serde(config_file):
+    engine = get_engine(config_file, "main")
+
+    add_ingestion_plan(
+        engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
+    )
+    engine.load()
+    datasets = engine.store.get_dataset_collection()
+    dataset = datasets.first()
+
+    for event_cls in [DatasetCreated, RevisionAdded]:
+        event = event_cls(dataset=dataset)
+
+        event_dict = serialize(event)
+
+        assert event != event_dict
+
+        deserialized_event = deserialize(event_dict)
+
+        assert event == deserialized_event
