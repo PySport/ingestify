@@ -17,7 +17,7 @@ class S3FileRepository(FileRepository):
         return self._s3
 
     def __getstate__(self):
-        return {"base_dir": self.base_dir, "_s3": None}
+        return {"base_dir": self.base_dir, "_s3": None, "identifier_transformer": self.identifier_transformer}
 
     def save_content(
         self,

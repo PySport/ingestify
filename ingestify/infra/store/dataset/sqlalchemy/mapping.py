@@ -289,7 +289,7 @@ task_summary_table = Table(
         ForeignKey("ingestion_job_summary.ingestion_job_summary_id"),
         primary_key=True,
     ),
-    Column("task_id", Integer, primary_key=True),
+    Column("task_id", String(255), primary_key=True),
     Column("started_at", TZDateTime(6)),
     Column("ended_at", TZDateTime(6)),
     Column("operation", OperationString),
