@@ -116,18 +116,18 @@ class LoadedFile(BaseModel):
     data_serialization_format: Optional[str]  # Example: 'json'
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
-    _stream: Union[BinaryIO, BytesIO, Callable[[], Awaitable[Union[BinaryIO, BytesIO]]]]
+    stream_: Union[BinaryIO, BytesIO, Callable[[], Awaitable[Union[BinaryIO, BytesIO]]]]
     revision_id: Optional[int] = None  # This can be used when a Revision is squashed
 
     def load_stream(self):
-        if callable(self._stream):
-            self._stream = self._stream(self)
+        if callable(self.stream_):
+            self.stream_ = self.stream_(self)
 
     @property
     def stream(self):
-        if callable(self._stream):
+        if callable(self.stream_):
             raise Exception("You should load the stream first using `load_stream`")
-        return self._stream
+        return self.stream_
 
 
 __all__ = ["File", "DraftFile", "LoadedFile"]

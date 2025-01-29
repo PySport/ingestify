@@ -58,8 +58,7 @@ class DatasetStore:
             self.event_bus.dispatch(event)
 
     def save_ingestion_job_summary(self, ingestion_job_summary):
-        self.dataset_repository.session.add(ingestion_job_summary)
-        self.dataset_repository.session.commit()
+        self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
     def get_dataset_collection(
         self,
@@ -298,8 +297,8 @@ class DatasetStore:
                 )
 
             loaded_file = LoadedFile(
-                _stream=get_stream if lazy else get_stream(file),
-                **asdict(file),
+                stream_=get_stream if lazy else get_stream(file),
+                **file.model_dump(),
             )
             files[file.file_id] = loaded_file
         return FileCollection(files, auto_rewind=auto_rewind)

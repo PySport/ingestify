@@ -1,5 +1,4 @@
 import datetime
-from dataclasses import is_dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
@@ -15,17 +14,13 @@ from sqlalchemy import (
     String,
     Table,
     TypeDecorator,
-    Boolean,
 )
-from sqlalchemy.orm import registry, relationship
 
-from ingestify.domain import Selector, Identifier, DataSpecVersionCollection
-from ingestify.domain.models import Dataset, File, Revision
+from ingestify.domain import Identifier, DataSpecVersionCollection, Selector
 from ingestify.domain.models.dataset.dataset import DatasetState
-from ingestify.domain.models.ingestion.ingestion_job_summary import (
-    IngestionJobSummary,
-)
-from ingestify.domain.models.task.task_summary import TaskSummary, Operation, TaskStatus
+from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobState
+
+from ingestify.domain.models.task.task_summary import Operation, TaskState
 from ingestify.domain.models.timing import Timing
 from ingestify.domain.models.dataset.revision import RevisionState
 
@@ -106,7 +101,7 @@ class RevisionStateString(TypeDecorator):
 
     def process_result_value(self, value, dialect):
         if not value:
-            return value
+            return RevisionState.PENDING_VALIDATION
 
         return RevisionState[value]
 
@@ -124,20 +119,31 @@ class OperationString(TypeDecorator):
         return Operation[value]
 
 
-class TaskStatusString(TypeDecorator):
+class TaskStateString(TypeDecorator):
     impl = String(255)
 
-    def process_bind_param(self, value: TaskStatus, dialect):
+    def process_bind_param(self, value: TaskState, dialect):
         return value.value
 
     def process_result_value(self, value, dialect):
         if not value:
             return value
 
-        return TaskStatus[value]
+        return TaskState[value]
 
 
-mapper_registry = registry()
+class IngestionJobStateString(TypeDecorator):
+    impl = String(255)
+
+    def process_bind_param(self, value: IngestionJobState, dialect):
+        return value.value
+
+    def process_result_value(self, value, dialect):
+        if not value:
+            return value
+
+        return IngestionJobState[value]
+
 
 metadata = MetaData()
 
@@ -193,40 +199,7 @@ file_table = Table(
     ),
 )
 
-
-mapper_registry.map_imperatively(
-    Dataset,
-    dataset_table,
-    properties={
-        "revisions": relationship(
-            Revision,
-            backref="dataset",
-            order_by=revision_table.c.revision_id,
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        ),
-    },
-)
-
-mapper_registry.map_imperatively(
-    Revision,
-    revision_table,
-    properties={
-        "modified_files": relationship(
-            File,
-            order_by=file_table.c.file_id,
-            primaryjoin="and_(Revision.revision_id==File.revision_id, Revision.dataset_id==File.dataset_id)",
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        )
-    },
-)
-
-
-mapper_registry.map_imperatively(File, file_table)
-
-
-ingestion_job_summary = Table(
+ingestion_job_summary_table = Table(
     "ingestion_job_summary",
     metadata,
     Column("ingestion_job_summary_id", String(255), primary_key=True),
@@ -238,18 +211,25 @@ ingestion_job_summary = Table(
     Column(
         "data_spec_versions",
         JSONType(
-            serializer=lambda data_spec_versions: data_spec_versions.to_dict(),
+            serializer=lambda data_spec_versions: {
+                key: list(value) for key, value in data_spec_versions.items()
+            },
             deserializer=lambda data_spec_versions: DataSpecVersionCollection.from_dict(
                 data_spec_versions
             ),
         ),
     ),
     Column(
-        "selector", JSONType(serializer=lambda selector: selector.filtered_attributes)
+        "selector",
+        JSONType(
+            serializer=lambda selector: selector.filtered_attributes,
+            deserializer=lambda selector: Selector(**selector),
+        ),
     ),
     Column("started_at", TZDateTime(6)),
-    Column("finished_at", TZDateTime(6)),
+    Column("ended_at", TZDateTime(6)),
     # Some task counters
+    Column("state", IngestionJobStateString),
     Column("successful_tasks", Integer),
     Column("ignored_successful_tasks", Integer),
     Column("skipped_datasets", Integer),
@@ -258,7 +238,10 @@ ingestion_job_summary = Table(
         "timings",
         JSONType(
             serializer=lambda timings: [
-                timing.model_dump(mode="json") for timing in timings
+                # Timing is probably already a dictionary. Load it into Timing first, so it can be dumped
+                # in json mode
+                Timing.model_validate(timing).model_dump(mode="json")
+                for timing in timings
             ],
             deserializer=lambda timings: [
                 Timing.model_validate(timing) for timing in timings
@@ -299,12 +282,13 @@ task_summary_table = Table(
     Column("persisted_file_count", Integer),
     Column("bytes_retrieved", Integer),
     Column("last_modified", TZDateTime(6)),
-    Column("status", TaskStatusString),
+    Column("state", TaskStateString),
     Column(
         "timings",
         JSONType(
             serializer=lambda timings: [
-                timing.model_dump(mode="json") for timing in timings
+                Timing.model_validate(timing).model_dump(mode="json")
+                for timing in timings
             ],
             deserializer=lambda timings: [
                 Timing.model_validate(timing) for timing in timings
@@ -316,21 +300,54 @@ task_summary_table = Table(
     # Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
     # Column("source", JSONType()),
 )
-
-
-mapper_registry.map_imperatively(
-    IngestionJobSummary,
-    ingestion_job_summary,
-    properties={
-        "task_summaries": relationship(
-            TaskSummary,
-            backref="ingestion_job_summary",
-            # order_by=task_summary_table.c.revision_id,
-            lazy="selectin",
-            cascade="all, delete-orphan",
-        ),
-    },
-)
-
-
-mapper_registry.map_imperatively(TaskSummary, task_summary_table)
+#
+#
+# mapper_registry = registry()
+#
+# mapper_registry.map_imperatively(
+#     Dataset,
+#     dataset_table,
+#     properties={
+#         "revisions": relationship(
+#             Revision,
+#             backref="dataset",
+#             order_by=revision_table.c.revision_id,
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         ),
+#     },
+# )
+#
+# mapper_registry.map_imperatively(
+#     Revision,
+#     revision_table,
+#     properties={
+#         "modified_files": relationship(
+#             File,
+#             order_by=file_table.c.file_id,
+#             primaryjoin="and_(Revision.revision_id==File.revision_id, Revision.dataset_id==File.dataset_id)",
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         )
+#     },
+# )
+#
+#
+# mapper_registry.map_imperatively(File, file_table)
+#
+# mapper_registry.map_imperatively(
+#     IngestionJobSummary,
+#     ingestion_job_summary,
+#     properties={
+#         "task_summaries": relationship(
+#             TaskSummary,
+#             backref="ingestion_job_summary",
+#             # order_by=task_summary_table.c.revision_id,
+#             lazy="selectin",
+#             cascade="all, delete-orphan",
+#         ),
+#     },
+# )
+#
+#
+# mapper_registry.map_imperatively(TaskSummary, task_summary_table)

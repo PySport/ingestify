@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from ingestify.utils import utcnow
 from .dataset_state import DatasetState
@@ -23,6 +23,13 @@ class Dataset(BaseModel):
     created_at: datetime
     updated_at: datetime
     revisions: List[Revision] = Field(default_factory=list)
+
+    @field_validator("identifier", mode="before")
+    @classmethod
+    def parse_identifier(cls, value):
+        if not isinstance(value, Identifier):
+            return Identifier(value)
+        return value
 
     @property
     def is_complete(self):

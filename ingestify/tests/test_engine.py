@@ -10,16 +10,20 @@ from ingestify.domain import (
     DataSpecVersionCollection,
     DraftFile,
     Dataset,
+    DatasetCreated,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.domain.models.dataset.events import RevisionAdded
 from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
+    IngestionJobState,
 )
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
-from ingestify.infra.serialization import serialize, unserialize
+from ingestify.domain.models.task.task_summary import TaskState
+from ingestify.infra.serialization import serialize, deserialize
 from ingestify.main import get_engine
 
 
@@ -140,7 +144,7 @@ class BatchSource(Source):
                 last_modified = datetime.now(pytz.utc)
                 dataset_resource = (
                     DatasetResource(
-                        dict(
+                        dataset_resource_id=dict(
                             competition_id=competition_id,
                             season_id=season_id,
                             match_id=match_id,
@@ -169,7 +173,7 @@ class BatchSource(Source):
             self.callback and self.callback(self.idx)
 
 
-class FailingSource(Source):
+class FailingLoadSource(Source):
     provider = "fake"
 
     def find_datasets(
@@ -202,6 +206,21 @@ class FailingSource(Source):
                 loader_kwargs={"some_extract_config": "test123"},
             )
         )
+
+
+class FailingJobSource(Source):
+    provider = "fake"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        competition_id,
+        season_id,
+        **kwargs,
+    ):
+        raise Exception("some failure")
 
 
 def test_engine(config_file):
@@ -242,8 +261,9 @@ def test_engine(config_file):
     # Make sure everything still works with a fresh connection
     engine.store.dataset_repository.session_provider.reset()
 
-    items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
-    print(items)
+    # TODO: reenable
+    # items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
+    # print(items)
 
     # Make sure we can load the files
     files = engine.store.load_files(datasets.first(), lazy=True)
@@ -297,20 +317,35 @@ def test_iterator_source(config_file):
         assert len(dataset.revisions) == 2
 
     # Sneaked in an extra test for serialization. This just shouldn't break
-    # s = serialize(datasets.first())
-    # unserialize(s, Dataset)
+    s = serialize(DatasetCreated(dataset=datasets.first()))
+    deserialize(s)
 
 
 def test_ingestion_plan_failing_task(config_file):
     engine = get_engine(config_file, "main")
 
-    source = FailingSource("fake-source")
+    source = FailingLoadSource("fake-source")
 
     add_ingestion_plan(engine, source, competition_id=1, season_id=2)
     engine.load()
 
-    items = list(engine.store.dataset_repository.session.query(IngestionJobSummary))
-    print(items)
+    items = engine.store.dataset_repository.load_ingestion_job_summaries()
+    assert len(items) == 1
+    assert items[0].state == IngestionJobState.FINISHED
+    assert items[0].task_summaries[0].state == TaskState.FAILED
+
+
+def test_ingestion_plan_failing_job(config_file):
+    engine = get_engine(config_file, "main")
+
+    source = FailingJobSource("fake-source")
+
+    add_ingestion_plan(engine, source, competition_id=1, season_id=2)
+    engine.load()
+
+    items = engine.store.dataset_repository.load_ingestion_job_summaries()
+    assert len(items) == 1
+    assert items[0].state == IngestionJobState.FAILED
 
 
 def test_change_partition_key_transformer():
@@ -319,3 +354,25 @@ def test_change_partition_key_transformer():
 
     This probably means we need to use the storage_path for reading.
     """
+
+
+def test_serde(config_file):
+    engine = get_engine(config_file, "main")
+
+    add_ingestion_plan(
+        engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
+    )
+    engine.load()
+    datasets = engine.store.get_dataset_collection()
+    dataset = datasets.first()
+
+    for event_cls in [DatasetCreated, RevisionAdded]:
+        event = event_cls(dataset=dataset)
+
+        event_dict = serialize(event)
+
+        assert event != event_dict
+
+        deserialized_event = deserialize(event_dict)
+
+        assert event.model_dump_json() == deserialized_event.model_dump_json()

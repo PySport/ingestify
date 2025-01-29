@@ -16,7 +16,7 @@ from ingestify.utils import utcnow
 logger = logging.getLogger(__name__)
 
 
-class TaskStatus(str, Enum):
+class TaskState(str, Enum):
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
     FINISHED_IGNORED = "FINISHED_IGNORED"  # Finished, but didn't produce any new data
@@ -37,7 +37,7 @@ class TaskSummary(BaseModel):
     persisted_file_count: int = 0
     bytes_retrieved: int = 0
     last_modified: Optional[datetime] = None
-    status: TaskStatus = TaskStatus.RUNNING
+    state: TaskState = TaskState.RUNNING
     timings: List[Timing] = Field(default_factory=list)
 
     @field_validator("dataset_identifier", mode="before")
@@ -83,10 +83,10 @@ class TaskSummary(BaseModel):
         try:
             yield task_summary
 
-            task_summary.set_status(TaskStatus.FINISHED)
+            task_summary.set_state(TaskState.FINISHED)
         except Exception as e:
             logger.exception(f"Failed to execute task.")
-            task_summary.set_status(TaskStatus.FAILED)
+            task_summary.set_state(TaskState.FAILED)
 
             # When the error comes from our own code, make sure it will be raised to the highest level
             # raise
@@ -111,8 +111,8 @@ class TaskSummary(BaseModel):
                 file.modified_at for file in revision.modified_files
             )
         else:
-            self.status = TaskStatus.FINISHED_IGNORED
+            self.state = TaskState.FINISHED_IGNORED
 
-    def set_status(self, status: TaskStatus):
-        if self.status == TaskStatus.RUNNING:
-            self.status = status
+    def set_state(self, state: TaskState):
+        if self.state == TaskState.RUNNING:
+            self.state = state
