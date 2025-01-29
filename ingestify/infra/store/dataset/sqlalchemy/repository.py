@@ -137,18 +137,14 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def _upsert(self, connection: Connection, table: Table, entities: list[dict]):
         dialect = self.session.bind.dialect.name
-        match dialect:
-            case "mysql":
-                from sqlalchemy.dialects.mysql import insert
-
-            case "postgresql":
-                from sqlalchemy.dialects.postgresql import insert
-
-            case "sqlite":
-                from sqlalchemy.dialects.sqlite import insert
-
-            case _:
-                raise IngestifyError(f"Don't know how to do an upsert in {dialect}")
+        if dialect == "mysql":
+            from sqlalchemy.dialects.mysql import insert
+        elif dialect == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert
+        elif dialect == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert
+        else:
+            raise IngestifyError(f"Don't know how to do an upsert in {dialect}")
 
         stmt = insert(table).values(entities)
 
