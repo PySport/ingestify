@@ -1,12 +1,5 @@
-import json
-from datetime import datetime
-from typing import Type, Any, TypeVar
-
-from dataclass_factory import Schema, Factory, NameStyle
-from dataclass_factory.schema_helpers import type_checker
-
-from ingestify.domain import DatasetCreated, Identifier
-from ingestify.domain.models.dataset.events import MetadataUpdated, RevisionAdded
+from ingestify.domain import DatasetCreated
+from ingestify.domain.models.dataset.events import RevisionAdded
 from ingestify.domain.models.event import DomainEvent
 
 
@@ -18,10 +11,6 @@ event_types = {
 
 def deserialize(event_dict: dict) -> DomainEvent:
     event_cls = event_types[event_dict["event_type"]]
-    event_dict["dataset"]["identifier"] = Identifier(
-        **event_dict["dataset"]["identifier"]
-    )
-
     return event_cls.model_validate(event_dict)
 
 
