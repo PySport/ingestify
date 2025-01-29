@@ -4,7 +4,16 @@ import uuid
 from collections import defaultdict
 from typing import Optional, Union, List
 
-from sqlalchemy import create_engine, func, text, tuple_, Table, insert, Transaction, Connection
+from sqlalchemy import (
+    create_engine,
+    func,
+    text,
+    tuple_,
+    Table,
+    insert,
+    Transaction,
+    Connection,
+)
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, joinedload
@@ -21,9 +30,18 @@ from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
+from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
 
-from .tables import metadata, dataset_table, file_table, revision_table
+from .tables import (
+    metadata,
+    dataset_table,
+    file_table,
+    revision_table,
+    ingestion_job_summary_table,
+    task_summary_table,
+)
 
 
 def parse_value(v):
@@ -117,7 +135,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def session(self):
         return self.session_provider.get()
 
-    def _upsert(self, connection: Connection, table: Table, entities: list[dict], primary_key_columns: list[str]):
+    def _upsert(self, connection: Connection, table: Table, entities: list[dict]):
         dialect = self.session.bind.dialect.name
         match dialect:
             case "mysql":
@@ -134,21 +152,15 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         stmt = insert(table).values(entities)
 
-        index_elements = [
-            getattr(table.c, primary_key_column)
-            for primary_key_column in primary_key_columns
-        ]
+        primary_key_columns = [column for column in table.columns if column.primary_key]
 
         set_ = {
             name: getattr(stmt.excluded, name)
             for name, column in table.columns.items()
-            if name not in primary_key_columns
+            if column not in primary_key_columns
         }
 
-        stmt = stmt.on_conflict_do_update(
-            index_elements=index_elements,
-            set_=set_
-        )
+        stmt = stmt.on_conflict_do_update(index_elements=primary_key_columns, set_=set_)
 
         connection.execute(stmt)
 
@@ -228,6 +240,60 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             query = query.filter(text(where))
         return query
 
+    def load_datasets(self, dataset_ids: list[str]) -> list[Dataset]:
+        if not dataset_ids:
+            return []
+
+        dataset_rows = list(
+            self.session.query(dataset_table).filter(
+                dataset_table.c.dataset_id.in_(dataset_ids)
+            )
+        )
+        revisions_per_dataset = {}
+        rows = (
+            self.session.query(revision_table)
+            .filter(revision_table.c.dataset_id.in_(dataset_ids))
+            .order_by(revision_table.c.dataset_id)
+        )
+
+        for dataset_id, revisions in itertools.groupby(
+            rows, key=lambda row: row.dataset_id
+        ):
+            revisions_per_dataset[dataset_id] = list(revisions)
+
+        files_per_revision = {}
+        rows = (
+            self.session.query(file_table)
+            .filter(file_table.c.dataset_id.in_(dataset_ids))
+            .order_by(file_table.c.dataset_id, file_table.c.revision_id)
+        )
+
+        for (dataset_id, revision_id), files in itertools.groupby(
+            rows, key=lambda row: (row.dataset_id, row.revision_id)
+        ):
+            files_per_revision[(dataset_id, revision_id)] = list(files)
+
+        datasets = []
+        for dataset_row in dataset_rows:
+            dataset_id = dataset_row.dataset_id
+            revisions = []
+            for revision_row in revisions_per_dataset.get(dataset_id, []):
+                files = [
+                    File.model_validate(file_row)
+                    for file_row in files_per_revision.get(
+                        (dataset_id, revision_row.revision_id), []
+                    )
+                ]
+                revision = Revision.model_validate(
+                    {**revision_row._mapping, "modified_files": files}
+                )
+                revisions.append(revision)
+
+            datasets.append(
+                Dataset.model_validate({**dataset_row._mapping, "revisions": revisions})
+            )
+        return datasets
+
     def get_dataset_collection(
         self,
         bucket: str,
@@ -248,51 +314,11 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             )
 
         if not metadata_only:
-            dataset_query = apply_query_filter(self.session.query(dataset_table))
-            dataset_rows = list(dataset_query)
-            dataset_ids = [row.dataset_id for row in dataset_rows]
-
-            revisions_per_dataset = {}
-            rows = self.session.query(revision_table)\
-                .filter(revision_table.c.dataset_id.in_(dataset_ids))\
-                .order_by(revision_table.c.dataset_id)
-
-            for dataset_id, revisions in itertools.groupby(rows, key=lambda row: row.dataset_id):
-                revisions_per_dataset[dataset_id] = list(revisions)
-
-            files_per_revision = {}
-            rows = self.session.query(file_table)\
-                .filter(file_table.c.dataset_id.in_(dataset_ids))\
-                .order_by(file_table.c.dataset_id, file_table.c.revision_id)
-
-            for (dataset_id, revision_id), files in itertools.groupby(rows, key=lambda row: (row.dataset_id, row.revision_id)):
-                files_per_revision[(dataset_id, revision_id)] = list(files)
-
-            datasets = []
-            for dataset_row in dataset_rows:
-                dataset_id = dataset_row.dataset_id
-                revisions = []
-                for revision_row in revisions_per_dataset.get(dataset_id, []):
-                    files = [
-                        File.model_validate(file_row)
-                        for file_row in files_per_revision.get((dataset_id, revision_row.revision_id), [])
-                    ]
-                    revision = Revision.model_validate(
-                        {
-                            **revision_row._mapping,
-                            "modified_files": files
-                        }
-                    )
-                    revisions.append(revision)
-
-                datasets.append(
-                    Dataset.model_validate(
-                        {
-                            **dataset_row._mapping,
-                            "revisions": revisions
-                        }
-                    )
-                )
+            dataset_query = apply_query_filter(
+                self.session.query(dataset_table.c.dataset_id)
+            )
+            dataset_ids = [row.dataset_id for row in dataset_query]
+            datasets = self.load_datasets(dataset_ids)
         else:
             datasets = []
 
@@ -313,45 +339,150 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         self._save([dataset])
 
+    def connect(self):
+        return self.session_provider.engine.connect()
+
     def _save(self, datasets: list[Dataset]):
         """Only do upserts. Never delete. Rows get only deleted when an entire Dataset is removed."""
-        with self.session_provider.engine.connect() as connection:
-            datasets_entities = []
-            revision_entities = []
-            file_entities = []
+        datasets_entities = []
+        revision_entities = []
+        file_entities = []
 
-            for dataset in datasets:
-                datasets_entities.append(dataset.model_dump(exclude={"revisions"}))
-                for revision in dataset.revisions:
-                    revision_entities.append(
+        for dataset in datasets:
+            datasets_entities.append(dataset.model_dump(exclude={"revisions"}))
+            for revision in dataset.revisions:
+                revision_entities.append(
+                    {
+                        **revision.model_dump(
+                            exclude={"is_squashed", "modified_files"}
+                        ),
+                        "dataset_id": dataset.dataset_id,
+                    }
+                )
+                for file in revision.modified_files:
+                    file_entities.append(
                         {
-                            **revision.model_dump(exclude={"is_squashed", "modified_files"}),
-                            "dataset_id": dataset.dataset_id
+                            **file.model_dump(),
+                            "dataset_id": dataset.dataset_id,
+                            "revision_id": revision.revision_id,
                         }
                     )
-                    for file in revision.modified_files:
-                        file_entities.append(
-                            {
-                                **file.model_dump(),
-                                "dataset_id": dataset.dataset_id,
-                                "revision_id": revision.revision_id
-                            }
-                        )
 
-            self._upsert(connection, dataset_table, datasets_entities, primary_key_columns=["dataset_id"])
-            self._upsert(connection, revision_table, revision_entities, primary_key_columns=["dataset_id", "revision_id"])
-            self._upsert(connection, file_table, file_entities, primary_key_columns=["dataset_id", "revision_id", "file_id"])
-
-            connection.commit()
+        with self.connect() as connection:
+            try:
+                self._upsert(connection, dataset_table, datasets_entities)
+                self._upsert(connection, revision_table, revision_entities)
+                self._upsert(connection, file_table, file_entities)
+            except Exception:
+                connection.rollback()
+                raise
+            else:
+                connection.commit()
 
     def destroy(self, dataset: Dataset):
-        # with self.session_provider.engine.connect() as connection:
-        #
-        self.session.delete(dataset)
-        self.session.commit()
+        with self.connect() as connection:
+            try:
+                # Delete modified files related to the dataset
+                file_table.delete().where(
+                    file_table.c.dataset_id == dataset.dataset_id
+                ).execute()
+
+                # Delete revisions related to the dataset
+                revision_table.delete().where(
+                    revision_table.c.dataset_id == dataset.dataset_id
+                ).execute()
+
+                # Delete the dataset itself
+                dataset_table.delete().where(
+                    dataset_table.c.dataset_id == dataset.dataset_id
+                ).execute()
+
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
 
     def next_identity(self):
         return str(uuid.uuid4())
 
-    def save_ingestion_job_summary(self, ingestion_job_summary):
-        self.session.commit()
+    # TODO: consider moving the IngestionJobSummary methods to a different Repository
+    def save_ingestion_job_summary(self, ingestion_job_summary: IngestionJobSummary):
+        ingestion_job_summary_entities = [
+            ingestion_job_summary.model_dump(exclude={"task_summaries"})
+        ]
+        task_summary_entities = []
+        for task_summary in ingestion_job_summary.task_summaries:
+            task_summary_entities.append(
+                {
+                    **task_summary.model_dump(),
+                    "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
+                }
+            )
+
+        with self.session_provider.engine.connect() as connection:
+            try:
+                self._upsert(
+                    connection,
+                    ingestion_job_summary_table,
+                    ingestion_job_summary_entities,
+                )
+                if task_summary_entities:
+                    self._upsert(connection, task_summary_table, task_summary_entities)
+            except Exception:
+                connection.rollback()
+                raise
+            else:
+                connection.commit()
+
+    def load_ingestion_job_summaries(self) -> list[IngestionJobSummary]:
+        ingestion_job_summary_ids = [
+            row.ingestion_job_summary_id
+            for row in self.session.query(
+                ingestion_job_summary_table.c.ingestion_job_summary_id
+            )
+        ]
+
+        ingestion_job_summary_rows = list(
+            self.session.query(ingestion_job_summary_table).filter(
+                ingestion_job_summary_table.c.ingestion_job_summary_id.in_(
+                    ingestion_job_summary_ids
+                )
+            )
+        )
+
+        task_summary_entities_per_job_summary = {}
+        rows = (
+            self.session.query(task_summary_table)
+            .filter(
+                task_summary_table.c.ingestion_job_summary_id.in_(
+                    ingestion_job_summary_ids
+                )
+            )
+            .order_by(task_summary_table.c.ingestion_job_summary_id)
+        )
+
+        for ingestion_job_summary_id, task_summaries_rows in itertools.groupby(
+            rows, key=lambda row: row.ingestion_job_summary_id
+        ):
+            task_summary_entities_per_job_summary[ingestion_job_summary_id] = list(
+                task_summaries_rows
+            )
+
+        ingestion_job_summaries = []
+        for ingestion_job_summary_row in ingestion_job_summary_rows:
+            task_summaries = [
+                TaskSummary.model_validate(row)
+                for row in task_summary_entities_per_job_summary.get(
+                    ingestion_job_summary_row.ingestion_job_summary_id, []
+                )
+            ]
+
+            ingestion_job_summaries.append(
+                IngestionJobSummary.model_validate(
+                    {
+                        **ingestion_job_summary_row._mapping,
+                        "task_summaries": task_summaries,
+                    }
+                )
+            )
+        return ingestion_job_summaries

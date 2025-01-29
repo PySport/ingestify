@@ -297,8 +297,8 @@ class DatasetStore:
                 )
 
             loaded_file = LoadedFile(
-                _stream=get_stream if lazy else get_stream(file),
-                **asdict(file),
+                stream_=get_stream if lazy else get_stream(file),
+                **file.model_dump(),
             )
             files[file.file_id] = loaded_file
         return FileCollection(files, auto_rewind=auto_rewind)

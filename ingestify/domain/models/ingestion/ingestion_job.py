@@ -2,6 +2,7 @@ import itertools
 import json
 import logging
 import uuid
+from enum import Enum
 from typing import Optional, Iterator
 
 from ingestify import retrieve_http
@@ -213,6 +214,9 @@ class IngestionJob:
         self, store: DatasetStore, task_executor: TaskExecutor
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
+        ingestion_job_exception = (
+            None  # Indicate if there was an exception during the IngestionJob itself
+        )
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
         # Process all items in batches. Yield a IngestionJobSummary per batch
 
@@ -230,26 +234,37 @@ class IngestionJob:
         # 1. The discover_datasets returns a list, and the entire list can be processed at once
         # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
         with ingestion_job_summary.record_timing("find_datasets"):
-            # Timing might be incorrect as it is an iterator
-            dataset_resources = self.ingestion_plan.source.find_datasets(
-                dataset_type=self.ingestion_plan.dataset_type,
-                data_spec_versions=self.selector.data_spec_versions,
-                dataset_collection_metadata=dataset_collection_metadata,
-                **self.selector.custom_attributes,
-            )
+            try:
+                dataset_resources = self.ingestion_plan.source.find_datasets(
+                    dataset_type=self.ingestion_plan.dataset_type,
+                    data_spec_versions=self.selector.data_spec_versions,
+                    dataset_collection_metadata=dataset_collection_metadata,
+                    **self.selector.custom_attributes,
+                )
+
+                # We need to include the to_batches as that will start the generator
+                batches = to_batches(dataset_resources)
+            except Exception as e:
+                logger.exception("Failed to find datasets")
+
+                ingestion_job_summary.set_exception(e)
+                yield ingestion_job_summary
+                return
 
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
-
-        batches = to_batches(dataset_resources)
 
         while True:
             try:
                 batch = next(batches)
             except StopIteration:
                 break
-            except Exception:
-                # TODO: handle exception on IngestionJob level
-                raise
+            except Exception as e:
+                logger.exception("Failed to fetch next batch")
+
+                finish_task_timer()
+                ingestion_job_summary.set_exception(e)
+                yield ingestion_job_summary
+                return
 
             dataset_identifiers = [
                 Identifier.create_from_selector(

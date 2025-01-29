@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from typing_extensions import TypedDict
 
@@ -32,7 +32,7 @@ class Revision(BaseModel):
     created_at: datetime
     description: str
     modified_files: List[File]
-    source: RevisionSource
+    source: Optional[RevisionSource]
     is_squashed: bool = False
     state: RevisionState = RevisionState.PENDING_VALIDATION
 

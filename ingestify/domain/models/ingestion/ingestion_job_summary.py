@@ -1,17 +1,24 @@
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Optional, List, TYPE_CHECKING
 from pydantic import Field
 
 from ingestify.domain import Selector, DataSpecVersionCollection
 from ingestify.domain.models.base import BaseModel
-from ingestify.domain.models.task.task_summary import TaskSummary, TaskStatus
+from ingestify.domain.models.task.task_summary import TaskSummary, TaskState
 from ingestify.domain.models.timing import Timing
 from ingestify.utils import utcnow
 
 if TYPE_CHECKING:
     from ingestify.domain.models.ingestion.ingestion_job import IngestionJob
+
+
+class IngestionJobState(str, Enum):
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"
+    FAILED = "FAILED"
 
 
 def format_duration(duration: timedelta):
@@ -30,7 +37,8 @@ class IngestionJobSummary(BaseModel):
     selector: Selector
 
     started_at: datetime = Field(default_factory=utcnow)
-    finished_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    state: IngestionJobState = IngestionJobState.RUNNING
     timings: List[Timing] = Field(default_factory=list)
     task_summaries: List[TaskSummary] = Field(default_factory=list)
 
@@ -55,8 +63,10 @@ class IngestionJobSummary(BaseModel):
     @contextmanager
     def record_timing(self, name: str):
         start = utcnow()
-        yield
-        self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
+        try:
+            yield
+        finally:
+            self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
 
     def start_timing(self, name):
         start = utcnow()
@@ -75,28 +85,36 @@ class IngestionJobSummary(BaseModel):
     def task_count(self):
         return len(self.task_summaries)
 
-    def set_finished(self):
+    def _set_ended(self):
         self.failed_tasks = len(
-            [task for task in self.task_summaries if task.status == TaskStatus.FAILED]
+            [task for task in self.task_summaries if task.state == TaskState.FAILED]
         )
         self.successful_tasks = len(
-            [task for task in self.task_summaries if task.status == TaskStatus.FINISHED]
+            [task for task in self.task_summaries if task.state == TaskState.FINISHED]
         )
         self.ignored_successful_tasks = len(
             [
                 task
                 for task in self.task_summaries
-                if task.status == TaskStatus.FINISHED_IGNORED
+                if task.state == TaskState.FINISHED_IGNORED
             ]
         )
-        self.finished_at = utcnow()
+        self.ended_at = utcnow()
+
+    def set_finished(self):
+        self.state = IngestionJobState.FINISHED
+        self._set_ended()
+
+    def set_exception(self, e: Exception):
+        self.state = IngestionJobState.FAILED
+        self._set_ended()
 
     @property
     def duration(self) -> timedelta:
-        return self.finished_at - self.started_at
+        return self.ended_at - self.started_at
 
     def output_report(self):
-        print(f"\nIngestionJobSummary finished in {format_duration(self.duration)}")
+        print(f"\nIngestionJobSummary {self.state} in {format_duration(self.duration)}")
         print("--------------------")
         print(f"  - IngestionPlan:")
         print(f"        Source: {self.source_name}")
