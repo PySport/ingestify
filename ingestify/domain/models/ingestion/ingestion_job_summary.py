@@ -9,7 +9,7 @@ from ingestify.domain import Selector, DataSpecVersionCollection
 from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.task.task_summary import TaskSummary, TaskState
 from ingestify.domain.models.timing import Timing
-from ingestify.utils import utcnow
+from ingestify.utils import utcnow, HasTiming
 
 if TYPE_CHECKING:
     from ingestify.domain.models.ingestion.ingestion_job import IngestionJob
@@ -25,7 +25,7 @@ def format_duration(duration: timedelta):
     return f"{duration.total_seconds():.2f}sec"
 
 
-class IngestionJobSummary(BaseModel):
+class IngestionJobSummary(BaseModel, HasTiming):
     ingestion_job_summary_id: str
     ingestion_job_id: str
 
@@ -39,7 +39,6 @@ class IngestionJobSummary(BaseModel):
     started_at: datetime = Field(default_factory=utcnow)
     ended_at: Optional[datetime] = None
     state: IngestionJobState = IngestionJobState.RUNNING
-    timings: List[Timing] = Field(default_factory=list)
     task_summaries: List[TaskSummary] = Field(default_factory=list)
 
     skipped_datasets: int = 0
@@ -59,22 +58,6 @@ class IngestionJobSummary(BaseModel):
             selector=ingestion_job.selector,
         )
         return cls(**args)
-
-    @contextmanager
-    def record_timing(self, name: str):
-        start = utcnow()
-        try:
-            yield
-        finally:
-            self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
-
-    def start_timing(self, name):
-        start = utcnow()
-
-        def finish():
-            self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
-
-        return finish
 
     def add_task_summaries(self, task_summaries: List[TaskSummary]):
         self.task_summaries.extend(task_summaries)
@@ -114,25 +97,27 @@ class IngestionJobSummary(BaseModel):
         return self.ended_at - self.started_at
 
     def output_report(self):
-        print(f"\nIngestionJobSummary {self.state} in {format_duration(self.duration)}")
-        print("--------------------")
-        print(f"  - IngestionPlan:")
-        print(f"        Source: {self.source_name}")
-        print(f"        Provider: {self.provider}")
-        print(f"        DatasetType: {self.dataset_type}")
-        print(f"  - Selector: {self.selector}")
-        print(f"  - Timings: ")
-        for timing in self.timings:
-            print(f"    - {timing.name}: {format_duration(timing.duration)}")
         print(
-            f"  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
+            f"\nIngestionJobSummary {self.state.value} in {format_duration(self.duration)}"
+        )
+        print("********************************")
+        print(f"*  - IngestionPlan:")
+        print(f"*        Source: {self.source_name}")
+        print(f"*        Provider: {self.provider}")
+        print(f"*        DatasetType: {self.dataset_type}")
+        print(f"*  - Selector: {self.selector}")
+        print(f"*  - Timings: ")
+        for timing in self.timings:
+            print(f"*    - {timing.name}: {format_duration(timing.duration)}")
+        print(
+            f"*  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        print(f"    - Failed tasks: {self.failed_tasks}")
-        print(f"    - Successful tasks: {self.successful_tasks}")
-        print(f"    - Successful ignored tasks: {self.ignored_successful_tasks}")
-        print(f"    - Skipped datasets: {self.skipped_datasets}")
-        print("--------------------")
+        print(f"*    - Failed tasks: {self.failed_tasks}")
+        print(f"*    - Successful tasks: {self.successful_tasks}")
+        print(f"*    - Successful ignored tasks: {self.ignored_successful_tasks}")
+        print(f"*    - Skipped datasets: {self.skipped_datasets}")
+        print("********************************")
 
     def __enter__(self):
         return self

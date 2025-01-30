@@ -5,6 +5,8 @@ import logging
 import os
 import time
 import re
+import traceback
+from contextlib import contextmanager
 from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
@@ -24,11 +26,13 @@ from typing import (
 )
 
 import cloudpickle
+from pydantic import Field
 from typing_extensions import Self
 
 
 from itertools import islice
 
+from ingestify.domain.models.timing import Timing
 
 logger = logging.getLogger(__name__)
 
@@ -221,3 +225,44 @@ def try_number(s: str):
             return float(s)
         except ValueError:
             return s
+
+
+class HasTiming:
+    """Mixin to give Pydantic models ability to time actions."""
+
+    timings: List[Timing] = Field(default_factory=list)
+
+    @contextmanager
+    def record_timing(self, description: str, metadata: dict = None) -> Timing:
+        if not metadata:
+            metadata = {}
+
+        start = utcnow()
+        try:
+            result = None
+            yield
+        except Exception as e:
+            result = {
+                "type": type(e).__name__,
+                "message": str(e),
+                "traceback": traceback.format_exc(),
+            }
+            raise e
+        finally:
+            metadata = dict(result=result, **metadata)
+            self.timings.append(
+                Timing(
+                    name=description,
+                    started_at=start,
+                    ended_at=utcnow(),
+                    metadata=metadata,
+                )
+            )
+
+    def start_timing(self, name):
+        start = utcnow()
+
+        def finish():
+            self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
+
+        return finish
