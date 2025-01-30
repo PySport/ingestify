@@ -347,6 +347,10 @@ def test_ingestion_plan_failing_job(config_file):
     assert len(items) == 1
     assert items[0].state == IngestionJobState.FAILED
 
+    # The timing of second task should contain the exception
+    assert items[0].timings[1].metadata["result"]["message"] == "some failure"
+    assert items[0].timings[1].metadata["result"]["type"] == "Exception"
+
 
 def test_change_partition_key_transformer():
     """When the partition key transformer is changed after a file is written, it

@@ -10,8 +10,7 @@ from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.identifier import Identifier
 from ingestify.domain.models.timing import Timing
 from ingestify.exceptions import IngestifyError
-from ingestify.utils import utcnow
-
+from ingestify.utils import utcnow, HasTiming
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class Operation(str, Enum):
     UPDATE = "UPDATE"
 
 
-class TaskSummary(BaseModel):
+class TaskSummary(BaseModel, HasTiming):
     task_id: str
     started_at: datetime
     operation: Operation
@@ -38,7 +37,6 @@ class TaskSummary(BaseModel):
     bytes_retrieved: int = 0
     last_modified: Optional[datetime] = None
     state: TaskState = TaskState.RUNNING
-    timings: List[Timing] = Field(default_factory=list)
 
     @field_validator("dataset_identifier", mode="before")
     @classmethod
@@ -48,27 +46,8 @@ class TaskSummary(BaseModel):
         return value
 
     def record_load_file(self, fn, metadata: dict):
-        start = utcnow()
-        try:
-            result = None
+        with self.record_timing(f"Load of {metadata.get('file_id', 'file')}", metadata):
             return fn()
-        except Exception as e:
-            result = {
-                "type": type(e).__name__,
-                "message": str(e),
-                "traceback": traceback.format_exc(),
-            }
-            raise e
-        finally:
-            metadata = dict(result=result, **metadata)
-            self.timings.append(
-                Timing(
-                    name=f"Load of {metadata.get('file_id', 'file')}",
-                    started_at=start,
-                    ended_at=utcnow(),
-                    metadata=metadata,
-                )
-            )
 
     @classmethod
     @contextmanager
