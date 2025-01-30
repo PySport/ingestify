@@ -1,6 +1,3 @@
-import abc
-import asyncio
-import inspect
 import logging
 import os
 import time
@@ -11,19 +8,7 @@ from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
 from string import Template
-from typing import (
-    Dict,
-    Generic,
-    Type,
-    TypeVar,
-    Tuple,
-    Optional,
-    Any,
-    Callable,
-    Awaitable,
-    List,
-    Iterable,
-)
+from typing import Dict, Tuple, Optional, Any, List
 
 import cloudpickle
 from pydantic import Field
@@ -233,10 +218,9 @@ class HasTiming:
     timings: List[Timing] = Field(default_factory=list)
 
     @contextmanager
-    def record_timing(self, description: str, metadata: dict = None) -> Timing:
-        if not metadata:
-            metadata = {}
-
+    def record_timing(
+        self, description: str, metadata: Optional[dict] = None
+    ) -> Timing:
         start = utcnow()
         try:
             result = None
