@@ -60,6 +60,7 @@ class Loader:
 
                     # TODO: consider making this lazy and fetch once per Source instead of
                     #       once per IngestionPlan
+                    # TODO: Log exception when `discover_selectors` fails
                     all_selectors = ingestion_plan.source.discover_selectors(
                         ingestion_plan.dataset_type
                     )
