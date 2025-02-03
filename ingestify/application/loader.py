@@ -29,7 +29,12 @@ class Loader:
     def add_ingestion_plan(self, ingestion_plan: IngestionPlan):
         self.ingestion_plans.append(ingestion_plan)
 
-    def collect_and_run(self, dry_run: bool = False, provider: Optional[str] = None):
+    def collect_and_run(
+        self,
+        dry_run: bool = False,
+        provider: Optional[str] = None,
+        source: Optional[str] = None,
+    ):
         # First collect all selectors, before discovering datasets
         selectors = {}
         for ingestion_plan in self.ingestion_plans:
@@ -39,6 +44,13 @@ class Loader:
                 if ingestion_plan.source.provider != provider:
                     logger.info(
                         f"Skipping {ingestion_plan} because provider doesn't match '{provider}'"
+                    )
+                    continue
+
+            if source is not None:
+                if ingestion_plan.source.name != source:
+                    logger.info(
+                        f"Skipping {ingestion_plan} because source doesn't match '{source}'"
                     )
                     continue
 

@@ -21,8 +21,13 @@ class IngestionEngine:
     def add_ingestion_plan(self, ingestion_plan: IngestionPlan):
         self.loader.add_ingestion_plan(ingestion_plan)
 
-    def load(self, dry_run: bool = False, provider: Optional[str] = None):
-        self.loader.collect_and_run(dry_run=dry_run, provider=provider)
+    def load(
+        self,
+        dry_run: bool = False,
+        provider: Optional[str] = None,
+        source: Optional[str] = None,
+    ):
+        self.loader.collect_and_run(dry_run=dry_run, provider=provider, source=source)
 
     def list_datasets(self, as_count: bool = False):
         """Consider moving this to DataStore"""

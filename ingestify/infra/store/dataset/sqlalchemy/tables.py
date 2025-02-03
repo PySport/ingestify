@@ -33,16 +33,16 @@ def JSONType(serializer=None, deserializer=None, base_type=JSON):
         impl = base_type
 
         def process_bind_param(self, value, dialect):
-            if serializer is not None:
+            if serializer and value is not None:
                 return serializer(value)
             return value
 
         def process_result_value(self, value, dialect):
-            if deserializer is not None:
+            if deserializer and value is not None:
                 return deserializer(value)
             return value
 
-    return _JsonType()
+    return _JsonType
 
 
 class TZDateTime(TypeDecorator):
@@ -161,14 +161,12 @@ dataset_table = Table(
     Column(
         "identifier",
         # Use JSONB when available
-        JSONType(deserializer=lambda item: Identifier(**item),).with_variant(
-            JSONType(deserializer=lambda item: Identifier(**item), base_type=JSONB),
-            "postgresql",
-        ),
+        JSON().with_variant(JSONB(), "postgresql"),
     ),
     Column("metadata", JSON),
     Column("created_at", TZDateTime(6)),
     Column("updated_at", TZDateTime(6)),
+    Column("last_modified_at", TZDateTime(6)),
 )
 
 revision_table = Table(

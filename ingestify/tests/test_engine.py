@@ -272,6 +272,8 @@ def test_engine(config_file):
     files = engine.store.load_files(datasets.first(), lazy=False)
     assert files.get_file("file1").stream.read() == b"content1"
 
+    assert dataset.last_modified_at is not None
+
 
 def test_iterator_source(config_file):
     """Test when a Source returns a Iterator to do Batch processing.

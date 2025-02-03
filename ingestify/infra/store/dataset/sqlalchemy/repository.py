@@ -320,10 +320,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         metadata_result_row = apply_query_filter(
             self.session.query(
-                func.min(file_table.c.modified_at).label("first_modified_at"),
-                func.max(file_table.c.modified_at).label("last_modified_at"),
+                func.max(dataset_table.c.last_modified_at).label("last_modified_at"),
                 func.count().label("row_count"),
-            ).join(dataset_table, dataset_table.c.dataset_id == file_table.c.dataset_id)
+            )
         ).first()
         dataset_collection_metadata = DatasetCollectionMetadata(*metadata_result_row)
 
