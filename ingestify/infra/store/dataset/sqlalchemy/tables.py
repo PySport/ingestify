@@ -16,6 +16,8 @@ from sqlalchemy import (
     TypeDecorator,
 )
 
+from sqlalchemy.dialects.postgresql import JSONB
+
 from ingestify.domain import Identifier, DataSpecVersionCollection, Selector
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobState
@@ -25,18 +27,18 @@ from ingestify.domain.models.timing import Timing
 from ingestify.domain.models.dataset.revision import RevisionState
 
 
-def JSONType(serializer=None, deserializer=None):
+def JSONType(serializer=None, deserializer=None, base_type=JSON):
     class _JsonType(TypeDecorator):
         cache_ok = True
-        impl = JSON
+        impl = base_type
 
         def process_bind_param(self, value, dialect):
-            if serializer is not None:
+            if serializer and value is not None:
                 return serializer(value)
             return value
 
         def process_result_value(self, value, dialect):
-            if deserializer is not None:
+            if deserializer and value is not None:
                 return deserializer(value)
             return value
 
@@ -152,14 +154,19 @@ dataset_table = Table(
     metadata,
     Column("bucket", String(255), default=None),
     Column("dataset_id", String(255), primary_key=True),
-    Column("provider", String(255)),
-    Column("dataset_type", String(255)),
+    Column("provider", String(255), index=True),
+    Column("dataset_type", String(255), index=True),
     Column("state", DatasetStateString),
     Column("name", String(255)),
-    Column("identifier", JSONType(deserializer=lambda item: Identifier(**item))),
+    Column(
+        "identifier",
+        # Use JSONB when available
+        JSON().with_variant(JSONB(), "postgresql"),
+    ),
     Column("metadata", JSON),
     Column("created_at", TZDateTime(6)),
     Column("updated_at", TZDateTime(6)),
+    Column("last_modified_at", TZDateTime(6)),
 )
 
 revision_table = Table(

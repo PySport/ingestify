@@ -214,9 +214,6 @@ class IngestionJob:
         self, store: DatasetStore, task_executor: TaskExecutor
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
-        ingestion_job_exception = (
-            None  # Indicate if there was an exception during the IngestionJob itself
-        )
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
         # Process all items in batches. Yield a IngestionJobSummary per batch
 
@@ -224,6 +221,7 @@ class IngestionJob:
         with ingestion_job_summary.record_timing("get_dataset_collection"):
             dataset_collection_metadata = store.get_dataset_collection(
                 dataset_type=self.ingestion_plan.dataset_type,
+                provider=self.ingestion_plan.source.provider,
                 data_spec_versions=self.selector.data_spec_versions,
                 selector=self.selector,
                 metadata_only=True,
@@ -233,8 +231,8 @@ class IngestionJob:
         # There are two different, but similar flows here:
         # 1. The discover_datasets returns a list, and the entire list can be processed at once
         # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
-        with ingestion_job_summary.record_timing("find_datasets"):
-            try:
+        try:
+            with ingestion_job_summary.record_timing("find_datasets"):
                 dataset_resources = self.ingestion_plan.source.find_datasets(
                     dataset_type=self.ingestion_plan.dataset_type,
                     data_spec_versions=self.selector.data_spec_versions,
@@ -244,12 +242,12 @@ class IngestionJob:
 
                 # We need to include the to_batches as that will start the generator
                 batches = to_batches(dataset_resources)
-            except Exception as e:
-                logger.exception("Failed to find datasets")
+        except Exception as e:
+            logger.exception("Failed to find datasets")
 
-                ingestion_job_summary.set_exception(e)
-                yield ingestion_job_summary
-                return
+            ingestion_job_summary.set_exception(e)
+            yield ingestion_job_summary
+            return
 
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
 

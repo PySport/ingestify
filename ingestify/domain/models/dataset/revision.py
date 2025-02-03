@@ -37,6 +37,10 @@ class Revision(BaseModel):
     state: RevisionState = RevisionState.PENDING_VALIDATION
 
     @property
+    def last_modified_at(self):
+        return max(file.modified_at for file in self.modified_files)
+
+    @property
     def modified_files_map(self) -> Dict[str, File]:
         return {file.file_id: file for file in self.modified_files}
 

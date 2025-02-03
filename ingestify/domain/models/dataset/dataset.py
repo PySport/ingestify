@@ -22,7 +22,10 @@ class Dataset(BaseModel):
     metadata: dict
     created_at: datetime
     updated_at: datetime
+
     revisions: List[Revision] = Field(default_factory=list)
+    # The last_modified_at is equal to the max modified_at of all files in all revisions
+    last_modified_at: Optional[datetime]
 
     @field_validator("identifier", mode="before")
     @classmethod
@@ -41,6 +44,13 @@ class Dataset(BaseModel):
     def add_revision(self, revision: Revision):
         self.revisions.append(revision)
         self.updated_at = utcnow()
+
+        if self.last_modified_at:
+            self.last_modified_at = max(
+                self.last_modified_at, revision.last_modified_at
+            )
+        else:
+            self.last_modified_at = revision.last_modified_at
 
     def update_metadata(self, name: str, metadata: dict, state: DatasetState) -> bool:
         changed = False

@@ -270,6 +270,7 @@ class DatasetStore:
             metadata=metadata,
             created_at=now,
             updated_at=now,
+            last_modified_at=None,  # Not known at this moment
         )
         revision = self.add_revision(dataset, files, revision_source, description)
 

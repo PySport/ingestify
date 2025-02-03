@@ -272,6 +272,8 @@ def test_engine(config_file):
     files = engine.store.load_files(datasets.first(), lazy=False)
     assert files.get_file("file1").stream.read() == b"content1"
 
+    assert dataset.last_modified_at is not None
+
 
 def test_iterator_source(config_file):
     """Test when a Source returns a Iterator to do Batch processing.
@@ -346,6 +348,10 @@ def test_ingestion_plan_failing_job(config_file):
     items = engine.store.dataset_repository.load_ingestion_job_summaries()
     assert len(items) == 1
     assert items[0].state == IngestionJobState.FAILED
+
+    # The timing of second task should contain the exception
+    assert items[0].timings[1].metadata["result"]["message"] == "some failure"
+    assert items[0].timings[1].metadata["result"]["type"] == "Exception"
 
 
 def test_change_partition_key_transformer():

@@ -58,7 +58,14 @@ def cli():
     help="bucket",
     type=str,
 )
-@click.option("--debug", "debug", required=False, help="Debugging enabled", type=bool)
+@click.option(
+    "--debug",
+    "debug",
+    required=False,
+    help="Debugging enabled",
+    is_flag=True,
+    type=bool,
+)
 @click.option(
     "--dry-run",
     "dry_run",
@@ -74,11 +81,19 @@ def cli():
     help="Provider - only run tasks for a single provider",
     type=str,
 )
+@click.option(
+    "--source",
+    "source",
+    required=False,
+    help="Source - only run tasks for a single source",
+    type=str,
+)
 def run(
     config_file: str,
     bucket: Optional[str],
     dry_run: Optional[bool],
     provider: Optional[str],
+    source: Optional[str],
     debug: Optional[bool],
 ):
     try:
@@ -90,7 +105,10 @@ def run(
             logger.exception(f"Failed due a configuration error: {e}")
             sys.exit(1)
 
-    engine.load(dry_run=dry_run, provider=provider)
+    if debug:
+        logging.getLogger("root").setLevel(logging.DEBUG)
+
+    engine.load(dry_run=dry_run, provider=provider, source=source)
 
     logger.info("Done")
 
