@@ -158,17 +158,13 @@ dataset_table = Table(
     Column("dataset_type", String(255), index=True),
     Column("state", DatasetStateString),
     Column("name", String(255)),
-    Column("identifier",
+    Column(
+        "identifier",
         # Use JSONB when available
-        JSONType(
-            deserializer=lambda item: Identifier(**item),
-        ).with_variant(
-            JSONType(
-                deserializer=lambda item: Identifier(**item),
-                base_type=JSONB
-            ),
-            "postgresql"
-        )
+        JSONType(deserializer=lambda item: Identifier(**item),).with_variant(
+            JSONType(deserializer=lambda item: Identifier(**item), base_type=JSONB),
+            "postgresql",
+        ),
     ),
     Column("metadata", JSON),
     Column("created_at", TZDateTime(6)),
