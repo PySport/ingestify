@@ -221,6 +221,7 @@ class IngestionJob:
         with ingestion_job_summary.record_timing("get_dataset_collection"):
             dataset_collection_metadata = store.get_dataset_collection(
                 dataset_type=self.ingestion_plan.dataset_type,
+                provider=self.ingestion_plan.source.provider,
                 data_spec_versions=self.selector.data_spec_versions,
                 selector=self.selector,
                 metadata_only=True,

@@ -84,6 +84,11 @@ class IngestionJobSummary(BaseModel, HasTiming):
         )
         self.ended_at = utcnow()
 
+        # Only keep failed tasks. Rest isn't interesting
+        self.task_summaries = [
+            task for task in self.task_summaries if task.state == TaskState.FAILED
+        ]
+
     def set_finished(self):
         self.state = IngestionJobState.FINISHED
         self._set_ended()

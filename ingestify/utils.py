@@ -221,6 +221,9 @@ class HasTiming:
     def record_timing(
         self, description: str, metadata: Optional[dict] = None
     ) -> Timing:
+        if not metadata:
+            metadata = {}
+
         start = utcnow()
         try:
             result = None
