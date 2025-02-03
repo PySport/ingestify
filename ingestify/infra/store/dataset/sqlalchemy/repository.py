@@ -1,32 +1,31 @@
 import itertools
-import json
 import uuid
-from collections import defaultdict
 from typing import Optional, Union, List
 
 from sqlalchemy import (
     create_engine,
     func,
     text,
-    tuple_,
     Table,
-    insert,
-    Transaction,
     Connection,
+    union_all,
+    literal,
+    select,
+    and_,
+    Column,
+    or_,
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ingestify.domain import File, Revision
 from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
     DatasetRepository,
-    Identifier,
     Selector,
 )
-from ingestify.domain.models.base import BaseModel
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
@@ -127,6 +126,10 @@ class SqlAlchemySessionProvider:
         return self.session
 
 
+def in_(column: Column, values):
+    return or_(*[column == value for value in values])
+
+
 class SqlAlchemyDatasetRepository(DatasetRepository):
     def __init__(self, session_provider: SqlAlchemySessionProvider):
         self.session_provider = session_provider
@@ -169,11 +172,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
     ):
-        query = query.filter(dataset_table.c.bucket == bucket)
-        if dataset_type:
-            query = query.filter(dataset_table.c.dataset_type == dataset_type)
-        if provider:
-            query = query.filter(dataset_table.c.provider == provider)
         if dataset_id is not None:
             if isinstance(dataset_id, list):
                 if len(dataset_id) == 0:
@@ -181,7 +179,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     # return an empty DatasetCollection
                     return DatasetCollection()
 
-                query = query.filter(dataset_table.c.dataset_id.in_(dataset_id))
+                query = query.filter(in_(dataset_table.c.dataset_id, dataset_id))
             else:
                 query = query.filter(dataset_table.c.dataset_id == dataset_id)
 
@@ -201,13 +199,25 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not selectors:
                 raise ValueError("Selectors must contain at least one item")
 
-            keys = list(selectors[0].filtered_attributes.keys())
+            attribute_keys = selectors[
+                0
+            ].filtered_attributes.keys()  # Assume all selectors have the same keys
+            attribute_sets = {
+                tuple(selector.filtered_attributes.items()) for selector in selectors
+            }
 
-            columns = []
+            # Define a virtual table using a CTE for all attributes
+            attribute_cte = union_all(
+                *[
+                    select(*(literal(value).label(key) for key, value in attr_set))
+                    for attr_set in attribute_sets
+                ]
+            ).cte("attributes")
+
+            keys = list(selectors[0].filtered_attributes.keys())
             first_selector = selectors[0].filtered_attributes
 
-            # Create a query like this:
-            #  SELECT * FROM dataset WHERE (column1, column2, column3) IN ((1, 2, 3), (4, 5, 6), (7, 8, 9))
+            join_conditions = []
             for k in keys:
                 if dialect == "postgresql":
                     column = dataset_table.c.identifier[k]
@@ -215,25 +225,28 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     # Take the value from the first selector to determine the type.
                     # TODO: check all selectors to determine the type
                     v = first_selector[k]
-                    if isint(v):
+                    if isinstance(v, int):
                         column = column.as_integer()
-                    elif isfloat(v):
-                        column = column.as_float()
                     else:
                         column = column.as_string()
                 else:
                     column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
-                columns.append(column)
 
-            values = []
-            for selector in selectors:
-                filtered_attributes = selector.filtered_attributes
-                values.append(tuple([filtered_attributes[k] for k in keys]))
+                join_conditions.append(attribute_cte.c[k] == column)
 
-            query = query.filter(tuple_(*columns).in_(values))
+            query = query.select_from(
+                dataset_table.join(attribute_cte, and_(*join_conditions))
+            )
 
         if where:
             query = query.filter(text(where))
+
+        query = query.filter(dataset_table.c.bucket == bucket)
+        if dataset_type:
+            query = query.filter(dataset_table.c.dataset_type == dataset_type)
+        if provider:
+            query = query.filter(dataset_table.c.provider == provider)
+
         return query
 
     def load_datasets(self, dataset_ids: list[str]) -> list[Dataset]:
@@ -242,13 +255,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         dataset_rows = list(
             self.session.query(dataset_table).filter(
-                dataset_table.c.dataset_id.in_(dataset_ids)
+                in_(dataset_table.c.dataset_id, dataset_ids)
             )
         )
         revisions_per_dataset = {}
         rows = (
             self.session.query(revision_table)
-            .filter(revision_table.c.dataset_id.in_(dataset_ids))
+            .filter(in_(revision_table.c.dataset_id, dataset_ids))
             .order_by(revision_table.c.dataset_id)
         )
 
@@ -260,7 +273,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         files_per_revision = {}
         rows = (
             self.session.query(file_table)
-            .filter(file_table.c.dataset_id.in_(dataset_ids))
+            .filter(in_(file_table.c.dataset_id, dataset_ids))
             .order_by(file_table.c.dataset_id, file_table.c.revision_id)
         )
 

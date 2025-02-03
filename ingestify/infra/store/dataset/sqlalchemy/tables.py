@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Table,
     TypeDecorator,
+    Index,
 )
 
 from sqlalchemy.dialects.postgresql import JSONB
@@ -167,6 +168,15 @@ dataset_table = Table(
     Column("created_at", TZDateTime(6)),
     Column("updated_at", TZDateTime(6)),
     Column("last_modified_at", TZDateTime(6)),
+    # Required for performance querying when there are a lot of Datasets
+    # with the same provider and dataset_type
+    Index(
+        "idx_bucket_type_provider_last_modified",
+        "bucket",
+        "provider",
+        "dataset_type",
+        "last_modified_at",
+    ),
 )
 
 revision_table = Table(
