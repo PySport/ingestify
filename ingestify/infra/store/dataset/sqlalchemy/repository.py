@@ -1,4 +1,5 @@
 import itertools
+import logging
 import uuid
 from typing import Optional, Union, List
 
@@ -17,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Query
 
 from ingestify.domain import File, Revision
 from ingestify.domain.models import (
@@ -41,6 +42,8 @@ from .tables import (
     ingestion_job_summary_table,
     task_summary_table,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def parse_value(v):
@@ -199,9 +202,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not selectors:
                 raise ValueError("Selectors must contain at least one item")
 
-            attribute_keys = selectors[
-                0
-            ].filtered_attributes.keys()  # Assume all selectors have the same keys
             attribute_sets = {
                 tuple(selector.filtered_attributes.items()) for selector in selectors
             }
@@ -303,6 +303,12 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             )
         return datasets
 
+    def _debug_query(self, q: Query):
+        text_ = q.statement.compile(
+            compile_kwargs={"literal_binds": True}, dialect=self.session.bind.dialect
+        )
+        logger.debug(f"Running query: {text_}")
+
     def get_dataset_collection(
         self,
         bucket: str,
@@ -326,18 +332,33 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             dataset_query = apply_query_filter(
                 self.session.query(dataset_table.c.dataset_id)
             )
+            self._debug_query(dataset_query)
             dataset_ids = [row.dataset_id for row in dataset_query]
             datasets = self.load_datasets(dataset_ids)
+
+            dataset_collection_metadata = DatasetCollectionMetadata(
+                last_modified=max(dataset.last_modified_at for dataset in datasets)
+                if datasets
+                else None,
+                row_count=len(datasets),
+            )
         else:
             datasets = []
 
-        metadata_result_row = apply_query_filter(
-            self.session.query(
-                func.max(dataset_table.c.last_modified_at).label("last_modified_at"),
-                func.count().label("row_count"),
+            metadata_result_query = apply_query_filter(
+                self.session.query(
+                    func.max(dataset_table.c.last_modified_at).label(
+                        "last_modified_at"
+                    ),
+                    func.count().label("row_count"),
+                )
             )
-        ).first()
-        dataset_collection_metadata = DatasetCollectionMetadata(*metadata_result_row)
+
+            self._debug_query(metadata_result_query)
+
+            dataset_collection_metadata = DatasetCollectionMetadata(
+                *metadata_result_query.first()
+            )
 
         return DatasetCollection(dataset_collection_metadata, datasets)
 

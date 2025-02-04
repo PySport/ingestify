@@ -88,6 +88,14 @@ def cli():
     help="Source - only run tasks for a single source",
     type=str,
 )
+@click.option(
+    "--disable-events",
+    "disable_events",
+    required=False,
+    help="Disable events - disable all event handlers",
+    is_flag=True,
+    type=bool,
+)
 def run(
     config_file: str,
     bucket: Optional[str],
@@ -95,9 +103,10 @@ def run(
     provider: Optional[str],
     source: Optional[str],
     debug: Optional[bool],
+    disable_events: Optional[bool],
 ):
     try:
-        engine = get_engine(config_file, bucket)
+        engine = get_engine(config_file, bucket, disable_events=disable_events)
     except ConfigurationError as e:
         if debug:
             raise

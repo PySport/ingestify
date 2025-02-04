@@ -66,7 +66,7 @@ class IngestionJobSummary(BaseModel, HasTiming):
         self.skipped_datasets += skipped_datasets
 
     def task_count(self):
-        return len(self.task_summaries)
+        return len(self.task_summaries) + self.skipped_datasets
 
     def _set_ended(self):
         self.failed_tasks = len(
@@ -106,22 +106,22 @@ class IngestionJobSummary(BaseModel, HasTiming):
             f"\nIngestionJobSummary {self.state.value} in {format_duration(self.duration)}"
         )
         print("********************************")
-        print(f"*  - IngestionPlan:")
-        print(f"*        Source: {self.source_name}")
-        print(f"*        Provider: {self.provider}")
-        print(f"*        DatasetType: {self.dataset_type}")
-        print(f"*  - Selector: {self.selector}")
-        print(f"*  - Timings: ")
+        print(f" - IngestionPlan:")
+        print(f"       Source: {self.source_name}")
+        print(f"       Provider: {self.provider}")
+        print(f"       DatasetType: {self.dataset_type}")
+        print(f" - Selector: {self.selector}")
+        print(f" - Timings: ")
         for timing in self.timings:
-            print(f"*    - {timing.name}: {format_duration(timing.duration)}")
+            print(f"   - {timing.name}: {format_duration(timing.duration)}")
         print(
-            f"*  - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
+            f" - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
-        print(f"*    - Failed tasks: {self.failed_tasks}")
-        print(f"*    - Successful tasks: {self.successful_tasks}")
-        print(f"*    - Successful ignored tasks: {self.ignored_successful_tasks}")
-        print(f"*    - Skipped datasets: {self.skipped_datasets}")
+        print(f"   - Failed tasks: {self.failed_tasks}")
+        print(f"   - Successful tasks: {self.successful_tasks}")
+        print(f"   - Successful ignored tasks: {self.ignored_successful_tasks}")
+        print(f"   - Skipped datasets: {self.skipped_datasets}")
         print("********************************")
 
     def __enter__(self):
