@@ -15,6 +15,7 @@ from sqlalchemy import (
     and_,
     Column,
     or_,
+    Dialect,
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
@@ -143,7 +144,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         return self.session_provider.get()
 
     @property
-    def dialect(self):
+    def dialect(self) -> Dialect:
         return self.session_provider.dialect
 
     def _upsert(self, connection: Connection, table: Table, entities: list[dict]):
@@ -191,7 +192,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             else:
                 query = query.filter(dataset_table.c.dataset_id == dataset_id)
 
-        dialect = self.dialect
+        dialect = self.dialect.name
 
         if not isinstance(selector, list):
             where, selector = selector.split("where")
@@ -310,7 +311,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def _debug_query(self, q: Query):
         text_ = q.statement.compile(
-            compile_kwargs={"literal_binds": True}, dialect=self.session.bind.dialect
+            compile_kwargs={"literal_binds": True}, dialect=self.dialect
         )
         logger.debug(f"Running query: {text_}")
 
