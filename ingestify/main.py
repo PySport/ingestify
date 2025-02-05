@@ -182,7 +182,9 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
     return import_cls(key)
 
 
-def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
+def get_engine(
+    config_file, bucket: Optional[str] = None, disable_events: bool = False
+) -> IngestionEngine:
     config = parse_config(config_file, default_value="")
 
     logger.info("Initializing sources")
@@ -201,11 +203,16 @@ def get_engine(config_file, bucket: Optional[str] = None) -> IngestionEngine:
 
     # Setup an EventBus and wire some more components
     event_bus = EventBus()
-    publisher = Publisher()
-    for subscriber in config.get("event_subscribers", []):
-        cls = get_event_subscriber_cls(subscriber["type"])
-        publisher.add_subscriber(cls(store))
-    event_bus.register(publisher)
+    if not disable_events:
+        # When we disable all events we don't register any publishers
+        publisher = Publisher()
+        for subscriber in config.get("event_subscribers", []):
+            cls = get_event_subscriber_cls(subscriber["type"])
+            publisher.add_subscriber(cls(store))
+        event_bus.register(publisher)
+    else:
+        logger.info("Disabling all event handlers")
+
     store.set_event_bus(event_bus)
 
     ingestion_engine = IngestionEngine(

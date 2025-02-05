@@ -35,11 +35,8 @@ class Loader:
         provider: Optional[str] = None,
         source: Optional[str] = None,
     ):
-        # First collect all selectors, before discovering datasets
-        selectors = {}
+        ingestion_plans = []
         for ingestion_plan in self.ingestion_plans:
-            logger.info(f"Determining selectors for {ingestion_plan}")
-
             if provider is not None:
                 if ingestion_plan.source.provider != provider:
                     logger.info(
@@ -53,6 +50,13 @@ class Loader:
                         f"Skipping {ingestion_plan} because source doesn't match '{source}'"
                     )
                     continue
+
+            ingestion_plans.append(ingestion_plan)
+
+        # First collect all selectors, before discovering datasets
+        selectors = {}
+        for ingestion_plan in ingestion_plans:
+            logger.info(f"Determining selectors for {ingestion_plan}")
 
             static_selectors = [
                 selector

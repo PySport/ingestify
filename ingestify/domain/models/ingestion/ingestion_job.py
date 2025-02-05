@@ -218,7 +218,7 @@ class IngestionJob:
         # Process all items in batches. Yield a IngestionJobSummary per batch
 
         logger.info("Finding metadata")
-        with ingestion_job_summary.record_timing("get_dataset_collection"):
+        with ingestion_job_summary.record_timing("get_dataset_collection_metadata"):
             dataset_collection_metadata = store.get_dataset_collection(
                 dataset_type=self.ingestion_plan.dataset_type,
                 provider=self.ingestion_plan.source.provider,
@@ -232,6 +232,7 @@ class IngestionJob:
         # 1. The discover_datasets returns a list, and the entire list can be processed at once
         # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
         try:
+            logger.info(f"Finding datasets for selector={self.selector}")
             with ingestion_job_summary.record_timing("find_datasets"):
                 dataset_resources = self.ingestion_plan.source.find_datasets(
                     dataset_type=self.ingestion_plan.dataset_type,
@@ -248,6 +249,8 @@ class IngestionJob:
             ingestion_job_summary.set_exception(e)
             yield ingestion_job_summary
             return
+
+        logger.info("Starting tasks")
 
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
 
@@ -273,13 +276,16 @@ class IngestionJob:
                 for dataset_resource in batch
             ]
 
-            # Load all available datasets based on the discovered dataset identifiers
-            dataset_collection = store.get_dataset_collection(
-                dataset_type=self.ingestion_plan.dataset_type,
-                # Assume all DatasetResources share the same provider
-                provider=batch[0].provider,
-                selector=dataset_identifiers,
-            )
+            logger.info(f"Searching for existing Datasets for DatasetResources")
+
+            with ingestion_job_summary.record_timing("get_dataset_collection"):
+                # Load all available datasets based on the discovered dataset identifiers
+                dataset_collection = store.get_dataset_collection(
+                    dataset_type=self.ingestion_plan.dataset_type,
+                    # Assume all DatasetResources share the same provider
+                    provider=batch[0].provider,
+                    selector=dataset_identifiers,
+                )
 
             skipped_datasets = 0
 
