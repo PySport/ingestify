@@ -15,6 +15,7 @@ from sqlalchemy import (
     and_,
     Column,
     or_,
+    Dialect,
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
@@ -96,6 +97,7 @@ class SqlAlchemySessionProvider:
             # Use the default isolation level, don't need SERIALIZABLE
             # isolation_level="SERIALIZABLE",
         )
+        self.dialect = self.engine.dialect
         self.session = Session(bind=self.engine)
 
     def __init__(self, url: str):
@@ -113,17 +115,17 @@ class SqlAlchemySessionProvider:
         self.url = state["url"]
         self._init_engine()
 
-    def _close_engine(self):
+    def __del__(self):
+        self.close()
+
+    def reset(self):
+        self.close()
+        self._init_engine()
+
+    def close(self):
         if hasattr(self, "session"):
             self.session.close()
             self.engine.dispose()
-
-    def __del__(self):
-        self._close_engine()
-
-    def reset(self):
-        self._close_engine()
-        self._init_engine()
 
     def get(self):
         return self.session
@@ -141,8 +143,12 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def session(self):
         return self.session_provider.get()
 
+    @property
+    def dialect(self) -> Dialect:
+        return self.session_provider.dialect
+
     def _upsert(self, connection: Connection, table: Table, entities: list[dict]):
-        dialect = self.session.bind.dialect.name
+        dialect = self.dialect.name
         if dialect == "mysql":
             from sqlalchemy.dialects.mysql import insert
         elif dialect == "postgresql":
@@ -186,7 +192,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             else:
                 query = query.filter(dataset_table.c.dataset_id == dataset_id)
 
-        dialect = self.session.bind.dialect.name
+        dialect = self.dialect.name
 
         if not isinstance(selector, list):
             where, selector = selector.split("where")
@@ -249,7 +255,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         return query
 
-    def load_datasets(self, dataset_ids: list[str]) -> list[Dataset]:
+    def _load_datasets(self, dataset_ids: list[str]) -> list[Dataset]:
         if not dataset_ids:
             return []
 
@@ -305,7 +311,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def _debug_query(self, q: Query):
         text_ = q.statement.compile(
-            compile_kwargs={"literal_binds": True}, dialect=self.session.bind.dialect
+            compile_kwargs={"literal_binds": True}, dialect=self.dialect
         )
         logger.debug(f"Running query: {text_}")
 
@@ -328,37 +334,40 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 selector=selector,
             )
 
-        if not metadata_only:
-            dataset_query = apply_query_filter(
-                self.session.query(dataset_table.c.dataset_id)
-            )
-            self._debug_query(dataset_query)
-            dataset_ids = [row.dataset_id for row in dataset_query]
-            datasets = self.load_datasets(dataset_ids)
+        with self.session:
+            # Use a contextmanager to make sure it's closed afterwards
 
-            dataset_collection_metadata = DatasetCollectionMetadata(
-                last_modified=max(dataset.last_modified_at for dataset in datasets)
-                if datasets
-                else None,
-                row_count=len(datasets),
-            )
-        else:
-            datasets = []
-
-            metadata_result_query = apply_query_filter(
-                self.session.query(
-                    func.max(dataset_table.c.last_modified_at).label(
-                        "last_modified_at"
-                    ),
-                    func.count().label("row_count"),
+            if not metadata_only:
+                dataset_query = apply_query_filter(
+                    self.session.query(dataset_table.c.dataset_id)
                 )
-            )
+                self._debug_query(dataset_query)
+                dataset_ids = [row.dataset_id for row in dataset_query]
+                datasets = self._load_datasets(dataset_ids)
 
-            self._debug_query(metadata_result_query)
+                dataset_collection_metadata = DatasetCollectionMetadata(
+                    last_modified=max(dataset.last_modified_at for dataset in datasets)
+                    if datasets
+                    else None,
+                    row_count=len(datasets),
+                )
+            else:
+                datasets = []
 
-            dataset_collection_metadata = DatasetCollectionMetadata(
-                *metadata_result_query.first()
-            )
+                metadata_result_query = apply_query_filter(
+                    self.session.query(
+                        func.max(dataset_table.c.last_modified_at).label(
+                            "last_modified_at"
+                        ),
+                        func.count().label("row_count"),
+                    )
+                )
+
+                self._debug_query(metadata_result_query)
+
+                dataset_collection_metadata = DatasetCollectionMetadata(
+                    *metadata_result_query.first()
+                )
 
         return DatasetCollection(dataset_collection_metadata, datasets)
 
@@ -370,6 +379,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     def connect(self):
         return self.session_provider.engine.connect()
+
+    def __del__(self):
+        self.session_provider.close()
 
     def _save(self, datasets: list[Dataset]):
         """Only do upserts. Never delete. Rows get only deleted when an entire Dataset is removed."""
