@@ -3,6 +3,7 @@ import os
 import time
 import re
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from multiprocessing import get_context, cpu_count, get_all_start_methods
 
@@ -137,69 +138,71 @@ def map_in_pool(func, iterable, processes=0):
         )
 
 
-class SyncPool:
+class SyncExecutor:
     def map(self, func, iterable):
         return [func(item) for item in iterable]
-
-    def join(self):
-        return True
-
-    def close(self):
-        return True
-
-
-class DummyPool:
-    def map(self, func, iterable):
-        logger.info(f"DummyPool: not running {len(list(iterable))} tasks")
-        return None
-
-    def join(self):
-        return True
-
-    def close(self):
-        return True
-
-
-class TaskExecutor:
-    def __init__(self, processes=0, dry_run: bool = False):
-        if dry_run:
-            pool = DummyPool()
-        elif os.environ.get("INGESTIFY_RUN_EAGER") == "true":
-            pool = SyncPool()
-        else:
-            if not processes:
-                processes = int(os.environ.get("INGESTIFY_CONCURRENCY", "0"))
-
-            if "fork" in get_all_start_methods():
-                ctx = get_context("fork")
-            else:
-                ctx = get_context("spawn")
-
-            pool = ctx.Pool(processes or cpu_count())
-        self.pool = pool
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.join()
+        pass
+
+
+class DummyExecutor:
+    def map(self, func, iterable):
+        logger.info(f"DummyPool: not running {len(list(iterable))} tasks")
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class TaskExecutor:
+    def __init__(self, processes=0, dry_run: bool = False):
+        if dry_run:
+            executor = DummyExecutor()
+        elif os.environ.get("INGESTIFY_RUN_EAGER") == "true":
+            executor = SyncExecutor()
+        else:
+            if not processes:
+                processes = get_concurrency()
+
+            # if "fork" in get_all_start_methods():
+            #     ctx = get_context("fork")
+            # else:
+            #     ctx = get_context("spawn")
+
+            # pool = ctx.Pool(processes or cpu_count())
+
+            executor = ThreadPoolExecutor(max_workers=processes)
+
+        self.executor = executor
+
+    def __enter__(self):
+        self.executor.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.executor.__exit__(exc_type, exc_val, exc_tb)
 
     def run(self, func, iterable):
-        wrapped_fn = cloudpickle.dumps(func)
+        # If multiprocessing
+        # wrapped_fn = cloudpickle.dumps(func)
+        # res = self.executor.map(
+        #     cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
+        # )
         start_time = time.time()
-        res = self.pool.map(
-            cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
-        )
+        res = list(self.executor.map(func, iterable))
         if res:
             took = time.time() - start_time
             logger.info(
                 f"Finished {len(res)} tasks in {took:.1f} seconds. {(len(res)/took):.1f} tasks/sec"
             )
         return res
-
-    def join(self):
-        self.pool.close()
-        self.pool.join()
 
 
 def try_number(s: str):
@@ -253,3 +256,10 @@ class HasTiming:
             self.timings.append(Timing(name=name, started_at=start, ended_at=utcnow()))
 
         return finish
+
+
+def get_concurrency():
+    concurrency = int(os.environ.get("INGESTIFY_CONCURRENCY", "0"))
+    if not concurrency:
+        concurrency = min(32, (os.cpu_count() or 1) + 4)
+    return concurrency

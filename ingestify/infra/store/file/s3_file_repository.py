@@ -2,9 +2,11 @@ from pathlib import Path
 from typing import BinaryIO
 
 import boto3 as boto3
+import botocore.config
 
 from ingestify.domain import Dataset
 from ingestify.domain.models import FileRepository
+from ingestify.utils import get_concurrency
 
 
 class S3FileRepository(FileRepository):
@@ -13,7 +15,10 @@ class S3FileRepository(FileRepository):
     @property
     def s3(self):
         if not self._s3:
-            self._s3 = boto3.resource("s3")
+            client_config = botocore.config.Config(
+                max_pool_connections=get_concurrency(),
+            )
+            self._s3 = boto3.resource("s3", config=client_config)
         return self._s3
 
     def __getstate__(self):
