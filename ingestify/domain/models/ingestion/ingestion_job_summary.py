@@ -41,7 +41,8 @@ class IngestionJobSummary(BaseModel, HasTiming):
     state: IngestionJobState = IngestionJobState.RUNNING
     task_summaries: List[TaskSummary] = Field(default_factory=list)
 
-    skipped_datasets: int = 0
+    total_tasks: int = 0
+    skipped_tasks: int = 0
     failed_tasks: int = 0
     successful_tasks: int = 0
     ignored_successful_tasks: int = 0
@@ -62,11 +63,11 @@ class IngestionJobSummary(BaseModel, HasTiming):
     def add_task_summaries(self, task_summaries: List[TaskSummary]):
         self.task_summaries.extend(task_summaries)
 
-    def increase_skipped_datasets(self, skipped_datasets: int):
-        self.skipped_datasets += skipped_datasets
+    def increase_skipped_tasks(self, skipped_tasks: int):
+        self.skipped_tasks += skipped_tasks
 
     def task_count(self):
-        return len(self.task_summaries) + self.skipped_datasets
+        return len(self.task_summaries) + self.skipped_tasks
 
     def _set_ended(self):
         self.failed_tasks = len(
@@ -81,6 +82,12 @@ class IngestionJobSummary(BaseModel, HasTiming):
                 for task in self.task_summaries
                 if task.state == TaskState.FINISHED_IGNORED
             ]
+        )
+        self.total_tasks = (
+            self.failed_tasks
+            + self.successful_tasks
+            + self.ignored_successful_tasks
+            + self.skipped_tasks
         )
         self.ended_at = utcnow()
 
@@ -115,13 +122,13 @@ class IngestionJobSummary(BaseModel, HasTiming):
         for timing in self.timings:
             print(f"   - {timing.name}: {format_duration(timing.duration)}")
         print(
-            f" - Tasks: {len(self.task_summaries)} - {(len(self.task_summaries) / self.duration.total_seconds()):.1f} tasks/sec"
+            f" - Tasks: {self.total_tasks} - {(self.total_tasks / self.duration.total_seconds()):.1f} tasks/sec"
         )
 
         print(f"   - Failed tasks: {self.failed_tasks}")
         print(f"   - Successful tasks: {self.successful_tasks}")
         print(f"   - Successful ignored tasks: {self.ignored_successful_tasks}")
-        print(f"   - Skipped datasets: {self.skipped_datasets}")
+        print(f"   - Skipped datasets: {self.skipped_tasks}")
         print("********************************")
 
     def __enter__(self):

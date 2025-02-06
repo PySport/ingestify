@@ -287,7 +287,7 @@ class IngestionJob:
                     selector=dataset_identifiers,
                 )
 
-            skipped_datasets = 0
+            skipped_tasks = 0
 
             task_set = TaskSet()
             for dataset_resource in batch:
@@ -307,7 +307,7 @@ class IngestionJob:
                             )
                         )
                     else:
-                        skipped_datasets += 1
+                        skipped_tasks += 1
                 else:
                     if self.ingestion_plan.fetch_policy.should_fetch(dataset_resource):
                         task_set.add(
@@ -317,12 +317,12 @@ class IngestionJob:
                             )
                         )
                     else:
-                        skipped_datasets += 1
+                        skipped_tasks += 1
 
             if task_set:
                 logger.info(
                     f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                    f"using selector {self.selector} => {len(task_set)} tasks. {skipped_datasets} skipped."
+                    f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
                 )
                 logger.info(f"Running {len(task_set)} tasks")
                 ingestion_job_summary.add_task_summaries(
@@ -334,7 +334,7 @@ class IngestionJob:
                     f"using selector {self.selector} => nothing to do"
                 )
 
-            ingestion_job_summary.increase_skipped_datasets(skipped_datasets)
+            ingestion_job_summary.increase_skipped_tasks(skipped_tasks)
 
             if ingestion_job_summary.task_count() >= MAX_TASKS_PER_CHUNK:
                 finish_task_timer()

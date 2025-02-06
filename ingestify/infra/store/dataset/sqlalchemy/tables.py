@@ -247,9 +247,10 @@ ingestion_job_summary_table = Table(
     Column("ended_at", TZDateTime(6)),
     # Some task counters
     Column("state", IngestionJobStateString),
+    Column("total_tasks", Integer),
     Column("successful_tasks", Integer),
     Column("ignored_successful_tasks", Integer),
-    Column("skipped_datasets", Integer),
+    Column("skipped_tasks", Integer),
     Column("failed_tasks", Integer),
     Column(
         "timings",

@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
-from sqlalchemy.orm import Session, Query
+from sqlalchemy.orm import Session, Query, sessionmaker, scoped_session
 
 from ingestify.domain import File, Revision
 from ingestify.domain.models import (
@@ -34,6 +34,7 @@ from ingestify.domain.models.dataset.collection_metadata import (
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
+from ingestify.utils import get_concurrency
 
 from .tables import (
     metadata,
@@ -96,9 +97,22 @@ class SqlAlchemySessionProvider:
             self.url,
             # Use the default isolation level, don't need SERIALIZABLE
             # isolation_level="SERIALIZABLE",
+            pool_size=get_concurrency(),  # Maximum number of connections in the pool
+            max_overflow=5,
+            pool_recycle=1800,
+            pool_pre_ping=True,
         )
         self.dialect = self.engine.dialect
-        self.session = Session(bind=self.engine)
+
+        session_factory = sessionmaker(bind=self.engine)
+        self.session = scoped_session(session_factory)
+
+    def __getstate__(self):
+        return {"url": self.url}
+
+    def __setstate__(self, state):
+        self.url = state["url"]
+        self._init_engine()
 
     def __init__(self, url: str):
         url = self.fix_url(url)
@@ -108,13 +122,6 @@ class SqlAlchemySessionProvider:
 
         metadata.create_all(self.engine)
 
-    def __getstate__(self):
-        return {"url": self.url}
-
-    def __setstate__(self, state):
-        self.url = state["url"]
-        self._init_engine()
-
     def __del__(self):
         self.close()
 
@@ -123,12 +130,11 @@ class SqlAlchemySessionProvider:
         self._init_engine()
 
     def close(self):
-        if hasattr(self, "session"):
-            self.session.close()
+        if hasattr(self, "engine"):
             self.engine.dispose()
 
     def get(self):
-        return self.session
+        return self.session()
 
 
 def in_(column: Column, values):
