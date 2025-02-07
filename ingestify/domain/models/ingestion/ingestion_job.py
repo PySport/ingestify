@@ -24,7 +24,9 @@ from ingestify.utils import TaskExecutor, chunker
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_CHUNK_SIZE = 1_000
+# Decrease batch size from 1_000 to 500. The sqlalchemy repository uses
+# a compound select, which breaks at more than 500 select statements
+DEFAULT_CHUNK_SIZE = 500
 
 
 def run_task(task):
