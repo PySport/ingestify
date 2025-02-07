@@ -137,10 +137,6 @@ class SqlAlchemySessionProvider:
         return self.session()
 
 
-def in_(column: Column, values):
-    return or_(*[column == value for value in values])
-
-
 class SqlAlchemyDatasetRepository(DatasetRepository):
     def __init__(self, session_provider: SqlAlchemySessionProvider):
         self.session_provider = session_provider
@@ -194,7 +190,19 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     # return an empty DatasetCollection
                     return DatasetCollection()
 
-                query = query.filter(in_(dataset_table.c.dataset_id, dataset_id))
+                dataset_ids_cte = union_all(
+                    *[
+                        select(literal(dataset_id).label("dataset_id"))
+                        for dataset_id in set(dataset_id)
+                    ]
+                ).cte("dataset_ids")
+
+                query = query.select_from(
+                    dataset_table.join(
+                        dataset_ids_cte,
+                        dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                    )
+                )
             else:
                 query = query.filter(dataset_table.c.dataset_id == dataset_id)
 
@@ -265,15 +273,30 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         if not dataset_ids:
             return []
 
+        dataset_ids_cte = union_all(
+            *[
+                select(literal(dataset_id).label("dataset_id"))
+                for dataset_id in set(dataset_ids)
+            ]
+        ).cte("dataset_ids")
+
         dataset_rows = list(
-            self.session.query(dataset_table).filter(
-                in_(dataset_table.c.dataset_id, dataset_ids)
+            self.session.query(dataset_table).select_from(
+                dataset_table.join(
+                    dataset_ids_cte,
+                    dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                )
             )
         )
         revisions_per_dataset = {}
         rows = (
             self.session.query(revision_table)
-            .filter(in_(revision_table.c.dataset_id, dataset_ids))
+            .select_from(
+                revision_table.join(
+                    dataset_ids_cte,
+                    dataset_ids_cte.c.dataset_id == revision_table.c.dataset_id,
+                )
+            )
             .order_by(revision_table.c.dataset_id)
         )
 
@@ -285,7 +308,12 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         files_per_revision = {}
         rows = (
             self.session.query(file_table)
-            .filter(in_(file_table.c.dataset_id, dataset_ids))
+            .select_from(
+                file_table.join(
+                    dataset_ids_cte,
+                    dataset_ids_cte.c.dataset_id == file_table.c.dataset_id,
+                )
+            )
             .order_by(file_table.c.dataset_id, file_table.c.revision_id)
         )
 
