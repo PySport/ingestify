@@ -258,7 +258,8 @@ class IngestionJob:
 
         while True:
             try:
-                batch = next(batches)
+                with ingestion_job_summary.record_timing("find_datasets"):
+                    batch = next(batches)
             except StopIteration:
                 break
             except Exception as e:
