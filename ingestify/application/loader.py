@@ -155,13 +155,19 @@ class Loader:
             
             IngestionJobSummary holds the summary for an IngestionPlan and a single Selector
         """
-        for ingestion_plan, selector in selectors.values():
+
+        ingestion_job_prefix = str(uuid.uuid1())
+        for ingestion_job_idx, (ingestion_plan, selector) in enumerate(
+            selectors.values()
+        ):
             logger.info(
                 f"Discovering datasets from {ingestion_plan.source.__class__.__name__} using selector {selector}"
             )
 
             ingestion_job = IngestionJob(
-                ingestion_job_id=str(uuid.uuid1()),
+                # Create a combined IngestionJobId.
+                # This allows us to group all IngestionJobs within the same run
+                ingestion_job_id=f"{ingestion_job_prefix}.{ingestion_job_idx}",
                 ingestion_plan=ingestion_plan,
                 selector=selector,
             )

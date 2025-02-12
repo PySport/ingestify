@@ -13,9 +13,12 @@ from sqlalchemy import (
     literal,
     select,
     and_,
-    Column,
-    or_,
     Dialect,
+    values,
+    CTE,
+    column as sqlalchemy_column,
+    Integer,
+    String,
 )
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import NoSuchModuleError
@@ -174,6 +177,40 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         connection.execute(stmt)
 
+    def _build_cte_sqlite(self, records, name: str) -> CTE:
+        """SQLite has a limit of 500 compound select statements. When we have more records,
+        create a nested CTE"""
+        if len(records) > 500:
+            return union_all(
+                select(self._build_cte_sqlite(records[:500], name + "1")),
+                select(self._build_cte_sqlite(records[500:], name + "2")),
+            ).cte(name)
+
+        return union_all(
+            *[
+                select(*(literal(value).label(key) for key, value in record.items()))
+                for record in records
+            ]
+        ).cte(name)
+
+    def _build_cte(self, records: list[dict], name: str) -> CTE:
+        """Build a CTE from a list of dictionaries."""
+
+        if self.dialect.name == "sqlite":
+            return self._build_cte_sqlite(records, name)
+
+        first_row = records[0]
+        columns = []
+        for key, value in first_row.items():
+            columns.append(
+                sqlalchemy_column(key, Integer if isinstance(value, int) else String)
+            )
+
+        # Prepare the data in tuples, in same order as columns
+        data = [tuple(record[column.name] for column in columns) for record in records]
+
+        return select(values(*columns, name=name).data(data)).cte(name)
+
     def _filter_query(
         self,
         query,
@@ -190,12 +227,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     # return an empty DatasetCollection
                     return DatasetCollection()
 
-                dataset_ids_cte = union_all(
-                    *[
-                        select(literal(dataset_id).label("dataset_id"))
-                        for dataset_id in set(dataset_id)
-                    ]
-                ).cte("dataset_ids")
+                dataset_ids_cte = self._build_cte(
+                    [{"dataset_id": dataset_id} for dataset_id in set(dataset_id)],
+                    "dataset_ids",
+                )
 
                 query = query.select_from(
                     dataset_table.join(
@@ -222,17 +257,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not selectors:
                 raise ValueError("Selectors must contain at least one item")
 
-            attribute_sets = {
-                tuple(selector.filtered_attributes.items()) for selector in selectors
-            }
-
-            # Define a virtual table using a CTE for all attributes
-            attribute_cte = union_all(
-                *[
-                    select(*(literal(value).label(key) for key, value in attr_set))
-                    for attr_set in attribute_sets
-                ]
-            ).cte("attributes")
+            attribute_cte = self._build_cte(
+                [selector.filtered_attributes for selector in selectors], "attributes"
+            )
 
             keys = list(selectors[0].filtered_attributes.keys())
             first_selector = selectors[0].filtered_attributes
@@ -273,12 +300,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         if not dataset_ids:
             return []
 
-        dataset_ids_cte = union_all(
-            *[
-                select(literal(dataset_id).label("dataset_id"))
-                for dataset_id in set(dataset_ids)
-            ]
-        ).cte("dataset_ids")
+        dataset_ids_cte = self._build_cte(
+            [{"dataset_id": dataset_id} for dataset_id in set(dataset_ids)],
+            "dataset_ids",
+        )
 
         dataset_rows = list(
             self.session.query(dataset_table).select_from(

@@ -289,7 +289,7 @@ def test_iterator_source(config_file):
         datasets = engine.store.get_dataset_collection()
         assert len(datasets) == idx
 
-        if idx == 100:
+        if idx == 1000:
             batch_source.should_stop = True
 
     batch_source = BatchSource("fake-source", callback)
@@ -298,7 +298,7 @@ def test_iterator_source(config_file):
     engine.load()
 
     datasets = engine.store.get_dataset_collection()
-    assert len(datasets) == 100
+    assert len(datasets) == 1000
     for dataset in datasets:
         assert len(dataset.revisions) == 1
 
@@ -307,14 +307,14 @@ def test_iterator_source(config_file):
     batch_source.should_stop = False
 
     def callback(idx):
-        if idx == 100:
+        if idx == 1000:
             batch_source.should_stop = True
 
     batch_source.callback = callback
 
     engine.load()
     datasets = engine.store.get_dataset_collection()
-    assert len(datasets) == 100
+    assert len(datasets) == 1000
     for dataset in datasets:
         assert len(dataset.revisions) == 2
 

@@ -24,9 +24,7 @@ from ingestify.utils import TaskExecutor, chunker
 logger = logging.getLogger(__name__)
 
 
-# Decrease batch size from 1_000 to 500. The sqlalchemy repository uses
-# a compound select, which breaks at more than 500 select statements
-DEFAULT_CHUNK_SIZE = 500
+DEFAULT_CHUNK_SIZE = 1000
 
 
 def run_task(task):
@@ -257,8 +255,10 @@ class IngestionJob:
         finish_task_timer = ingestion_job_summary.start_timing("tasks")
 
         while True:
+            logger.info(f"Finding next batch of datasets for selector={self.selector}")
             try:
-                batch = next(batches)
+                with ingestion_job_summary.record_timing("find_datasets"):
+                    batch = next(batches)
             except StopIteration:
                 break
             except Exception as e:
