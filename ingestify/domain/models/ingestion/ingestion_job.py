@@ -256,11 +256,13 @@ class IngestionJob:
 
         while True:
             logger.info(f"Finding next batch of datasets for selector={self.selector}")
+
             try:
                 with ingestion_job_summary.record_timing("find_datasets"):
-                    batch = next(batches)
-            except StopIteration:
-                break
+                    try:
+                        batch = next(batches)
+                    except StopIteration:
+                        break
             except Exception as e:
                 logger.exception("Failed to fetch next batch")
 
