@@ -413,20 +413,25 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             else:
                 datasets = []
 
-                metadata_result_query = apply_query_filter(
-                    self.session.query(
-                        func.max(dataset_table.c.last_modified_at).label(
-                            "last_modified_at"
-                        ),
-                        func.count().label("row_count"),
+                metadata_result_query = (
+                    apply_query_filter(
+                        self.session.query(dataset_table.c.last_modified_at)
                     )
+                    .order_by(dataset_table.c.last_modified_at.desc())
+                    .limit(1)
                 )
 
                 self._debug_query(metadata_result_query)
 
-                dataset_collection_metadata = DatasetCollectionMetadata(
-                    *metadata_result_query.first()
-                )
+                metadata_row = metadata_result_query.first()
+                if metadata_row:
+                    dataset_collection_metadata = DatasetCollectionMetadata(
+                        last_modified=metadata_row.last_modified_at
+                    )
+                else:
+                    dataset_collection_metadata = DatasetCollectionMetadata(
+                        last_modified=None
+                    )
 
         return DatasetCollection(dataset_collection_metadata, datasets)
 

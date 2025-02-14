@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import Field, field_validator
 
 from ingestify.utils import utcnow
@@ -51,6 +51,26 @@ class Dataset(BaseModel):
             )
         else:
             self.last_modified_at = revision.last_modified_at
+
+    def update_last_modified(self, files: Dict[str, DraftFile]):
+        """Update the last modified, even tho there was no new revision. Some Sources
+        may report a Dataset is changed, even when there are no changed files.
+        Update the last_modified to prevent hitting the same Source for updates
+        """
+        changed = False
+        for file in files.values():
+            if not file:
+                # File was not changed
+                continue
+
+            if file.modified_at and (
+                self.last_modified_at is None
+                or file.modified_at > self.last_modified_at
+            ):
+                # Update, and continue looking for others
+                self.last_modified_at = file.modified_at
+                changed = True
+        return changed
 
     def update_metadata(self, name: str, metadata: dict, state: DatasetState) -> bool:
         changed = False

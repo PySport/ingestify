@@ -3,13 +3,14 @@ from datetime import datetime
 from email.utils import format_datetime, parsedate
 from hashlib import sha1
 from io import BytesIO
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Union
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
 from ingestify.domain.models import DraftFile, File
+from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.utils import utcnow
 
 _session = None
@@ -46,12 +47,15 @@ def retrieve_http(
     pager: Optional[Tuple[str, Callable[[str, dict], Optional[str]]]] = None,
     last_modified: Optional[datetime] = None,
     **kwargs,
-) -> Optional[DraftFile]:
+) -> Union[DraftFile, NotModifiedFile]:
     headers = headers or {}
     if current_file:
         if last_modified and current_file.modified_at >= last_modified:
             # Not changed
-            return None
+            return NotModifiedFile(
+                modified_at=last_modified,
+                reason=f"last-modified same as current file: {current_file.modified_at} >= {last_modified}",
+            )
         # else:
         #     print(f"{current_file.modified_at=} {last_modified=}")
         # headers["if-modified-since"] = (
@@ -73,12 +77,14 @@ def retrieve_http(
 
     response = get_session().get(url, headers=headers, **http_kwargs)
     if response.status_code == 404 and ignore_not_found:
-        return None
+        return NotModifiedFile(
+            modified_at=last_modified, reason="404 http code and ignore-not-found"
+        )
 
     response.raise_for_status()
     if response.status_code == 304:
         # Not modified
-        return None
+        return NotModifiedFile(modified_at=last_modified, reason="304 http code")
 
     if last_modified:
         # From metadata received from api in discover_datasets
@@ -120,7 +126,9 @@ def retrieve_http(
 
     if current_file and current_file.tag == tag:
         # Not changed. Don't keep it
-        return None
+        return NotModifiedFile(
+            modified_at=last_modified, reason="tag matched current_file"
+        )
 
     return DraftFile(
         created_at=utcnow(),

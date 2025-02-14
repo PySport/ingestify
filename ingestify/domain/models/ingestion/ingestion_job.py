@@ -3,11 +3,12 @@ import json
 import logging
 import uuid
 from enum import Enum
-from typing import Optional, Iterator
+from typing import Optional, Iterator, Union
 
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
+from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.domain.models.dataset.revision import RevisionSource, SourceType
 from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
@@ -54,7 +55,7 @@ def to_batches(input_):
 
 def load_file(
     file_resource: FileResource, dataset: Optional[Dataset] = None
-) -> Optional[DraftFile]:
+) -> Union[DraftFile, NotModifiedFile]:
     current_file = None
     if dataset:
         current_file = dataset.current_revision.modified_files_map.get(
@@ -72,7 +73,10 @@ def load_file(
         )
         if current_file and current_file.tag == file.tag:
             # Nothing changed
-            return None
+            return NotModifiedFile(
+                modified_at=file_resource.last_modified,
+                reason="tag matched current_file",
+            )
         return file
     elif file_resource.url:
         http_options = {}
@@ -228,6 +232,19 @@ class IngestionJob:
             ).metadata
         logger.info(f"Done: {dataset_collection_metadata}")
 
+        if self.selector.last_modified and dataset_collection_metadata.last_modified:
+            # This check might fail when the data_spec_versions is changed;
+            # missing files are not detected
+            if self.selector.last_modified < dataset_collection_metadata.last_modified:
+                logger.info(
+                    f"Skipping find_datasets because selector last_modified "
+                    f"'{self.selector.last_modified}' < metadata last_modified "
+                    f"'{dataset_collection_metadata.last_modified}'"
+                )
+                ingestion_job_summary.set_finished()
+                yield ingestion_job_summary
+                return
+
         # There are two different, but similar flows here:
         # 1. The discover_datasets returns a list, and the entire list can be processed at once
         # 2. The discover_datasets returns an iterator of batches, in this case we need to process each batch
@@ -252,8 +269,6 @@ class IngestionJob:
 
         logger.info("Starting tasks")
 
-        finish_task_timer = ingestion_job_summary.start_timing("tasks")
-
         while True:
             logger.info(f"Finding next batch of datasets for selector={self.selector}")
 
@@ -266,7 +281,6 @@ class IngestionJob:
             except Exception as e:
                 logger.exception("Failed to fetch next batch")
 
-                finish_task_timer()
                 ingestion_job_summary.set_exception(e)
                 yield ingestion_job_summary
                 return
@@ -294,54 +308,57 @@ class IngestionJob:
             skipped_tasks = 0
 
             task_set = TaskSet()
-            for dataset_resource in batch:
-                dataset_identifier = Identifier.create_from_selector(
-                    self.selector, **dataset_resource.dataset_resource_id
-                )
 
-                if dataset := dataset_collection.get(dataset_identifier):
-                    if self.ingestion_plan.fetch_policy.should_refetch(
-                        dataset, dataset_resource
-                    ):
-                        task_set.add(
-                            UpdateDatasetTask(
-                                dataset=dataset,  # Current dataset from the database
-                                dataset_resource=dataset_resource,  # Most recent dataset_resource
-                                store=store,
+            with ingestion_job_summary.record_timing("build_task_set"):
+                for dataset_resource in batch:
+                    dataset_identifier = Identifier.create_from_selector(
+                        self.selector, **dataset_resource.dataset_resource_id
+                    )
+
+                    if dataset := dataset_collection.get(dataset_identifier):
+                        if self.ingestion_plan.fetch_policy.should_refetch(
+                            dataset, dataset_resource
+                        ):
+                            task_set.add(
+                                UpdateDatasetTask(
+                                    dataset=dataset,  # Current dataset from the database
+                                    dataset_resource=dataset_resource,  # Most recent dataset_resource
+                                    store=store,
+                                )
                             )
-                        )
+                        else:
+                            skipped_tasks += 1
                     else:
-                        skipped_tasks += 1
+                        if self.ingestion_plan.fetch_policy.should_fetch(
+                            dataset_resource
+                        ):
+                            task_set.add(
+                                CreateDatasetTask(
+                                    dataset_resource=dataset_resource,
+                                    store=store,
+                                )
+                            )
+                        else:
+                            skipped_tasks += 1
+
+            with ingestion_job_summary.record_timing("tasks"):
+                if task_set:
+                    logger.info(
+                        f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
+                        f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
+                    )
+                    logger.info(f"Running {len(task_set)} tasks")
+                    ingestion_job_summary.add_task_summaries(
+                        task_executor.run(run_task, task_set)
+                    )
                 else:
-                    if self.ingestion_plan.fetch_policy.should_fetch(dataset_resource):
-                        task_set.add(
-                            CreateDatasetTask(
-                                dataset_resource=dataset_resource,
-                                store=store,
-                            )
-                        )
-                    else:
-                        skipped_tasks += 1
-
-            if task_set:
-                logger.info(
-                    f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                    f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
-                )
-                logger.info(f"Running {len(task_set)} tasks")
-                ingestion_job_summary.add_task_summaries(
-                    task_executor.run(run_task, task_set)
-                )
-            else:
-                logger.info(
-                    f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                    f"using selector {self.selector} => nothing to do"
-                )
-
-            ingestion_job_summary.increase_skipped_tasks(skipped_tasks)
+                    logger.info(
+                        f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
+                        f"using selector {self.selector} => nothing to do"
+                    )
+                ingestion_job_summary.increase_skipped_tasks(skipped_tasks)
 
             if ingestion_job_summary.task_count() >= MAX_TASKS_PER_CHUNK:
-                finish_task_timer()
                 ingestion_job_summary.set_finished()
                 yield ingestion_job_summary
 
@@ -349,11 +366,7 @@ class IngestionJob:
                 is_first_chunk = False
                 ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
 
-                # We will resume tasks, start timer right away
-                finish_task_timer = ingestion_job_summary.start_timing("tasks")
-
         if ingestion_job_summary.task_count() > 0 or is_first_chunk:
             # When there is interesting information to store, or there was no data at all, store it
-            finish_task_timer()
             ingestion_job_summary.set_finished()
             yield ingestion_job_summary

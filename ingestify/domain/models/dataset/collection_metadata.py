@@ -11,4 +11,6 @@ class DatasetCollectionMetadata:
 
     # Use the last modified to only retrieve datasets that are changed
     last_modified: Optional[datetime]
-    row_count: int
+
+    # Not really used
+    row_count: Optional[int] = None

@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Optional
+
 from ingestify.domain.models.data_spec_version_collection import (
     DataSpecVersionCollection,
 )
@@ -29,9 +32,16 @@ class Selector(AttributeBag):
         return self._data_spec_versions
 
     @property
+    def last_modified(self) -> Optional[datetime]:
+        try:
+            return self._last_modified
+        except AttributeError:
+            return None
+
+    @property
     def custom_attributes(self):
         return {
             k: v
             for k, v in self.items()
-            if k not in ("_matcher", "_data_spec_versions")
+            if k not in ("_matcher", "_data_spec_versions", "_last_modified")
         }

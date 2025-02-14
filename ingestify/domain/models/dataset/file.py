@@ -29,7 +29,7 @@ class DraftFile(BaseModel):
         modified_at: Optional[datetime] = None,
     ):
         # Pass-through for these types
-        if isinstance(file_, DraftFile) or file_ is None:
+        if isinstance(file_, (DraftFile, NotModifiedFile)):
             return file_
         elif isinstance(file_, str):
             stream = BytesIO(file_.encode("utf-8"))
@@ -100,6 +100,11 @@ class File(BaseModel):
             storage_compression_method=storage_compression_method,
             storage_path=path,
         )
+
+
+class NotModifiedFile(BaseModel):
+    modified_at: datetime
+    reason: str
 
 
 class LoadedFile(BaseModel):

@@ -26,7 +26,9 @@ class FetchPolicy:
                 file.file_id: file.last_modified
                 for file in dataset_resource.files.values()
             }
-            if current_revision.is_changed(files_last_modified):
+            if current_revision.is_changed(
+                files_last_modified, dataset.last_modified_at
+            ):
                 return True
 
             # We don't set last_modified on Dataset level anymore, only on file level

@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
+from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.domain.models.dataset.file_collection import FileCollection
 from ingestify.domain.models.dataset.revision import RevisionSource
 from ingestify.domain.models.event import EventBus
@@ -140,8 +141,8 @@ class DatasetStore:
         current_revision = dataset.current_revision
 
         for file_id, file_ in modified_files.items():
-            if file_ is None:
-                # It's always allowed to pass None as file. This means it didn't change and must be ignored.
+            if isinstance(file_, NotModifiedFile):
+                # It's always allowed to pass NotModifiedFile as file. This means it didn't change and must be ignored.
                 continue
 
             current_file = (
@@ -210,9 +211,22 @@ class DatasetStore:
                 f"Added a new revision to {dataset.identifier} -> {', '.join([file.file_id for file in persisted_files_])}"
             )
         else:
-            logger.info(
-                f"Ignoring a new revision without changed files -> {dataset.identifier}"
-            )
+            if dataset.update_last_modified(files):
+                # For some Datasets the last modified doesn't make sense (for sources that don't provide it)
+                # Do we want to update last modified of a Dataset when the value is utcnow()?
+                # self.dataset_repository.save(bucket=self.bucket, dataset=dataset)
+                # TODO: dispatch some event?
+                # self.dispatch(DatasetLastModifiedChanged(dataset=dataset))
+                logger.info(
+                    f"Ignoring a new revision without changed files -> {dataset.identifier}, but "
+                    f"might need to update last modified to {dataset.last_modified_at} ?"
+                )
+
+            else:
+                logger.info(
+                    f"Ignoring a new revision without changed files -> {dataset.identifier}"
+                )
+
             revision = None
 
         return revision
