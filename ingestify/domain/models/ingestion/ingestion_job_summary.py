@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class IngestionJobState(str, Enum):
     RUNNING = "RUNNING"
     FINISHED = "FINISHED"
+    SKIPPED = "SKIPPED"
     FAILED = "FAILED"
 
 
@@ -102,6 +103,10 @@ class IngestionJobSummary(BaseModel, HasTiming):
 
     def set_exception(self, e: Exception):
         self.state = IngestionJobState.FAILED
+        self._set_ended()
+
+    def set_skipped(self):
+        self.state = IngestionJobState.SKIPPED
         self._set_ended()
 
     @property

@@ -241,7 +241,7 @@ class IngestionJob:
                     f"'{self.selector.last_modified}' < metadata last_modified "
                     f"'{dataset_collection_metadata.last_modified}'"
                 )
-                ingestion_job_summary.set_finished()
+                ingestion_job_summary.set_skipped()
                 yield ingestion_job_summary
                 return
 

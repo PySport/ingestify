@@ -59,10 +59,6 @@ class Dataset(BaseModel):
         """
         changed = False
         for file in files.values():
-            if not file:
-                # File was not changed
-                continue
-
             if file.modified_at and (
                 self.last_modified_at is None
                 or file.modified_at > self.last_modified_at
