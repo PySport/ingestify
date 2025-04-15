@@ -152,7 +152,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def dialect(self) -> Dialect:
         return self.session_provider.dialect
 
-    def _upsert(self, connection: Connection, table: Table, entities: list[dict]):
+    def _upsert(
+        self,
+        connection: Connection,
+        table: Table,
+        entities: list[dict],
+        immutable_rows: bool = False,
+    ):
         dialect = self.dialect.name
         if dialect == "mysql":
             from sqlalchemy.dialects.mysql import insert
@@ -167,13 +173,18 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         primary_key_columns = [column for column in table.columns if column.primary_key]
 
-        set_ = {
-            name: getattr(stmt.excluded, name)
-            for name, column in table.columns.items()
-            if column not in primary_key_columns
-        }
+        if immutable_rows:
+            stmt = stmt.on_conflict_do_nothing(index_elements=primary_key_columns)
+        else:
+            set_ = {
+                name: getattr(stmt.excluded, name)
+                for name, column in table.columns.items()
+                if column not in primary_key_columns
+            }
 
-        stmt = stmt.on_conflict_do_update(index_elements=primary_key_columns, set_=set_)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=primary_key_columns, set_=set_
+            )
 
         connection.execute(stmt)
 
@@ -476,8 +487,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         with self.connect() as connection:
             try:
                 self._upsert(connection, dataset_table, datasets_entities)
-                self._upsert(connection, revision_table, revision_entities)
-                self._upsert(connection, file_table, file_entities)
+                self._upsert(
+                    connection, revision_table, revision_entities, immutable_rows=True
+                )
+                self._upsert(connection, file_table, file_entities, immutable_rows=True)
             except Exception:
                 connection.rollback()
                 raise
