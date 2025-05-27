@@ -135,8 +135,7 @@ class EmptyDatasetResourceIdSource(Source):
                 provider="fake",
                 dataset_type="match",
                 name="Test Dataset",
-            )
-            .add_file(
+            ).add_file(
                 last_modified=last_modified,
                 data_feed_key="file3",
                 data_spec_version="v1",
@@ -416,7 +415,5 @@ def test_empty_dataset_resource_id(config_file):
     """When a empty DatasetResourceId is passed nothing should break"""
     engine = get_engine(config_file, "main")
 
-    add_ingestion_plan(
-        engine, EmptyDatasetResourceIdSource("fake-source")
-    )
+    add_ingestion_plan(engine, EmptyDatasetResourceIdSource("fake-source"))
     engine.load()

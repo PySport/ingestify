@@ -273,7 +273,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
             if keys:
                 attribute_cte = self._build_cte(
-                    [selector.filtered_attributes for selector in selectors], "attributes"
+                    [selector.filtered_attributes for selector in selectors],
+                    "attributes",
                 )
 
                 join_conditions = []
