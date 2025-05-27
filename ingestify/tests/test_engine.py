@@ -117,6 +117,34 @@ class SimpleFakeSource(Source):
         # )
 
 
+class EmptyDatasetResourceIdSource(Source):
+    provider = "fake"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        **kwargs,
+    ):
+        last_modified = datetime.now(pytz.utc)
+
+        yield (
+            DatasetResource(
+                dataset_resource_id={},
+                provider="fake",
+                dataset_type="match",
+                name="Test Dataset",
+            )
+            .add_file(
+                last_modified=last_modified,
+                data_feed_key="file3",
+                data_spec_version="v1",
+                json_content={"test": "some-content"},
+            )
+        )
+
+
 class BatchSource(Source):
     provider = "batch"
 
@@ -382,3 +410,13 @@ def test_serde(config_file):
         deserialized_event = deserialize(event_dict)
 
         assert event.model_dump_json() == deserialized_event.model_dump_json()
+
+
+def test_empty_dataset_resource_id(config_file):
+    """When a empty DatasetResourceId is passed nothing should break"""
+    engine = get_engine(config_file, "main")
+
+    add_ingestion_plan(
+        engine, EmptyDatasetResourceIdSource("fake-source")
+    )
+    engine.load()
