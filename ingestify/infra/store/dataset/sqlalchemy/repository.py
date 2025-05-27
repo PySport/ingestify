@@ -268,33 +268,35 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not selectors:
                 raise ValueError("Selectors must contain at least one item")
 
-            attribute_cte = self._build_cte(
-                [selector.filtered_attributes for selector in selectors], "attributes"
-            )
-
-            keys = list(selectors[0].filtered_attributes.keys())
             first_selector = selectors[0].filtered_attributes
+            keys = list(first_selector.keys())
 
-            join_conditions = []
-            for k in keys:
-                if dialect == "postgresql":
-                    column = dataset_table.c.identifier[k]
+            if keys:
+                attribute_cte = self._build_cte(
+                    [selector.filtered_attributes for selector in selectors],
+                    "attributes",
+                )
 
-                    # Take the value from the first selector to determine the type.
-                    # TODO: check all selectors to determine the type
-                    v = first_selector[k]
-                    if isinstance(v, int):
-                        column = column.as_integer()
+                join_conditions = []
+                for k in keys:
+                    if dialect == "postgresql":
+                        column = dataset_table.c.identifier[k]
+
+                        # Take the value from the first selector to determine the type.
+                        # TODO: check all selectors to determine the type
+                        v = first_selector[k]
+                        if isinstance(v, int):
+                            column = column.as_integer()
+                        else:
+                            column = column.as_string()
                     else:
-                        column = column.as_string()
-                else:
-                    column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
+                        column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
 
-                join_conditions.append(attribute_cte.c[k] == column)
+                    join_conditions.append(attribute_cte.c[k] == column)
 
-            query = query.select_from(
-                dataset_table.join(attribute_cte, and_(*join_conditions))
-            )
+                query = query.select_from(
+                    dataset_table.join(attribute_cte, and_(*join_conditions))
+                )
 
         if where:
             query = query.filter(text(where))
