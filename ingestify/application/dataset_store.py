@@ -61,19 +61,19 @@ class DatasetStore:
     def dispatch(self, event):
         if self.event_bus:
             self.event_bus.dispatch(event)
-            
+
     @contextmanager
     def with_file_cache(self):
         """Context manager to enable file caching during its scope.
-        
+
         Files loaded within this context will be cached and reused,
         avoiding multiple downloads of the same file.
-        
+
         Example:
             # Without caching (loads files twice)
             analyzer1 = StatsAnalyzer(store, dataset)
             analyzer2 = VisualizationTool(store, dataset)
-            
+
             # With caching (files are loaded once and shared)
             with store.with_file_cache():
                 analyzer1 = StatsAnalyzer(store, dataset)
@@ -82,7 +82,7 @@ class DatasetStore:
         # Enable caching for this thread
         self._thread_local.use_file_cache = True
         self._thread_local.file_cache = {}
-        
+
         try:
             yield
         finally:
@@ -419,11 +419,11 @@ class DatasetStore:
             def make_loaded_file():
                 return LoadedFile(
                     stream_=get_stream if lazy else get_stream(file),
-                    **file.model_dump()
+                    **file.model_dump(),
                 )
 
             # Using getattr with a default value of False - simple one-liner
-            if getattr(self._thread_local, 'use_file_cache', False):
+            if getattr(self._thread_local, "use_file_cache", False):
                 key = (dataset.dataset_id, current_revision.revision_id, file.file_id)
                 if key not in self._thread_local.file_cache:
                     self._thread_local.file_cache[key] = make_loaded_file()
