@@ -67,6 +67,8 @@ class DatasetStore:
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
         metadata_only: Optional[bool] = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
         **selector,
     ) -> DatasetCollection:
         if "selector" in selector:
@@ -89,8 +91,79 @@ class DatasetStore:
             provider=provider,
             metadata_only=metadata_only,
             selector=selector,
+            page=page,
+            page_size=page_size,
         )
         return dataset_collection
+
+    def iter_dataset_collection(
+        self,
+        dataset_type: Optional[str] = None,
+        provider: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        metadata_only: Optional[bool] = False,
+        page_size: int = 1000,
+        yield_dataset_collection: bool = False,
+        **selector,
+    ):
+        """
+        Iterate through all datasets matching the criteria with automatic pagination.
+
+        Examples:
+        ```
+        # Iterate through individual datasets
+        for dataset in store.iter_dataset_collection(dataset_type="match", provider="statsbomb"):
+            process(dataset)
+
+        # Iterate through DatasetCollection objects (pages)
+        for collection in store.iter_dataset_collection(
+            dataset_type="match",
+            provider="statsbomb",
+            yield_dataset_collection=True
+        ):
+            process_collection(collection)
+        ```
+
+        Args:
+            dataset_type: Optional dataset type filter
+            provider: Optional provider filter
+            dataset_id: Optional dataset ID filter
+            metadata_only: Whether to fetch only metadata
+            page_size: Number of datasets to fetch per page
+            yield_dataset_collection: If True, yields entire DatasetCollection objects
+                                     instead of individual Dataset objects
+            **selector: Additional selector criteria
+
+        Yields:
+            If yield_dataset_collection is False (default): Dataset objects one by one
+            If yield_dataset_collection is True: DatasetCollection objects (pages)
+        """
+        page = 1
+        while True:
+            collection = self.get_dataset_collection(
+                dataset_type=dataset_type,
+                provider=provider,
+                dataset_id=dataset_id,
+                metadata_only=metadata_only,
+                page=page,
+                page_size=page_size,
+                **selector,
+            )
+
+            if not collection or len(collection) == 0:
+                break
+
+            if yield_dataset_collection:
+                yield collection
+            else:
+                for dataset in collection:
+                    yield dataset
+
+            # If we got fewer results than page_size, we've reached the end
+            if len(collection) < page_size:
+                break
+
+            page += 1
 
     #
     # def destroy_dataset(self, dataset_id: str):
