@@ -159,6 +159,10 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         entities: list[dict],
         immutable_rows: bool = False,
     ):
+        if not entities:
+            # Nothing to do
+            return
+
         dialect = self.dialect.name
         if dialect == "mysql":
             from sqlalchemy.dialects.mysql import insert
@@ -395,6 +399,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
         metadata_only: bool = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> DatasetCollection:
         def apply_query_filter(query):
             return self._filter_query(
@@ -410,9 +416,16 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             # Use a contextmanager to make sure it's closed afterwards
 
             if not metadata_only:
+                # Apply sorting by created_at in ascending order
                 dataset_query = apply_query_filter(
                     self.session.query(dataset_table.c.dataset_id)
-                )
+                ).order_by(dataset_table.c.created_at.asc())
+
+                # Apply pagination if both page and page_size are provided
+                if page is not None and page_size is not None:
+                    offset = (page - 1) * page_size
+                    dataset_query = dataset_query.offset(offset).limit(page_size)
+
                 self._debug_query(dataset_query)
                 dataset_ids = [row.dataset_id for row in dataset_query]
                 datasets = self._load_datasets(dataset_ids)

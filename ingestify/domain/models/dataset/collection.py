@@ -19,9 +19,6 @@ class DatasetCollection:
         }
         self.metadata = metadata
 
-    def loaded(self):
-        return self.metadata.count == len(self.datasets)
-
     def get(self, dataset_identifier: Identifier) -> Dataset:
         return self.datasets.get(dataset_identifier.key)
 
@@ -30,12 +27,6 @@ class DatasetCollection:
 
     def __iter__(self):
         return iter(self.datasets.values())
-
-    def get_dataset_by_id(self, dataset_id):
-        for dataset in self:
-            if dataset.dataset_id == dataset_id:
-                return dataset
-        return None
 
     def first(self):
         try:
