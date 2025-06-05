@@ -1,14 +1,22 @@
 import gzip
-import hashlib
 import logging
-import mimetypes
 import os
 import shutil
 from contextlib import contextmanager
 import threading
 from io import BytesIO
 
-from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable, NewType
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Union,
+    Callable,
+    BinaryIO,
+    Awaitable,
+    NewType,
+    Iterable,
+)
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
@@ -36,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Type definition for dataset state parameters that can be strings or DatasetState objects
 DatasetStateParam = NewType(
-    "DatasetStateParam", Union[str, List[str], DatasetState, List[DatasetState]]
+    "DatasetStateParam", Union[str, Iterable[str], DatasetState, Iterable[DatasetState]]
 )
 
 
