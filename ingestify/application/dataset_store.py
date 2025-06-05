@@ -1,15 +1,22 @@
 import gzip
-import hashlib
 import logging
-import mimetypes
 import os
 import shutil
 from contextlib import contextmanager
 import threading
-from dataclasses import asdict
 from io import BytesIO
 
-from typing import Dict, List, Optional, Union, Callable, BinaryIO, Awaitable
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Union,
+    Callable,
+    BinaryIO,
+    Awaitable,
+    NewType,
+    Iterable,
+)
 
 from ingestify.domain.models.dataset.dataset import DatasetState
 from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
@@ -21,7 +28,6 @@ from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
     DatasetRepository,
-    DatasetResource,
     DraftFile,
     File,
     LoadedFile,
@@ -35,6 +41,67 @@ from ingestify.utils import utcnow
 
 
 logger = logging.getLogger(__name__)
+
+# Type definition for dataset state parameters that can be strings or DatasetState objects
+DatasetStateParam = NewType(
+    "DatasetStateParam", Union[str, Iterable[str], DatasetState, Iterable[DatasetState]]
+)
+
+
+def normalize_dataset_state(
+    dataset_state: Optional[DatasetStateParam],
+) -> Optional[List[DatasetState]]:
+    """
+    Normalize dataset_state parameter to a list of DatasetState objects.
+
+    Args:
+        dataset_state: Can be None, a string, a DatasetState enum,
+                      or a list of strings or DatasetState enums
+
+    Returns:
+        None if input is None, otherwise a list of DatasetState objects
+
+    Raises:
+        ValueError: If an invalid state value is provided
+        TypeError: If dataset_state contains elements of invalid types
+        Warning: If an empty list is provided
+    """
+    if dataset_state is None:
+        return None
+
+    # Check for empty list
+    if isinstance(dataset_state, list) and len(dataset_state) == 0:
+        logger.warning(
+            "Empty list provided for dataset_state, this will not filter any states"
+        )
+        return None
+
+    normalized_states = []
+    states_to_process = (
+        [dataset_state] if not isinstance(dataset_state, list) else dataset_state
+    )
+
+    for state in states_to_process:
+        if isinstance(state, str):
+            # Handle case-insensitive string matching
+            try:
+                # Try to match the string to a DatasetState enum value
+                normalized_state = DatasetState(state.upper())
+                normalized_states.append(normalized_state)
+            except ValueError:
+                valid_states = ", ".join([s.value for s in DatasetState])
+                raise ValueError(
+                    f"Invalid dataset state: '{state}'. Valid states are: {valid_states}"
+                )
+        elif isinstance(state, DatasetState):
+            # Already a DatasetState enum, just add it
+            normalized_states.append(state)
+        else:
+            raise TypeError(
+                f"Dataset state must be a string or DatasetState enum, got {type(state).__name__}"
+            )
+
+    return normalized_states
 
 
 class DatasetStore:
@@ -101,6 +168,7 @@ class DatasetStore:
         metadata_only: Optional[bool] = False,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
+        dataset_state: Optional[DatasetStateParam] = None,
         **selector,
     ) -> DatasetCollection:
         if "selector" in selector:
@@ -116,6 +184,9 @@ class DatasetStore:
                 # Convert all selector dicts to Selectors
                 selector = [Selector(_) for _ in selector]
 
+        # Normalize dataset_state to a list of DatasetState objects
+        normalized_dataset_state = normalize_dataset_state(dataset_state)
+
         dataset_collection = self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
             dataset_type=dataset_type,
@@ -123,6 +194,7 @@ class DatasetStore:
             provider=provider,
             metadata_only=metadata_only,
             selector=selector,
+            dataset_state=normalized_dataset_state,
             page=page,
             page_size=page_size,
         )
@@ -136,6 +208,7 @@ class DatasetStore:
         metadata_only: Optional[bool] = False,
         page_size: int = 1000,
         yield_dataset_collection: bool = False,
+        dataset_state: Optional[DatasetStateParam] = None,
         **selector,
     ):
         """
@@ -154,6 +227,13 @@ class DatasetStore:
             yield_dataset_collection=True
         ):
             process_collection(collection)
+
+        # Filter by dataset state
+        for dataset in store.iter_dataset_collection(
+            dataset_type="match",
+            dataset_state="COMPLETE"  # Can also use DatasetState.COMPLETE or ["COMPLETE", "PARTIAL"]
+        ):
+            process_completed_dataset(dataset)
         ```
 
         Args:
@@ -164,6 +244,8 @@ class DatasetStore:
             page_size: Number of datasets to fetch per page
             yield_dataset_collection: If True, yields entire DatasetCollection objects
                                      instead of individual Dataset objects
+            dataset_state: Optional filter for dataset state. Can be a string, DatasetState enum,
+                          or a list of strings or DatasetState enums
             **selector: Additional selector criteria
 
         Yields:
@@ -179,6 +261,7 @@ class DatasetStore:
                 metadata_only=metadata_only,
                 page=page,
                 page_size=page_size,
+                dataset_state=dataset_state,
                 **selector,
             )
 

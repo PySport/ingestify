@@ -3,6 +3,7 @@ from typing import Optional, List, Union
 
 from .collection import DatasetCollection
 from .dataset import Dataset
+from .dataset_state import DatasetState
 from .selector import Selector
 
 
@@ -16,6 +17,9 @@ class DatasetRepository(ABC):
         provider: Optional[str] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
         metadata_only: bool = False,
+        dataset_state: Optional[List[DatasetState]] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> DatasetCollection:
         pass
 

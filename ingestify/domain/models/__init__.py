@@ -12,6 +12,7 @@ from .dataset import (
     Selector,
     Revision,
 )
+from .dataset.dataset_state import DatasetState
 from .sink import Sink
 from .source import Source
 from .task import Task, TaskSet
@@ -37,4 +38,5 @@ __all__ = [
     "Task",
     "Sink",
     "DataSpecVersionCollection",
+    "DatasetState",
 ]
