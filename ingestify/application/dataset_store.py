@@ -4,6 +4,8 @@ import logging
 import mimetypes
 import os
 import shutil
+from contextlib import contextmanager
+import threading
 from dataclasses import asdict
 from io import BytesIO
 
@@ -47,6 +49,8 @@ class DatasetStore:
         self.storage_compression_method = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
+        # Create thread-local storage for caching
+        self._thread_local = threading.local()
 
     # def __getstate__(self):
     #     return {"file_repository": self.file_repository, "bucket": self.bucket}
@@ -57,6 +61,34 @@ class DatasetStore:
     def dispatch(self, event):
         if self.event_bus:
             self.event_bus.dispatch(event)
+
+    @contextmanager
+    def with_file_cache(self):
+        """Context manager to enable file caching during its scope.
+
+        Files loaded within this context will be cached and reused,
+        avoiding multiple downloads of the same file.
+
+        Example:
+            # Without caching (loads files twice)
+            analyzer1 = StatsAnalyzer(store, dataset)
+            analyzer2 = VisualizationTool(store, dataset)
+
+            # With caching (files are loaded once and shared)
+            with store.with_file_cache():
+                analyzer1 = StatsAnalyzer(store, dataset)
+                analyzer2 = VisualizationTool(store, dataset)
+        """
+        # Enable caching for this thread
+        self._thread_local.use_file_cache = True
+        self._thread_local.file_cache = {}
+
+        try:
+            yield
+        finally:
+            # Disable caching for this thread
+            self._thread_local.use_file_cache = False
+            self._thread_local.file_cache = {}
 
     def save_ingestion_job_summary(self, ingestion_job_summary):
         self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
@@ -384,10 +416,21 @@ class DatasetStore:
                     self.file_repository.load_content(storage_path=file_.storage_path)
                 )
 
-            loaded_file = LoadedFile(
-                stream_=get_stream if lazy else get_stream(file),
-                **file.model_dump(),
-            )
+            def make_loaded_file():
+                return LoadedFile(
+                    stream_=get_stream if lazy else get_stream(file),
+                    **file.model_dump(),
+                )
+
+            # Using getattr with a default value of False - simple one-liner
+            if getattr(self._thread_local, "use_file_cache", False):
+                key = (dataset.dataset_id, current_revision.revision_id, file.file_id)
+                if key not in self._thread_local.file_cache:
+                    self._thread_local.file_cache[key] = make_loaded_file()
+                loaded_file = self._thread_local.file_cache[key]
+            else:
+                loaded_file = make_loaded_file()
+
             files[file.file_id] = loaded_file
         return FileCollection(files, auto_rewind=auto_rewind)
 
