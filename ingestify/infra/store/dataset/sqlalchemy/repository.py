@@ -29,6 +29,7 @@ from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
     DatasetRepository,
+    DatasetState,
     Selector,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
@@ -234,6 +235,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         provider: Optional[str] = None,
         dataset_id: Optional[Union[str, List[str]]] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
+        dataset_state: Optional[List[DatasetState]] = None,
     ):
         if dataset_id is not None:
             if isinstance(dataset_id, list):
@@ -310,6 +312,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             query = query.filter(dataset_table.c.dataset_type == dataset_type)
         if provider:
             query = query.filter(dataset_table.c.provider == provider)
+        if dataset_state:
+            query = query.filter(dataset_table.c.state.in_(dataset_state))
 
         return query
 
@@ -401,6 +405,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         metadata_only: bool = False,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
+        dataset_state: Optional[List[DatasetState]] = None,
     ) -> DatasetCollection:
         def apply_query_filter(query):
             return self._filter_query(
@@ -410,6 +415,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 provider=provider,
                 dataset_id=dataset_id,
                 selector=selector,
+                dataset_state=dataset_state,
             )
 
         with self.session:

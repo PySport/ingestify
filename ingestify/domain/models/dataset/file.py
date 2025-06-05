@@ -135,4 +135,4 @@ class LoadedFile(BaseModel):
         return self.stream_
 
 
-__all__ = ["File", "DraftFile", "LoadedFile"]
+__all__ = ["File", "DraftFile", "LoadedFile", "NotModifiedFile"]

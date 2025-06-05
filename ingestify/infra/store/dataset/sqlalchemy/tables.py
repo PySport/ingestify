@@ -84,6 +84,7 @@ class PathString(TypeDecorator):
 
 
 class DatasetStateString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: DatasetState, dialect):
