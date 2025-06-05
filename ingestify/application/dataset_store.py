@@ -35,11 +35,13 @@ from ingestify.utils import utcnow
 logger = logging.getLogger(__name__)
 
 # Type definition for dataset state parameters that can be strings or DatasetState objects
-DatasetStateParam = NewType('DatasetStateParam', Union[str, List[str], DatasetState, List[DatasetState]])
+DatasetStateParam = NewType(
+    "DatasetStateParam", Union[str, List[str], DatasetState, List[DatasetState]]
+)
 
 
 def normalize_dataset_state(
-        dataset_state: Optional[DatasetStateParam]
+    dataset_state: Optional[DatasetStateParam],
 ) -> Optional[List[DatasetState]]:
     """
     Normalize dataset_state parameter to a list of DatasetState objects.
@@ -61,11 +63,15 @@ def normalize_dataset_state(
 
     # Check for empty list
     if isinstance(dataset_state, list) and len(dataset_state) == 0:
-        logger.warning("Empty list provided for dataset_state, this will not filter any states")
+        logger.warning(
+            "Empty list provided for dataset_state, this will not filter any states"
+        )
         return None
 
     normalized_states = []
-    states_to_process = [dataset_state] if not isinstance(dataset_state, list) else dataset_state
+    states_to_process = (
+        [dataset_state] if not isinstance(dataset_state, list) else dataset_state
+    )
 
     for state in states_to_process:
         if isinstance(state, str):
@@ -76,12 +82,16 @@ def normalize_dataset_state(
                 normalized_states.append(normalized_state)
             except ValueError:
                 valid_states = ", ".join([s.value for s in DatasetState])
-                raise ValueError(f"Invalid dataset state: '{state}'. Valid states are: {valid_states}")
+                raise ValueError(
+                    f"Invalid dataset state: '{state}'. Valid states are: {valid_states}"
+                )
         elif isinstance(state, DatasetState):
             # Already a DatasetState enum, just add it
             normalized_states.append(state)
         else:
-            raise TypeError(f"Dataset state must be a string or DatasetState enum, got {type(state).__name__}")
+            raise TypeError(
+                f"Dataset state must be a string or DatasetState enum, got {type(state).__name__}"
+            )
 
     return normalized_states
 
@@ -168,7 +178,7 @@ class DatasetStore:
 
         # Normalize dataset_state to a list of DatasetState objects
         normalized_dataset_state = normalize_dataset_state(dataset_state)
-        
+
         dataset_collection = self.dataset_repository.get_dataset_collection(
             bucket=self.bucket,
             dataset_type=dataset_type,
@@ -209,7 +219,7 @@ class DatasetStore:
             yield_dataset_collection=True
         ):
             process_collection(collection)
-            
+
         # Filter by dataset state
         for dataset in store.iter_dataset_collection(
             dataset_type="match",

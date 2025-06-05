@@ -38,5 +38,5 @@ __all__ = [
     "Task",
     "Sink",
     "DataSpecVersionCollection",
-    "DatasetState"
+    "DatasetState",
 ]

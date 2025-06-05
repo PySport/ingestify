@@ -79,16 +79,17 @@ def test_iter_dataset_collection(config_file):
 
     assert len(filtered_dataset_ids) == 1
     assert filtered_dataset_ids[0] == "dataset-5"
-    
+
+
 def test_dataset_state_filter(config_file):
     """Test filtering datasets by state."""
     # Get engine from the fixture
     engine = get_engine(config_file, "main")
     store = engine.store
     bucket = store.bucket
-    
+
     now = datetime.now(pytz.utc)
-    
+
     # Create datasets with different states
     states = [DatasetState.COMPLETE, DatasetState.PARTIAL, DatasetState.SCHEDULED]
     for i in range(9):  # 3 datasets per state
@@ -107,50 +108,46 @@ def test_dataset_state_filter(config_file):
             last_modified_at=now + timedelta(minutes=i),
         )
         store.dataset_repository.save(bucket, dataset)
-    
+
     # Test filtering by a single state using enum
     complete_datasets = store.get_dataset_collection(
-        dataset_type="state-test", 
-        dataset_state=DatasetState.COMPLETE
+        dataset_type="state-test", dataset_state=DatasetState.COMPLETE
     )
     assert len(complete_datasets) == 3
-    
+
     # Test filtering by a single state using string
     partial_datasets = store.get_dataset_collection(
-        dataset_type="state-test", 
-        dataset_state="PARTIAL"
+        dataset_type="state-test", dataset_state="PARTIAL"
     )
     assert len(partial_datasets) == 3
-    
+
     # Test filtering by multiple states using a list of enums
     mixed_datasets = store.get_dataset_collection(
-        dataset_type="state-test", 
-        dataset_state=[DatasetState.COMPLETE, DatasetState.SCHEDULED]
+        dataset_type="state-test",
+        dataset_state=[DatasetState.COMPLETE, DatasetState.SCHEDULED],
     )
     assert len(mixed_datasets) == 6
-    
+
     # Test filtering by multiple states using a list of strings
     mixed_datasets_strings = store.get_dataset_collection(
-        dataset_type="state-test", 
-        dataset_state=["COMPLETE", "SCHEDULED"]
+        dataset_type="state-test", dataset_state=["COMPLETE", "SCHEDULED"]
     )
     assert len(mixed_datasets_strings) == 6
-    
+
     # Test case-insensitivity
     lowercase_state_datasets = store.get_dataset_collection(
-        dataset_type="state-test", 
-        dataset_state="complete"
+        dataset_type="state-test", dataset_state="complete"
     )
     assert len(lowercase_state_datasets) == 3
-    
+
     # Test with iter_dataset_collection
     scheduled_dataset_ids = []
     for dataset in store.iter_dataset_collection(
         dataset_type="state-test",
         dataset_state=DatasetState.SCHEDULED,
-        page_size=2  # Small page size to test pagination with filters
+        page_size=2,  # Small page size to test pagination with filters
     ):
         scheduled_dataset_ids.append(dataset.dataset_id)
         assert dataset.state == DatasetState.SCHEDULED
-    
+
     assert len(scheduled_dataset_ids) == 3

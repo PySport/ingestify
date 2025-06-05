@@ -17,7 +17,9 @@ class DatasetRepository(ABC):
         provider: Optional[str] = None,
         selector: Optional[Union[Selector, List[Selector]]] = None,
         metadata_only: bool = False,
-        dataset_state: Optional[Union[str, List[str], DatasetState, List[DatasetState]]] = None,
+        dataset_state: Optional[
+            Union[str, List[str], DatasetState, List[DatasetState]]
+        ] = None,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
     ) -> DatasetCollection:

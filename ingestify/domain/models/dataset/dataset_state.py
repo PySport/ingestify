@@ -14,4 +14,3 @@ class DatasetState(str, Enum):
     @property
     def is_complete(self):
         return self == DatasetState.COMPLETE
-
