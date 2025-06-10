@@ -59,7 +59,9 @@ class IngestionEngine:
     def destroy_dataset(
         self, dataset_id: Optional[str] = None, **selector
     ) -> List[str]:
-        dataset_collection_batches = self.store.iter_dataset_collection_batches(dataset_id=dataset_id, **selector)
+        dataset_collection_batches = self.store.iter_dataset_collection_batches(
+            dataset_id=dataset_id, **selector
+        )
         dataset_ids = []
         for batch in dataset_collection_batches:
             for dataset in batch:
