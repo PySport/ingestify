@@ -8,17 +8,17 @@ StatsBomb provides free, open-source football data via their GitHub repository. 
 
 ## Configuration
 
-Here's an example configuration for the StatsBomb GitHub open data:
+Here's an example configuration for the StatsBomb GitHub open data (all data will be stored in `/tmp/ingestify`):
 
 ```yaml
 main:
-  metadata_url: postgresql://user:password@localhost:5432/ingestify
-  file_url: s3://sports-data-bucket
+  metadata_url: sqlite:////tmp/ingestify/database.db
+  file_url: file:///tmp/ingestify/data
   default_bucket: main
 
 sources:
   statsbomb:
-    type: ingestify.infra.source.statsbomb_github.StatsbombGithub
+    type: ingestify.statsbomb_github
 
 ingestion_plans:
   # Open data from StatsBomb's GitHub

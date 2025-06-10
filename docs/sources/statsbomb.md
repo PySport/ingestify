@@ -14,11 +14,17 @@ main:
 
 sources:
   statsbomb_match:
-    type: ingestify.infra.source.statsbomb.StatsBombMatchAPI
-    configuration:
-      username: !ENV ${STATSBOMB_USERNAME}
-      password: !ENV ${STATSBOMB_PASSWORD}
-
+    type: ingestify.statsbomb.match
+    
+    # Load from AWS Secrets Manager. The secret should contain a json
+    # like {"username": "your-username", "password": "your-password123"}
+    configuration: !ENV vault+aws://project/production/sources/statsbomb
+    
+    # Or fetch from environment variables
+    #configuration:
+    #  username: !ENV ${STATSBOMB_USERNAME}
+    #  password: !ENV ${STATSBOMB_PASSWORD}
+    
 ingestion_plans:
   # Standard match data
   - source: statsbomb_match
@@ -31,7 +37,8 @@ ingestion_plans:
       - competition_id: 11  # Premier League
         season_id: [90]     # 2022/2023 season
         
-  # 360 data (only for specific competitions)
+  # 360 data (only for specific competitions).
+  # This will be merged with the Dataset above
   - source: statsbomb_match
     dataset_type: match
     data_spec_versions:
