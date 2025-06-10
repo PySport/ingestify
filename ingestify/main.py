@@ -138,12 +138,16 @@ def get_remote_datastore(url: str, bucket: str, **kwargs) -> DatasetStore:
 
 def get_source_cls(key: str) -> Type[Source]:
     if key.startswith("ingestify."):
-        _, type_ = key.split(".")
+        _, type_ = key.split(".", maxsplit=1)
         if type_ == "wyscout":
             from ingestify.infra.source.wyscout import Wyscout
 
             return Wyscout
 
+        elif type_ == "statsbomb.match":
+            from ingestify.infra.source.statsbomb.match import StatsBombMatchAPI
+
+            return StatsBombMatchAPI
         elif type_ == "statsbomb_github":
             from ingestify.infra.source.statsbomb_github import StatsbombGithub
 
