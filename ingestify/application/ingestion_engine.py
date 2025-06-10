@@ -52,7 +52,7 @@ class IngestionEngine:
                     print(f"  {dataset_type}:")
                     for dataset in datasets_per_type:
                         print(
-                            f"    {dataset.identifier}: {dataset.name} / {dataset.state}   {dataset.dataset_id}"
+                            f"    {dataset.identifier}\t{dataset.dataset_id}\t{dataset.name} / {dataset.state}"
                         )
             # print(dataset.dataset_id)
 
