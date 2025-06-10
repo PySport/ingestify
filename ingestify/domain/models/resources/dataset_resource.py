@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Callable, Any, Protocol, TYPE_CHECKING  # noqa
 from pydantic import Field

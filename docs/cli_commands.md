@@ -122,33 +122,6 @@ ingestify delete --config config.yaml provider=statsbomb/dataset_type=match/comp
 ingestify delete --config config.yaml --bucket production 3f7d8e9a-1234-5678-90ab-cdef01234567
 ```
 
-### init
-
-Initialize a new project from a template (currently disabled).
-
-```bash
-ingestify init [OPTIONS] PROJECT_NAME
-```
-
-#### Arguments
-
-- `PROJECT_NAME`: Name of the project to create
-
-#### Options
-
-- `--template TEMPLATE`: Template to use (choices: "wyscout", "statsbomb_github")
-
-#### Examples
-
-```bash
-# Initialize a new project with Statsbomb template
-ingestify init --template statsbomb_github my_project
-
-# Initialize a new project with Wyscout template
-ingestify init --template wyscout my_project
-```
-
-Note: This command is currently disabled. See [GitHub issue #11](https://github.com/PySport/ingestify/issues/11).
 
 ## Environment Variables
 

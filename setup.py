@@ -30,24 +30,17 @@ def setup_package():
         long_description=readme,
         long_description_content_type="text/markdown",
         packages=setuptools.find_packages(exclude=["tests"]),
-        package_data={
-            "": package_files("ingestify/static"),
-        },
         entry_points={"console_scripts": ["ingestify = ingestify.cmdline:main"]},
         install_requires=[
             "requests>=2.0.0,<3",
-            "SQLAlchemy",
-            "dataclass_factory",
-            "cloudpickle",
-            "click",
-            "jinja2",
+            "SQLAlchemy>=2,<3",
+            "click>=8",
             "python-dotenv",
             "pyaml_env",
             "boto3",
-            "pytz",
             "pydantic>=2.0.0",
         ],
-        extras_require={"test": ["pytest>=6.2.5,<7"]},
+        extras_require={"test": ["pytest>=6.2.5,<7", "pytz"]},
     )
 
 

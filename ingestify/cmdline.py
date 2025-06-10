@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional
 
 import click
-import jinja2
 from dotenv import find_dotenv, load_dotenv
 
 from ingestify.exceptions import ConfigurationError
@@ -217,53 +216,6 @@ def delete_dataset(
         logger.warning(f"Failed to delete dataset with id {dataset_id}")
 
     logger.info("Done")
-
-
-@cli.command()
-@click.option(
-    "--template",
-    "template",
-    required=True,
-    help="Template",
-    type=click.Choice(["wyscout", "statsbomb_github"]),
-)
-@click.argument("project_name")
-def init(template: str, project_name: str):
-    logger.warning(
-        "`ingestify init` is currently not supported. See https://github.com/PySport/ingestify/issues/11"
-    )
-    return
-
-    directory = Path(project_name)
-    if directory.exists():
-        logger.warning(f"Directory '{directory}' already exists")
-        return sys.exit(1)
-
-    if template == "wyscout":
-        template_dir = Path(__file__).parent / "static/templates/wyscout"
-    elif template == "statsbomb_github":
-        template_dir = Path(__file__).parent / "static/templates/statsbomb_github"
-    else:
-        raise Exception(f"Template {template} not found")
-
-    directory.mkdir(parents=True)
-
-    for file in template_dir.glob("*"):
-        filename = file.name
-        if file.is_file():
-            data = file.open("r").read()
-
-            if filename.endswith(".jinja2"):
-                raw_input = jinja2.Template(data)
-                data = raw_input.render(ingestify_version=__version__)
-                filename = filename.rstrip(".jinja2")
-
-            with open(directory / filename, "w") as fp:
-                fp.write(data)
-        elif file.is_dir():
-            (directory / filename).mkdir()
-
-    logger.info(f"Initialized project at `{directory}` with template `{template}`")
 
 
 #
