@@ -522,19 +522,25 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         with self.connect() as connection:
             try:
                 # Delete modified files related to the dataset
-                file_table.delete().where(
-                    file_table.c.dataset_id == dataset.dataset_id
-                ).execute()
+                connection.execute(
+                    file_table.delete().where(
+                        file_table.c.dataset_id == dataset.dataset_id
+                    )
+                )
 
                 # Delete revisions related to the dataset
-                revision_table.delete().where(
-                    revision_table.c.dataset_id == dataset.dataset_id
-                ).execute()
+                connection.execute(
+                    revision_table.delete().where(
+                        revision_table.c.dataset_id == dataset.dataset_id
+                    )
+                )
 
                 # Delete the dataset itself
-                dataset_table.delete().where(
-                    dataset_table.c.dataset_id == dataset.dataset_id
-                ).execute()
+                connection.execute(
+                    dataset_table.delete().where(
+                        dataset_table.c.dataset_id == dataset.dataset_id
+                    )
+                )
 
                 connection.commit()
             except Exception:
