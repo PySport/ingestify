@@ -5,13 +5,11 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from multiprocessing import get_context, cpu_count, get_all_start_methods
 
 from datetime import datetime, timezone
 from string import Template
 from typing import Dict, Tuple, Optional, Any, List
 
-import cloudpickle
 from pydantic import Field
 from typing_extensions import Self
 
@@ -107,34 +105,6 @@ class AttributeBag:
     def split(self, attribute_name: str) -> Tuple[Self, Optional[Any]]:
         return self.attributes.get(attribute_name), self.__class__(
             **{k: v for k, v in self.attributes.items() if k != attribute_name}
-        )
-
-
-def cloud_unpack_and_call(args):
-    f_pickled, org_args = args
-
-    f = cloudpickle.loads(f_pickled)
-    return f(org_args)
-
-
-def map_in_pool(func, iterable, processes=0):
-    # TODO: move to cmdline
-    if os.environ.get("INGESTIFY_RUN_EAGER") == "true":
-        return list(map(func, iterable))
-
-    if not processes:
-        processes = int(os.environ.get("INGESTIFY_CONCURRENCY", "0"))
-
-    if "fork" in get_all_start_methods():
-        ctx = get_context("fork")
-    else:
-        ctx = get_context("spawn")
-
-    wrapped_fn = cloudpickle.dumps(func)
-
-    with ctx.Pool(processes or cpu_count()) as pool:
-        return pool.map(
-            cloud_unpack_and_call, ((wrapped_fn, item) for item in iterable)
         )
 
 
