@@ -6,8 +6,8 @@ from ingestify.domain import Dataset, Identifier, DatasetState
 from ingestify.main import get_engine
 
 
-def test_iter_dataset_collection(config_file):
-    """Test iteration over datasets with pagination using iter_dataset_collection."""
+def test_iter_dataset_collection_batches(config_file):
+    """Test iteration over datasets with batches using iter_dataset_collection_batches."""
     # Get engine from the fixture
     engine = get_engine(config_file, "main")
     store = engine.store
@@ -34,12 +34,12 @@ def test_iter_dataset_collection(config_file):
         )
         store.dataset_repository.save(bucket, dataset)
 
-    # Test iteration with small page_size (yields individual datasets)
+    # Test iteration with small batch_size (yields individual datasets)
     dataset_ids = []
-    for dataset in store.iter_dataset_collection(
+    for dataset in store.iter_dataset_collection_batches(
         dataset_type="test",
         provider="test-provider",
-        page_size=5,  # Small page size to force multiple pages
+        batch_size=5,  # Small batch size to force multiple batches
     ):
         dataset_ids.append(dataset.dataset_id)
 
@@ -52,15 +52,15 @@ def test_iter_dataset_collection(config_file):
 
     # Test iteration yielding entire DatasetCollection objects
     collections = []
-    for collection in store.iter_dataset_collection(
+    for collection in store.iter_dataset_collection_batches(
         dataset_type="test",
         provider="test-provider",
-        page_size=5,  # Small page size to force multiple pages
+        batch_size=5,  # Small batch size to force multiple batches
         yield_dataset_collection=True,
     ):
         collections.append(collection)
 
-    # Should have 6 collections (30 datasets / 5 per page = 6 pages)
+    # Should have 6 collections (30 datasets / 5 per batch = 6 batches)
     assert len(collections) == 6
 
     # Verify total dataset count across all collections
@@ -69,11 +69,11 @@ def test_iter_dataset_collection(config_file):
 
     # Test iteration with a filter that returns fewer results
     filtered_dataset_ids = []
-    for dataset in store.iter_dataset_collection(
+    for dataset in store.iter_dataset_collection_batches(
         dataset_type="test",
         provider="test-provider",
         test_id=5,  # Only get dataset with test_id=5
-        page_size=10,
+        batch_size=10,
     ):
         filtered_dataset_ids.append(dataset.dataset_id)
 
@@ -142,10 +142,10 @@ def test_dataset_state_filter(config_file):
 
     # Test with iter_dataset_collection
     scheduled_dataset_ids = []
-    for dataset in store.iter_dataset_collection(
+    for dataset in store.iter_dataset_collection_batches(
         dataset_type="state-test",
         dataset_state=DatasetState.SCHEDULED,
-        page_size=2,  # Small page size to test pagination with filters
+        batch_size=2,  # Small batch size to test pagination with filters
     ):
         scheduled_dataset_ids.append(dataset.dataset_id)
         assert dataset.state == DatasetState.SCHEDULED
