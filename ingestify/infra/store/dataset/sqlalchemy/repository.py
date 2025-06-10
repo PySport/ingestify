@@ -636,16 +636,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def get_store_version(self) -> Optional[str]:
         """Get the current Ingestify version stored for this store."""
         with self.session:
-            row = (
-                self.session.query(store_version_table.c.ingestify_version)
-                .first()
-            )
+            row = self.session.query(store_version_table.c.ingestify_version).first()
             return row.ingestify_version if row else None
 
     def set_store_version(self, version: str):
         """Set the Ingestify version for this store."""
         from ingestify.utils import utcnow
-        
+
         now = utcnow()
         entity = {
             "id": 1,
@@ -653,7 +650,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             "created_at": now,
             "updated_at": now,
         }
-        
+
         with self.connect() as connection:
             try:
                 self._upsert(connection, store_version_table, [entity])
@@ -665,7 +662,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def ensure_compatible_version(self, current_version: str):
         """Ensure the store is compatible with the current Ingestify version."""
         stored_version = self.get_store_version()
-        
+
         if stored_version is None:
             # First time setup - store the current version
             self.set_store_version(current_version)
