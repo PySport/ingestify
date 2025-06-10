@@ -77,21 +77,6 @@ The integration properly maps StatsBomb's status fields to Ingestify's dataset s
 
 ## Usage Example
 
-### Running the Ingestion
-
-```python
-from ingestify.main import get_engine
-
-# Initialize the engine
-engine = get_engine("config.yaml")
-
-# Run ingestion for all configured sources
-engine.load()
-
-# Or run only for StatsBomb data
-engine.load(provider="statsbomb")
-```
-
 ### Command Line Usage
 
 ```bash
@@ -100,14 +85,18 @@ ingestify run --config config.yaml
 
 # Run only StatsBomb ingestion
 ingestify run --config config.yaml --provider statsbomb
-
-# Run in debug mode to see more information
-ingestify run --config config.yaml --provider statsbomb --debug
 ```
 
 ### Querying for Matches
 
 ```python
+
+```python
+from ingestify.main import get_engine
+
+# Initialize the engine
+engine = get_engine("config.yaml")
+
 # Get all Premier League matches
 premier_league_matches = engine.store.get_dataset_collection(
     provider="statsbomb",
@@ -134,17 +123,9 @@ match = engine.store.get_dataset_collection(
 kloppy_dataset = engine.load_with_kloppy(match)
 
 # Filter for specific events
-goals = kloppy_dataset.filter("shot.goal")
-passes = kloppy_dataset.filter("pass")
-high_pressure = kloppy_dataset.filter("pressure.high")
+shots = kloppy_dataset.filter("shot")
 
-# Get events by a specific player
-player_id = "some_player_id"
-player_events = kloppy_dataset.filter(f"by.{player_id}")
-
-# Process tracking data if available
-if hasattr(kloppy_dataset, 'frames'):
-    for frame in kloppy_dataset.frames:
-        # Process tracking frame
-        pass
+# Check https://kloppy.pysport.org/user-guide/concepts/event-data/#kloppys-event-data-model
+for shot in shots:
+    process(shot.freeze_frame)
 ```
