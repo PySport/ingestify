@@ -7,11 +7,6 @@ In general a data management platform contains:
 2. Transformation of data (Extract from Data Lake, Transform and Load into Data Warehouse)
 3. Utilization of data
 
-<img src="https://www.getdbt.com/ui/img/blog/what-exactly-is-dbt/1-BogoeTTK1OXFU1hPfUyCFw.png" />
-Source: https://www.getdbt.com/blog/what-exactly-is-dbt/
-
-TODO: Improve drawings and explain more
-
 ## Ingestify
 
 Ingestify focus' on Ingestion of data. 
