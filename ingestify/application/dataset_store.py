@@ -200,13 +200,13 @@ class DatasetStore:
         )
         return dataset_collection
 
-    def iter_dataset_collection(
+    def iter_dataset_collection_batches(
         self,
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
         metadata_only: Optional[bool] = False,
-        page_size: int = 1000,
+        batch_size: int = 1000,
         yield_dataset_collection: bool = False,
         dataset_state: Optional[DatasetStateParam] = None,
         **selector,
@@ -217,7 +217,7 @@ class DatasetStore:
         Examples:
         ```
         # Iterate through individual datasets
-        for dataset in store.iter_dataset_collection(dataset_type="match", provider="statsbomb"):
+        for dataset in store.iter_dataset_collection_batches(dataset_type="match", provider="statsbomb"):
             process(dataset)
 
         # Iterate through DatasetCollection objects (pages)
@@ -241,7 +241,7 @@ class DatasetStore:
             provider: Optional provider filter
             dataset_id: Optional dataset ID filter
             metadata_only: Whether to fetch only metadata
-            page_size: Number of datasets to fetch per page
+            batch_size: Number of datasets to fetch per batch
             yield_dataset_collection: If True, yields entire DatasetCollection objects
                                      instead of individual Dataset objects
             dataset_state: Optional filter for dataset state. Can be a string, DatasetState enum,
@@ -260,7 +260,7 @@ class DatasetStore:
                 dataset_id=dataset_id,
                 metadata_only=metadata_only,
                 page=page,
-                page_size=page_size,
+                page_size=batch_size,
                 dataset_state=dataset_state,
                 **selector,
             )
@@ -275,7 +275,7 @@ class DatasetStore:
                     yield dataset
 
             # If we got fewer results than page_size, we've reached the end
-            if len(collection) < page_size:
+            if len(collection) < batch_size:
                 break
 
             page += 1

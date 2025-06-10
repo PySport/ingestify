@@ -85,7 +85,7 @@ For large result sets, use pagination:
 
 ```python
 # Iterator for datasets with pagination
-dataset_collections = engine.store.iter_dataset_collection(
+dataset_collection_batches = store.iter_dataset_collection_batches(
     provider="statsbomb",
     dataset_type="match",
     competition_id=11,
@@ -95,10 +95,10 @@ dataset_collections = engine.store.iter_dataset_collection(
 )
 
 # Process each page of results
-for page in dataset_collections:
-    for dataset in page:
+for batch in dataset_collection_batches:
+    for dataset in batch:
         # Process each dataset
-        files = engine.store.load_files(dataset)
+        files = store.load_files(dataset)
         # ...
 ```
 

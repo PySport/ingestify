@@ -415,25 +415,25 @@ if datasets:
         print(f"Events: {len(events_data)}")
 ```
 
-### Using iter_dataset_collection
+### Using iter_dataset_collection_batches
 
-For large result sets, you can use pagination:
+For large result sets, you can use batches:
 
 ```python
 # Iterator for datasets with pagination
-dataset_collections = store.iter_dataset_collection(
+dataset_collection_batches = store.iter_dataset_collection_batches(
     dataset_state="complete",
     dataset_type="match",
     provider="statsbomb",
     competition_id=11,
     season_id=90,
-    page_size=100,
+    batch_size=100,
     yield_dataset_collection=True
 )
 
 # Process each page of results
-for page in dataset_collections:
-    print(f"Processing page with {len(page)} datasets")
+for batch in dataset_collection_batches:
+    print(f"Processing batch with {len(batch)} datasets")
     
     for dataset in page:
         # Process each dataset
