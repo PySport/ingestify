@@ -319,6 +319,15 @@ task_summary_table = Table(
     # Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
     # Column("source", JSONType()),
 )
+
+store_version_table = Table(
+    "store_version",
+    metadata,
+    Column("id", Integer, primary_key=True, default=1),
+    Column("ingestify_version", String(255), nullable=False),
+    Column("created_at", TZDateTime(6), nullable=False),
+    Column("updated_at", TZDateTime(6), nullable=False),
+)
 #
 #
 # mapper_registry = registry()

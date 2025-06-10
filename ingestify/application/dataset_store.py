@@ -118,6 +118,10 @@ class DatasetStore:
         self.event_bus: Optional[EventBus] = None
         # Create thread-local storage for caching
         self._thread_local = threading.local()
+        
+        # Pass current version to repository for validation/migration
+        from ingestify import __version__
+        self.dataset_repository.ensure_compatible_version(__version__)
 
     # def __getstate__(self):
     #     return {"file_repository": self.file_repository, "bucket": self.bucket}
