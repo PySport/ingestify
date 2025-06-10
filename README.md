@@ -67,10 +67,14 @@ sources:
 ingestion_plans:
   - source: statsbomb  # Use the Statsbomb source defined above
     dataset_type: match
-    selectors:
-      - competition_id: 11  # Example: English Premier League
-        season_id: [90]  # Example: 2022/2023 season
+    # Optionally specify selectors; which matches need to be fetched
+    # selectors:
+    #   - competition_id: 11  # Example: English Premier League
+    #     season_id: [90]  # Example: 2022/2023 season 
+  
+
 ```
+
 
 ### Running Your First Ingestion
 
