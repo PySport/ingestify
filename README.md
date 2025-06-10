@@ -119,7 +119,7 @@ dataset_collection_batches = store.iter_dataset_collection_batches(
     season_id=90,
   
     # Fetch datasets in batch
-    page_size=1000,
+    batch_size=1000,
     yield_dataset_collection=True
 )
 
