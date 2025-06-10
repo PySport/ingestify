@@ -20,5 +20,5 @@ Ingestify is a Python framework for ingesting, managing, and processing sports a
 - [API Reference](./api_reference.md)
 - [Examples](./examples.md)
 - [Secrets Management](./secrets_management.md)
-- [Sources](../../docs/sources/index.md)
+- [Sources](./sources/index.md)
 - [Contributing](./contributing.md)
