@@ -6,7 +6,7 @@ Ingestify supports multiple data providers for sports analytics data. Each sourc
 
 ## Built-in Sources
 
-- [StatsBomb](./statsbomb.md) - Access data from the StatsBomb API
+- [StatsBomb](statsbomb.md) - Access data from the StatsBomb API
 - [Wyscout](./wyscout.md) - Access data from the Wyscout API
 - [StatsBomb GitHub](./statsbomb_github.md) - Access open data from StatsBomb's GitHub repository
 
