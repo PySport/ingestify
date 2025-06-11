@@ -187,7 +187,9 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
 
 
 def get_engine(
-    config_file, bucket: Optional[str] = None, disable_events: bool = False
+    config_file: str = "config.yaml",
+    bucket: Optional[str] = None,
+    disable_events: bool = False,
 ) -> IngestionEngine:
     config = parse_config(config_file, default_value="")
 

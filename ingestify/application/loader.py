@@ -29,27 +29,39 @@ class Loader:
     def add_ingestion_plan(self, ingestion_plan: IngestionPlan):
         self.ingestion_plans.append(ingestion_plan)
 
-    def collect_and_run(
+    def collect(
         self,
-        dry_run: bool = False,
         provider: Optional[str] = None,
         source: Optional[str] = None,
+        dataset_type: Optional[str] = None,
+        **selector_filters,
     ):
+        """Collect and prepare selectors for execution."""
         ingestion_plans = []
         for ingestion_plan in self.ingestion_plans:
             if provider is not None:
                 if ingestion_plan.source.provider != provider:
-                    logger.info(
+                    logger.debug(
                         f"Skipping {ingestion_plan} because provider doesn't match '{provider}'"
                     )
                     continue
 
             if source is not None:
                 if ingestion_plan.source.name != source:
-                    logger.info(
+                    logger.debug(
                         f"Skipping {ingestion_plan} because source doesn't match '{source}'"
                     )
                     continue
+
+            if dataset_type is not None:
+                if ingestion_plan.dataset_type != dataset_type:
+                    logger.debug(
+                        f"Skipping {ingestion_plan} because dataset_type doesn't match '{dataset_type}'"
+                    )
+                    continue
+
+            # Note: Selector filtering is now done after all selectors are collected
+            # to allow discover_selectors to run for plans with empty selectors
 
             ingestion_plans.append(ingestion_plan)
 
@@ -134,32 +146,45 @@ class Loader:
                 else:
                     selectors[key] = (ingestion_plan, selector)
 
-        """
-            Data is denormalized:
-            
-            It actually looks like:
-                - IngestionPlan #1
-                    - Selector 1.1
-                    - Selector 1.2
-                    - Selector 1.3
-                - IngestionPlan #2
-                    - Selector 2.1
-                    - Selector 2.2
-                    
-            We process this as:
-            - IngestionPlan #1, Selector 1.1
-            - IngestionPlan #1, Selector 1.2
-            - IngestionPlan #1, Selector 1.3
-            - IngestionPlan #2, Selector 2.1
-            - IngestionPlan #2, Selector 2.2 
-            
-            IngestionJobSummary holds the summary for an IngestionPlan and a single Selector
-        """
+        # Convert to list
+        collected_selectors = list(selectors.values())
 
+        # Apply selector filters if provided
+        if selector_filters:
+            filtered_selectors = []
+            for ingestion_plan, selector in collected_selectors:
+                if selector.matches(selector_filters):
+                    # Merge selector with user filters to make it more strict
+                    merged_attributes = {
+                        **selector.filtered_attributes,
+                        **selector_filters,
+                    }
+                    strict_selector = Selector.build(
+                        merged_attributes,
+                        data_spec_versions=selector.data_spec_versions,
+                    )
+
+                    # Check if selector was actually made more strict
+                    if len(strict_selector.filtered_attributes) > len(
+                        selector.filtered_attributes
+                    ):
+                        logger.debug(
+                            f"Made selector more strict: {selector} -> {strict_selector}"
+                        )
+
+                    filtered_selectors.append((ingestion_plan, strict_selector))
+                else:
+                    logger.debug(
+                        f"Filtering out selector {selector} because it doesn't match filters"
+                    )
+            collected_selectors = filtered_selectors
+
+        return collected_selectors
+
+    def run(self, selectors, dry_run: bool = False):
+        """Execute the collected selectors."""
         ingestion_job_prefix = str(uuid.uuid1())
-        for ingestion_job_idx, (ingestion_plan, selector) in enumerate(
-            selectors.values()
-        ):
+        for ingestion_job_idx, (ingestion_plan, selector) in enumerate(selectors):
             logger.info(
                 f"Discovering datasets from {ingestion_plan.source.__class__.__name__} using selector {selector}"
             )
@@ -186,3 +211,42 @@ class Loader:
                     self.store.save_ingestion_job_summary(ingestion_job_summary)
 
         logger.info("Done")
+
+    def collect_and_run(
+        self,
+        dry_run: bool = False,
+        provider: Optional[str] = None,
+        source: Optional[str] = None,
+        dataset_type: Optional[str] = None,
+        **selector_filters,
+    ):
+        """
+        Backward compatibility method - collect then run.
+
+        Data flow explanation:
+
+        IngestionPlans are structured hierarchically:
+            - IngestionPlan #1
+                - Selector 1.1
+                - Selector 1.2
+                - Selector 1.3
+            - IngestionPlan #2
+                - Selector 2.1
+                - Selector 2.2
+
+        But we process them as flat (plan, selector) pairs for execution:
+            - (IngestionPlan #1, Selector 1.1)
+            - (IngestionPlan #1, Selector 1.2)
+            - (IngestionPlan #1, Selector 1.3)
+            - (IngestionPlan #2, Selector 2.1)
+            - (IngestionPlan #2, Selector 2.2)
+
+        Each IngestionJobSummary tracks the execution of one (IngestionPlan, Selector) pair.
+        """
+        selectors = self.collect(
+            provider=provider,
+            source=source,
+            dataset_type=dataset_type,
+            **selector_filters,
+        )
+        self.run(selectors, dry_run=dry_run)

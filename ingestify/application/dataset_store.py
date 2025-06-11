@@ -210,7 +210,6 @@ class DatasetStore:
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
-        metadata_only: Optional[bool] = False,
         batch_size: int = 1000,
         yield_dataset_collection: bool = False,
         dataset_state: Optional[DatasetStateParam] = None,
@@ -245,7 +244,6 @@ class DatasetStore:
             dataset_type: Optional dataset type filter
             provider: Optional provider filter
             dataset_id: Optional dataset ID filter
-            metadata_only: Whether to fetch only metadata
             batch_size: Number of datasets to fetch per batch
             yield_dataset_collection: If True, yields entire DatasetCollection objects
                                      instead of individual Dataset objects
@@ -263,7 +261,6 @@ class DatasetStore:
                 dataset_type=dataset_type,
                 provider=provider,
                 dataset_id=dataset_id,
-                metadata_only=metadata_only,
                 page=page,
                 page_size=batch_size,
                 dataset_state=dataset_state,

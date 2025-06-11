@@ -5,6 +5,8 @@ import uuid
 from enum import Enum
 from typing import Optional, Iterator, Union
 
+from pydantic import ValidationError
+
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
@@ -19,7 +21,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.task.task_summary import TaskSummary
-from ingestify.exceptions import SaveError
+from ingestify.exceptions import SaveError, IngestifyError
 from ingestify.utils import TaskExecutor, chunker
 
 logger = logging.getLogger(__name__)
@@ -260,6 +262,16 @@ class IngestionJob:
 
                 # We need to include the to_batches as that will start the generator
                 batches = to_batches(dataset_resources)
+        except ValidationError as e:
+            # Make sure to pass this to the highest level as this means the Source is wrong
+            if "Field required" in str(e):
+                raise IngestifyError("failed to run find_datasets") from e
+            else:
+                logger.exception("Failed to find datasets")
+
+                ingestion_job_summary.set_exception(e)
+                yield ingestion_job_summary
+                return
         except Exception as e:
             logger.exception("Failed to find datasets")
 
