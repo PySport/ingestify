@@ -1,11 +1,14 @@
 import itertools
 import logging
+import threading
+from queue import Queue
 from typing import Optional, List, Union, Dict, Any, Iterator
 
 from .loader import Loader
 from .dataset_store import DatasetStore
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models import Dataset
+from ..domain.models.dataset.events import DatasetSkipped, RevisionAdded, SelectorSkipped
 
 logger = logging.getLogger(__name__)
 
@@ -140,23 +143,52 @@ class IngestionEngine:
 
         # Run auto-ingestion if enabled
         if auto_ingest_enabled:
-            self.load(
-                provider=provider,
+            queue = Queue()
+
+            def load_in_background():
+                class CustomerDispatcher:
+                    def dispatch(self, event):
+                        logging.info(f"EVENT: {type(event)} {event}")
+                        queue.put(event)
+
+                unregister = self.store.event_bus.register(CustomerDispatcher())
+                self.load(
+                    provider=provider,
+                    dataset_type=dataset_type,
+                    auto_ingest_config=auto_ingest_config,
+                    **selector_filters,
+                )
+                unregister()
+
+                # Done.
+                queue.put(None)
+
+            thread = threading.Thread(target=load_in_background)
+            thread.start()
+
+            while True:
+                item = queue.get()
+                if item is None:
+                    break
+
+                if isinstance(item, DatasetSkipped):
+                    yield item.dataset
+                elif isinstance(item, RevisionAdded):
+                    yield item.dataset
+                elif isinstance(item, SelectorSkipped):
+                    pass
+
+
+        else:
+            yield from self.store.iter_dataset_collection_batches(
                 dataset_type=dataset_type,
-                auto_ingest_config=auto_ingest_config,
+                provider=provider,
+                dataset_id=dataset_id,
+                batch_size=batch_size,
+                yield_dataset_collection=yield_dataset_collection,
+                dataset_state=dataset_state,
                 **selector_filters,
             )
-
-        # Always yield from store (existing + any newly ingested)
-        yield from self.store.iter_dataset_collection_batches(
-            dataset_type=dataset_type,
-            provider=provider,
-            dataset_id=dataset_id,
-            batch_size=batch_size,
-            yield_dataset_collection=yield_dataset_collection,
-            dataset_state=dataset_state,
-            **selector_filters,
-        )
 
     def load_dataset_with_kloppy(self, dataset: Dataset, **kwargs):
         """

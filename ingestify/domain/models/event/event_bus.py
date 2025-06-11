@@ -13,9 +13,14 @@ class EventBus:
 
     def register(self, dispatcher: Dispatcher):
         self.dispatchers.append(dispatcher)
+        index = len(self.dispatchers) - 1
+
+        def unregister():
+            self.dispatchers.pop(index)
+
+        return unregister
 
     def dispatch(self, event):
-
         for dispatcher in self.dispatchers:
             try:
                 dispatcher.dispatch(event)
