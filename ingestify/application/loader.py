@@ -9,6 +9,9 @@ from ingestify.utils import TaskExecutor
 
 from .dataset_store import DatasetStore
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
+from ingestify.domain.models.fetch_policy import FetchPolicy
+from ingestify.domain import DataSpecVersionCollection
+from ingestify.infra.source.statsbomb_github import StatsbombGithub
 from ..domain.models.ingestion.ingestion_job import IngestionJob
 from ..exceptions import ConfigurationError
 
@@ -19,6 +22,34 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+
+# Registry of open data sources that can be auto-instantiated
+OPEN_DATA_SOURCES = {
+    "statsbomb": StatsbombGithub,
+    # Add more open data sources here as they become available
+}
+
+
+def _create_open_data_plan(provider: str, dataset_type: str) -> Optional[IngestionPlan]:
+    """Create a temporary ingestion plan for open data sources."""
+    if provider not in OPEN_DATA_SOURCES:
+        return None
+
+    source_class = OPEN_DATA_SOURCES[provider]
+    source = source_class(name=f"open_data_{provider}")
+
+    # Create empty selector to trigger discover_selectors
+    data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
+    empty_selector = Selector.build({}, data_spec_versions=data_spec_versions)
+
+    return IngestionPlan(
+        source=source,
+        fetch_policy=FetchPolicy(),
+        selectors=[empty_selector],
+        dataset_type=dataset_type,
+        data_spec_versions=data_spec_versions,
+    )
 
 
 class Loader:
@@ -34,6 +65,7 @@ class Loader:
         provider: Optional[str] = None,
         source: Optional[str] = None,
         dataset_type: Optional[str] = None,
+        auto_ingest_config: Optional[dict] = None,
         **selector_filters,
     ):
         """Collect and prepare selectors for execution."""
@@ -64,6 +96,30 @@ class Loader:
             # to allow discover_selectors to run for plans with empty selectors
 
             ingestion_plans.append(ingestion_plan)
+
+        # Check if we need to add open data plans
+        auto_ingest_config = auto_ingest_config or {}
+        if auto_ingest_config.get("use_open_data", False):
+            # Validate prerequisites for open data
+            if not provider:
+                raise ConfigurationError(
+                    "use_open_data requires 'provider' to be specified"
+                )
+            if not dataset_type:
+                raise ConfigurationError(
+                    "use_open_data requires 'dataset_type' to be specified"
+                )
+
+            # Only add open data plan if no matching configured plans found
+            if not ingestion_plans:
+                open_data_plan = _create_open_data_plan(provider, dataset_type)
+                if open_data_plan:
+                    logger.info(f"Auto-discovered open data source: {open_data_plan}")
+                    ingestion_plans.append(open_data_plan)
+                else:
+                    logger.warning(
+                        f"No open data source available for provider '{provider}'"
+                    )
 
         # First collect all selectors, before discovering datasets
         selectors = {}
@@ -218,6 +274,7 @@ class Loader:
         provider: Optional[str] = None,
         source: Optional[str] = None,
         dataset_type: Optional[str] = None,
+        auto_ingest_config: Optional[dict] = None,
         **selector_filters,
     ):
         """
@@ -247,6 +304,7 @@ class Loader:
             provider=provider,
             source=source,
             dataset_type=dataset_type,
+            auto_ingest_config=auto_ingest_config,
             **selector_filters,
         )
         self.run(selectors, dry_run=dry_run)

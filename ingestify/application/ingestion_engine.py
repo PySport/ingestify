@@ -27,6 +27,7 @@ class IngestionEngine:
         provider: Optional[str] = None,
         source: Optional[str] = None,
         dataset_type: Optional[str] = None,
+        auto_ingest_config: Optional[Dict[str, Any]] = None,
         **selector_filters,
     ):
         self.loader.collect_and_run(
@@ -34,6 +35,7 @@ class IngestionEngine:
             provider=provider,
             source=source,
             dataset_type=dataset_type,
+            auto_ingest_config=auto_ingest_config or {},
             **selector_filters,
         )
 
@@ -138,7 +140,12 @@ class IngestionEngine:
 
         # Run auto-ingestion if enabled
         if auto_ingest_enabled:
-            self.load(provider=provider, dataset_type=dataset_type, **selector_filters)
+            self.load(
+                provider=provider,
+                dataset_type=dataset_type,
+                auto_ingest_config=auto_ingest_config,
+                **selector_filters,
+            )
 
         # Always yield from store (existing + any newly ingested)
         yield from self.store.iter_dataset_collection_batches(
@@ -151,7 +158,7 @@ class IngestionEngine:
             **selector_filters,
         )
 
-    def load_with_kloppy(self, dataset: Dataset, **kwargs):
+    def load_dataset_with_kloppy(self, dataset: Dataset, **kwargs):
         """
         Load a dataset using kloppy.
 

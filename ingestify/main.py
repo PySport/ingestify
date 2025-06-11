@@ -187,16 +187,31 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
 
 
 def get_engine(
-    config_file: str = "config.yaml",
+    config_file: Optional[str] = None,
     bucket: Optional[str] = None,
     disable_events: bool = False,
+    metadata_url: Optional[str] = None,
+    file_url: Optional[str] = None,
 ) -> IngestionEngine:
+    if not config_file:
+        if not metadata_url or not file_url:
+            raise ValueError(
+                f"You must specify metadata_url and file_url in case you don't use a config_file"
+            )
+        store = get_dataset_store_by_urls(
+            metadata_url=metadata_url,
+            file_url=file_url,
+            bucket=bucket or "main",
+            dataset_types=[],
+        )
+        return IngestionEngine(store=store)
+
     config = parse_config(config_file, default_value="")
 
     logger.info("Initializing sources")
     sources = {}
     sys.path.append(os.path.dirname(config_file))
-    for name, source_args in config["sources"].items():
+    for name, source_args in config.get("sources", {}).items():
         sources[name] = build_source(name=name, source_args=source_args)
 
     logger.info("Initializing IngestionEngine")

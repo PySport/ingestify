@@ -21,6 +21,7 @@ class StatsbombGithub(Source):
             dict(
                 competition_id=competition["competition_id"],
                 season_id=competition["season_id"],
+                _name=f"{competition['competition_name']} - {competition['season_name']}",
             )
             for competition in competitions
         ]
