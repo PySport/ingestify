@@ -116,8 +116,6 @@ class DatasetStore:
         self.storage_compression_method = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
-        # Create thread-local storage for caching
-        # self.__thread_local = None
 
         # Pass current version to repository for validation/migration
         from ingestify import __version__
@@ -126,9 +124,9 @@ class DatasetStore:
 
     @property
     def _thread_local(self):
-        if not hasattr(self, "__thread_local"):
-            self.__thread_local = threading.local()
-        return self.__thread_local
+        if not hasattr(self, "_thread_local_"):
+            self._thread_local_ = threading.local()
+        return self._thread_local_
 
     def __getstate__(self):
         """When pickling this instance, don't pass EventBus. EventBus can contain all

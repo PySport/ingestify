@@ -105,6 +105,7 @@ class IngestionEngine:
                         break
 
                     yield event
+
             return _iter()
         else:
             do_load()
