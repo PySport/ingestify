@@ -536,9 +536,14 @@ class DatasetStore:
             from kloppy import statsbomb
 
             try:
+                three_sixty_data = None
+                if tmp_file := files.get_file("360-frames"):
+                    three_sixty_data = tmp_file.stream
+
                 return statsbomb.load(
                     event_data=(files.get_file("events")).stream,
                     lineup_data=(files.get_file("lineups")).stream,
+                    three_sixty_data=three_sixty_data,
                     **kwargs,
                 )
             except Exception as e:
