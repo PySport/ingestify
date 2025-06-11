@@ -24,7 +24,7 @@ class MetadataUpdated(DomainEvent):
 
 class SelectorSkipped(DomainEvent):
     model_config = {"arbitrary_types_allowed": True}
-    
+
     selector: Selector
     event_type: ClassVar[str] = "selector_skipped"
 

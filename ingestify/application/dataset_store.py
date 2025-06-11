@@ -117,15 +117,28 @@ class DatasetStore:
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
         # Create thread-local storage for caching
-        self._thread_local = threading.local()
+        # self.__thread_local = None
 
         # Pass current version to repository for validation/migration
         from ingestify import __version__
 
         self.dataset_repository.ensure_compatible_version(__version__)
 
-    # def __getstate__(self):
-    #     return {"file_repository": self.file_repository, "bucket": self.bucket}
+    @property
+    def _thread_local(self):
+        if not hasattr(self, "__thread_local"):
+            self.__thread_local = threading.local()
+        return self.__thread_local
+
+    def __getstate__(self):
+        """When pickling this instance, don't pass EventBus. EventBus can contain all
+        kind of dispatchers, which may, or may not can be pickled."""
+        return {
+            "dataset_repository": self.dataset_repository,
+            "storage_compression_method": self.storage_compression_method,
+            "file_repository": self.file_repository,
+            "bucket": self.bucket,
+        }
 
     def set_event_bus(self, event_bus: EventBus):
         self.event_bus = event_bus

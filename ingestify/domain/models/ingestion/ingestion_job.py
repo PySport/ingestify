@@ -246,7 +246,7 @@ class IngestionJob:
                 )
                 # Emit event for streaming datasets
                 store.dispatch(SelectorSkipped(selector=self.selector))
-                
+
                 ingestion_job_summary.set_skipped()
                 yield ingestion_job_summary
                 return
@@ -366,9 +366,10 @@ class IngestionJob:
                         f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
                     )
                     logger.info(f"Running {len(task_set)} tasks")
-                    ingestion_job_summary.add_task_summaries(
-                        task_executor.run(run_task, task_set)
-                    )
+
+                    task_summaries = task_executor.run(run_task, task_set)
+
+                    ingestion_job_summary.add_task_summaries(task_summaries)
                 else:
                     logger.info(
                         f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
