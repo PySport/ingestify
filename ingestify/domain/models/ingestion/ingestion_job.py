@@ -16,6 +16,7 @@ from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
 )
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
+from ingestify.domain.models.dataset.events import SelectorSkipped, DatasetSkipped
 from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
@@ -243,6 +244,9 @@ class IngestionJob:
                     f"'{self.selector.last_modified}' < metadata last_modified "
                     f"'{dataset_collection_metadata.last_modified}'"
                 )
+                # Emit event for streaming datasets
+                store.dispatch(SelectorSkipped(selector=self.selector))
+                
                 ingestion_job_summary.set_skipped()
                 yield ingestion_job_summary
                 return
@@ -339,6 +343,8 @@ class IngestionJob:
                                 )
                             )
                         else:
+                            # Emit event for streaming datasets
+                            store.dispatch(DatasetSkipped(dataset=dataset))
                             skipped_tasks += 1
                     else:
                         if self.ingestion_plan.fetch_policy.should_fetch(
