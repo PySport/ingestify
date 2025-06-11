@@ -21,10 +21,9 @@ class EventBus:
 
     def register(self, dispatcher: Dispatcher):
         self.dispatchers.append(dispatcher)
-        index = len(self.dispatchers) - 1
 
         def unregister():
-            self.dispatchers.pop(index)
+            self.dispatchers.remove(dispatcher)
 
         return unregister
 
