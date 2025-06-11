@@ -96,12 +96,16 @@ class IngestionEngine:
             thread = threading.Thread(target=load_in_background)
             thread.start()
 
-            while True:
-                event = queue.get()
-                if event is None:
-                    break
+            def _iter():
+                # Required to prevent this function to be a generator. Otherwise,
+                # do_load won't be called when async_yield_events=False
+                while True:
+                    event = queue.get()
+                    if event is None:
+                        break
 
-                yield event
+                    yield event
+            return _iter()
         else:
             do_load()
 

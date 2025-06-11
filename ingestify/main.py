@@ -187,7 +187,7 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
 
 
 def get_engine(
-    config_file: Optional[str] = "config.yaml",
+    config_file: Optional[str] = None,
     bucket: Optional[str] = None,
     disable_events: bool = False,
     metadata_url: Optional[str] = None,
@@ -195,7 +195,12 @@ def get_engine(
 ) -> IngestionEngine:
     sources = {}
 
-    if metadata_url and file_url:
+    if not config_file:
+        if not metadata_url or not file_url:
+            raise ValueError(
+                f"You must specify metadata_url and file_url in case you don't use a config_file"
+            )
+
         config = {
             "main": {
                 "metadata_url": metadata_url,
@@ -203,7 +208,9 @@ def get_engine(
                 "default_bucket": bucket or "main",
             }
         }
-    elif config_file:
+    elif not config_file:
+        raise ValueError("You must specify a config file")
+    else:
         config = parse_config(config_file, default_value="")
 
         logger.info("Initializing sources")
