@@ -1,139 +1,186 @@
 # Ingestify
 
-## Data Management Platform
+_Ingest everything – JSON, CSV, tracking ZIPs, even MP4 – keep it version‑safe, sync only what changed, and analyse while you ingest._
 
-In general a data management platform contains:
-1. Ingestion of data (Extract from Source into Load into Data Lake)
-2. Transformation of data (Extract from Data Lake, Transform and Load into Data Warehouse)
-3. Utilization of data
+---
 
-## Ingestify
+## Why Ingestify?
 
-Ingestify focus' on Ingestion of data. 
+Football‐data APIs are often **slow**, **rate‑limited** or just **down**. One parsing bug and you’re forced to pull tens of gigabytes again.  
+Ingestify fixes that by building **your own data lake** of untouched provider files and fetching only what’s new:
 
-### How does Ingestify work?
+* **Own your lake** – The first time you ask for a match, Ingestify downloads the original files (metadata, line‑ups, events, tracking, video) and stores them untouched in local disk, S3, GCS… every later query hits *your* lake, not the provider.
+* **Never re‑fetch the world** – A file‑level checksum / timestamp check moves only changed bundles across the wire.
+* **Atomic, complete packages** – A *Dataset* is all‑or‑nothing:
 
-1. A `Source` is asked for all available `Datasets` using the `discover_datasets` method
-2. All available `Datasets` are compared with what's already fetched, and if it's changed (using a `FetchPolicy`)
-3. A `TaskQueue` is filled with `Tasks` to fetch all missing or stale `Datasets`
+  | Dataset type | Always contains |
+  |--------------|-----------------|
+  | **Match Dataset** | metadata + line‑ups + events |
+  | **Tracking Dataset** | metadata + raw tracking frames |
 
+ You never analyse events v2 with lineups v1, or yesterday’s first half with today’s second half.
+* **Query while ingesting** – Datasets stream out of the engine the moment their files land, so notebooks or downstream services can start before the full season is in.
+
+---
+
+## The Ingestify Workflow
 <img src="https://raw.githubusercontent.com/PySport/ingestify/refs/heads/main/docs/overview.svg" />
 
-- [Source](blob/main/ingestify/domain/models/source.py) is the main entrance from Ingestify to external sources. A Source must always define:
-  - `discover_datasets` - Creates a list of all available datasets on the Source
-  - `fetch_dataset_files` - Fetches a single dataset for a Source
-- [Dataset Store](blob/main/ingestify/application/dataset_store.py) manages the access to the Metadata storage and the file storage. It keeps track of versions, and knows how to load data.
-- [Loader](blob/main/ingestify/application/loader.py) organizes the fetching process. It does this by executing the following steps:
-  1. Ask `Source` for all available datasets for a selector
-  2. Ask `Dataset Store` for all available datasets for a selector
-  3. Determines missing `Datasets`
-  4. Create tasks for data retrieval and puts in `TaskQueue`
-  5. Use multiprocessing to execute all tasks
+---
 
-## Get started
+## What you gain
 
-### Install
+### For football‑analytics practitioners
 
-Make sure you have installed the latest version:
+| Pain | Ingestify fix |
+|------|---------------|
+| API slowness / downtime | One request → lake; retries and parallelism happen behind the scenes. |
+| Full re‑ingest after a bug | File‑level deltas mean you fetch only the corrected bundles. |
+| Partial / drifting data | Dataset is atomic, versioned, and validated before it becomes visible. |
+| Waiting hours for a season to sync | Stream each Dataset as soon as it lands; analyse while you ingest. |
+| Boilerplate joins | `engine.load_dataset_with_kloppy(dataset)` → analysis‑ready object. |
+
+### For software engineers
+
+| Need | How Ingestify helps |
+|------|---------------------|
+| **Domain‑Driven Design** | `Dataset`, `Revision`, `Selector` plus rich domain events read like the problem space. |
+| **Event‑driven integrations** | Subscribe to `RevisionAdded` and push to Kafka, AWS Lambda, Airflow… |
+| **Pluggable everything** | Swap `Source`, `FetchPolicy`, `DatasetStore` subclasses to add providers, change delta logic, or move storage back‑ends. |
+| **Safety & speed** | Multiprocessing downloader with temp‑dir commits – no half‑written matches; near‑linear I/O speed‑ups. |
+| **Any file type** | JSON, CSV, MP4, proprietary binaries – stored verbatim so you parse / transcode later under version control. |
+
+---
+
+## Quick start
+
 ```bash
-pip install git+https://github.com/PySport/ingestify.git
-
-# OR
-
-pip install ingestify
+pip install ingestify            # or: pip install git+https://github.com/PySport/ingestify.git
+ingestify init --template statsbomb_github
 ```
 
-### Basic Setup
-
-Ingestify requires a configuration file to define your data sources and ingestion plans. Create a file named `config.yaml` in your project directory.
-
-#### Minimal Configuration Example
+### Minimal `config.yaml`
 
 ```yaml
 main:
-  metadata_url: sqlite:///database/catalog.db  # SQLite database for metadata
-  file_url: file://database/files/  # Local file storage
-  default_bucket: main  # Default storage bucket
+  metadata_url: sqlite:///database/catalog.db   # where revision metadata lives
+  file_url: file://database/files/              # where raw files live
+  default_bucket: main
 
 sources:
-  statsbomb:  # Define a Statsbomb data source
-    type: ingestify.statsbomb_github
+  statsbomb:
+    type: ingestify.statsbomb_github            # open‑data provider
 
 ingestion_plans:
-  - source: statsbomb  # Use the Statsbomb source defined above
+  - source: statsbomb
     dataset_type: match
-    # Optionally specify selectors; which matches need to be fetched
+    # selectors can narrow the scope
     # selectors:
-    #   - competition_id: 11  # Example: English Premier League
-    #     season_id: [90]  # Example: 2022/2023 season 
-  
-
+    #   - competition_id: 11
+    #     season_id: [90]
 ```
 
+### First ingest
 
-### Running Your First Ingestion
+When you configured event subscribers, all domain events are dispatched to the subscriber. Publishing the events to
+Kafka, RabbitMQ or any other system becomes trivial.
 
-1. Create the necessary directories:
 ```bash
 mkdir -p database
+ingestify run                                # fills your data lake
 ```
 
-2. Run the ingestion:
-```bash
-ingestify run
-```
+---
 
 ## Using the data
 
-Once you've ingested data, you can access it using the dataset store. Here's an example of how to iterate over datasets and process them:
+By default, Ingestify will search in your DatasetStore when you request data. You can pass several filters to only fetch what you need.
 
 ```python
-import concurrent.futures
-from tqdm import tqdm
-from ingestify.main import get_datastore
+from ingestify.main import get_engine
 
-store = get_datastore("config.yaml")
+engine = get_engine("config.yaml")
 
-def process_dataset(dataset):
-    """Process a single dataset by reading """
-    
-    (
-        store.load_with_kloppy(dataset)
+for dataset in engine.iter_datasets(
+        dataset_state="complete",
+        provider="statsbomb",
+        dataset_type="match",
+        competition_id=11,
+        season_id=90):
+    df = (
+        engine
+        .load_dataset_with_kloppy(dataset)
         .to_df(engine="polars")
-        .write_parquet(f"{dataset.identifier['match_id']}.parquet")
     )
-    
-    return dataset.dataset_id
+    df.write_parquet(f"out/{dataset.identifier['match_id']}.parquet")
+```
 
-# Iterate over dataset collections in batches
-dataset_collection_batches = store.iter_dataset_collection_batches(
-    dataset_state="complete",
-    dataset_type="match",
-    provider="statsbomb",
-    competition_id=11,
-    season_id=90,
+#### Auto Ingestion
+
+When you don't want to use event driven architecture but just want to work with the latest data, ingestify got you covered. With the `auto_ingest` option, ingestify syncs the data in the background when you ask for the data. 
+
+        
+```python
+from ingestify.main import get_engine
+
+engine = get_engine("config.yaml")
+
+for dataset in engine.iter_datasets(
+        # When set to True it will first do a full sync and then start yielding datasets
+        auto_ingest=True, 
   
-    # Fetch datasets in batch
-    batch_size=1000,
-    yield_dataset_collection=True
+        # With streaming enabled all Datasets are yielded when they are up-to-date (not changed, or refetched)
+        # auto_ingest={"streaming": True}
+  
+        dataset_state="complete",
+        provider="statsbomb",
+        dataset_type="match",
+        competition_id=11,
+        season_id=90):
+    df = (
+        engine
+        .load_dataset_with_kloppy(dataset)
+        .to_df(engine="polars")
+    )
+    df.write_parquet(f"out/{dataset.identifier['match_id']}.parquet")
+```
+
+#### Open data
+
+Ingestify has build-in support for StatsBomb Open Data (more to come).
+
+```python
+from ingestify.main import get_engine
+
+engine = get_engine(
+    metadata_url="sqlite:///database_open_data/catalog.db",
+    file_url="file://database_open_data/files/"
 )
 
-# Process datasets in parallel
-with concurrent.futures.ProcessPoolExecutor(max_workers=10) as pool:
-    for dataset_batch in dataset_collection_batches:
-        for result in tqdm(pool.map(process_dataset, dataset_batch)):
-            # Process your results here
-            print(f"Completed processing dataset {result}")
+dataset_iter = engine.iter_datasets(
+    # This will tell ingestify to look for an Open Data provider
+    auto_ingest={"use_open_data": True, "streaming": True},
+
+    provider="statsbomb",
+    dataset_type="match",
+    competition_id=43,
+    season_id=281
+)
+
+for dataset in dataset_iter:
+    kloppy_dataset = engine.load_dataset_with_kloppy(dataset)
 ```
 
 
-## Future work
+---
 
-Some future work include:
-- Workflow tools - Run custom workflows using with tools like [Airflow](https://airflow.apache.org/), [Dagster](https://docs.dagster.io/getting-started), [Prefect](https://www.prefect.io/), [DBT](https://www.getdbt.com/)
-- Execution engines - Run tasks on other execution engines like [AWS Lambda](https://aws.amazon.com/lambda/), [Dask](https://www.dask.org/)
-- Lineage - Keep track of lineage with tools like [SQLLineage](https://sqllineage.readthedocs.io/en/latest/index.html)
-- Data quality - Monitor data quality with tools like [Great Expectations](https://docs.greatexpectations.io/docs/tutorials/quickstart/)
-- Event Bus - Automatically publish events to external systems like [AWS Event Bridge](https://aws.amazon.com/eventbridge/), [Azure Event Grid](https://learn.microsoft.com/en-us/azure/event-grid/overview), [Google Cloud Pub/Sub](https://cloud.google.com/pubsub/docs/overview), [Kafka](https://kafka.apache.org/), [RabbitMQ](https://www.rabbitmq.com/)
-- Query Engines - Integrate with query engines to run SQL queries directly on the store using tools like [DuckDB](https://duckdb.org/), [DataBend](https://databend.rs/), [DataFusion](https://arrow.apache.org/datafusion/), [Polars](https://www.pola.rs/), [Spark](https://spark.apache.org/)
-- Streaming Data - Ingest streaming data
+## Roadmap
+
+* Workflow orchestration helpers (Airflow, Dagster, Prefect)
+* Built‑in Kafka / Kinesis event emitters
+* Streaming data ingestion
+* Data quality hooks (Great Expectations)
+
+---
+
+**Stop refetching the world. Own your data lake, keep it version‑safe, and analyse football faster with Ingestify.**
