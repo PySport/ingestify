@@ -26,23 +26,12 @@ sources:
   statsbomb:  # Define a Statsbomb data source
     type: ingestify.statsbomb_github
 
-dataset_types:
-  - provider: statsbomb
-    dataset_type: match
-    identifier_keys:
-      competition_id:
-        transformation: str
-      season_id:
-        transformation: str
-      match_id:
-        transformation: str
-
 ingestion_plans:
   - source: statsbomb  # Use the Statsbomb source defined above
     dataset_type: match
     selectors:
-      - competition_id: 11  # Example: English Premier League
-        season_id: [90]  # Example: 2022/2023 season
+      - competition_id: 11
+        season_id: [90]
 ```
 
 ## Running Your First Ingestion

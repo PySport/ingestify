@@ -304,24 +304,6 @@ sources:
     configuration:
       api_key: !ENV ${SKILLCORNER_API_KEY}
 
-dataset_types:
-  - provider: statsbomb
-    dataset_type: match
-    identifier_keys:
-      competition_id:
-        transformation: str
-      season_id:
-        transformation: str
-      match_id:
-        transformation: str
-        
-  - provider: wyscout
-    dataset_type: match
-    identifier_keys:
-      match_id:
-        transformation:
-          type: bucket
-          bucket_size: 1000
 
 ingestion_plans:
   # Statsbomb match data
@@ -342,31 +324,6 @@ ingestion_plans:
       360-frames: v2
     selectors:
       - competition_id: 11  # Premier League
-        
-  # Statsbomb season stats
-  - source: statsbomb_season_stats
-    dataset_type: player-season-stats
-    data_spec_versions:
-      competition: v4
-      player-season-stats: v4
-      
-  # Wyscout match data
-  - source: wyscout_match
-    dataset_type: match
-    data_spec_versions:
-      match: v2
-      events: v2
-    selectors:
-      - competition_id: "EN_PR"  # English Premier League
-        season_id: "2022"        # 2022/2023
-        
-  # Skillcorner physical data
-  - source: skillcorner_physical
-    dataset_type: physical
-    data_spec_versions:
-      physical: "3"
-    selectors:
-      - "*"  # All available data
 
 event_subscribers:
   - type: my_package.handlers.StatsbombEventHandler
@@ -403,16 +360,7 @@ if datasets:
     
     # Load files for this dataset
     files = store.load_files(first_dataset)
-    
-    # Access file content
-    match_file = next((f for f in files if f.data_feed_key == "match"), None)
-    events_file = next((f for f in files if f.data_feed_key == "events"), None)
-    
-    if match_file and events_file:
-        match_data = match_file.content
-        events_data = events_file.content
-        print(f"Match: {match_data['home_team']['home_team_name']} vs {match_data['away_team']['away_team_name']}")
-        print(f"Events: {len(events_data)}")
+
 ```
 
 ### Using iter_dataset_collection_batches
@@ -421,7 +369,7 @@ For large result sets, you can use batches:
 
 ```python
 # Iterator for datasets with pagination
-dataset_collection_batches = store.iter_dataset_collection_batches(
+dataset_collection_batches = engine.iter_datasets(
     dataset_state="complete",
     dataset_type="match",
     provider="statsbomb",
@@ -435,7 +383,7 @@ dataset_collection_batches = store.iter_dataset_collection_batches(
 for batch in dataset_collection_batches:
     print(f"Processing batch with {len(batch)} datasets")
     
-    for dataset in page:
+    for dataset in batch:
         # Process each dataset
         print(f"Dataset: {dataset.name}")
         
@@ -467,23 +415,8 @@ if match_dataset:
     # Load the dataset with Kloppy
     kloppy_dataset = engine.load_with_kloppy(match_dataset)
     
-    # Now you can use Kloppy's functionality
-    # For example, filter shots on target
-    shots_on_target = kloppy_dataset.filter("shot.on_target")
-    for shot in shots_on_target:
-        print(f"Shot by {shot.player.name} at {shot.timestamp}")
-    
     # Filter goals
     goals = kloppy_dataset.filter("shot.goal")
     for goal in goals:
         print(f"Goal by {goal.player.name} for {goal.team.name}")
-    
-    # Calculate pass completion rate for each player
-    for player in kloppy_dataset.players:
-        passes = kloppy_dataset.filter(f"pass.by.{player.id}")
-        completed_passes = kloppy_dataset.filter(f"pass.by.{player.id}.complete")
-        
-        if passes:
-            completion_rate = len(completed_passes) / len(passes) * 100
-            print(f"{player.name}: {completion_rate:.1f}% pass completion ({len(completed_passes)}/{len(passes)})")
 ```
