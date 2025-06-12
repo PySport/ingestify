@@ -156,7 +156,15 @@ pip install kloppy
 ```
 
 ```python
+import logging, sys
+
 from ingestify.main import get_engine
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,
+)
 
 engine = get_engine(
     metadata_url="sqlite:///database_open_data/catalog.db",
@@ -169,12 +177,13 @@ dataset_iter = engine.iter_datasets(
 
     provider="statsbomb",
     dataset_type="match",
-    competition_id=43,
-    season_id=281
+    competition_id=43,  # "FIFA World Cup"
+    #season_id=281
 )
 
 for dataset in dataset_iter:
     kloppy_dataset = engine.load_dataset_with_kloppy(dataset)
+    logging.info(f"Loaded {kloppy_dataset}")
 ```
 
 
