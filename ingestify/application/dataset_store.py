@@ -116,16 +116,27 @@ class DatasetStore:
         self.storage_compression_method = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
-        # Create thread-local storage for caching
-        self._thread_local = threading.local()
 
         # Pass current version to repository for validation/migration
         from ingestify import __version__
 
         self.dataset_repository.ensure_compatible_version(__version__)
 
-    # def __getstate__(self):
-    #     return {"file_repository": self.file_repository, "bucket": self.bucket}
+    @property
+    def _thread_local(self):
+        if not hasattr(self, "_thread_local_"):
+            self._thread_local_ = threading.local()
+        return self._thread_local_
+
+    def __getstate__(self):
+        """When pickling this instance, don't pass EventBus. EventBus can contain all
+        kind of dispatchers, which may, or may not can be pickled."""
+        return {
+            "dataset_repository": self.dataset_repository,
+            "storage_compression_method": self.storage_compression_method,
+            "file_repository": self.file_repository,
+            "bucket": self.bucket,
+        }
 
     def set_event_bus(self, event_bus: EventBus):
         self.event_bus = event_bus
@@ -210,7 +221,6 @@ class DatasetStore:
         dataset_type: Optional[str] = None,
         provider: Optional[str] = None,
         dataset_id: Optional[str] = None,
-        metadata_only: Optional[bool] = False,
         batch_size: int = 1000,
         yield_dataset_collection: bool = False,
         dataset_state: Optional[DatasetStateParam] = None,
@@ -245,7 +255,6 @@ class DatasetStore:
             dataset_type: Optional dataset type filter
             provider: Optional provider filter
             dataset_id: Optional dataset ID filter
-            metadata_only: Whether to fetch only metadata
             batch_size: Number of datasets to fetch per batch
             yield_dataset_collection: If True, yields entire DatasetCollection objects
                                      instead of individual Dataset objects
@@ -263,7 +272,6 @@ class DatasetStore:
                 dataset_type=dataset_type,
                 provider=provider,
                 dataset_id=dataset_id,
-                metadata_only=metadata_only,
                 page=page,
                 page_size=batch_size,
                 dataset_state=dataset_state,
@@ -528,9 +536,14 @@ class DatasetStore:
             from kloppy import statsbomb
 
             try:
+                three_sixty_data = None
+                if tmp_file := files.get_file("360-frames"):
+                    three_sixty_data = tmp_file.stream
+
                 return statsbomb.load(
                     event_data=(files.get_file("events")).stream,
                     lineup_data=(files.get_file("lineups")).stream,
+                    three_sixty_data=three_sixty_data,
                     **kwargs,
                 )
             except Exception as e:

@@ -39,9 +39,16 @@ class Selector(AttributeBag):
             return None
 
     @property
+    def name(self) -> Optional[str]:
+        try:
+            return self._name
+        except AttributeError:
+            return None
+
+    @property
     def custom_attributes(self):
         return {
             k: v
             for k, v in self.items()
-            if k not in ("_matcher", "_data_spec_versions", "_last_modified")
+            if k not in ("_matcher", "_data_spec_versions", "_last_modified", "_name")
         }

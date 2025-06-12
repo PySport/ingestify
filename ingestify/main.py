@@ -187,15 +187,36 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
 
 
 def get_engine(
-    config_file, bucket: Optional[str] = None, disable_events: bool = False
+    config_file: Optional[str] = None,
+    bucket: Optional[str] = None,
+    disable_events: bool = False,
+    metadata_url: Optional[str] = None,
+    file_url: Optional[str] = None,
 ) -> IngestionEngine:
-    config = parse_config(config_file, default_value="")
-
-    logger.info("Initializing sources")
     sources = {}
-    sys.path.append(os.path.dirname(config_file))
-    for name, source_args in config["sources"].items():
-        sources[name] = build_source(name=name, source_args=source_args)
+
+    if not config_file:
+        if not metadata_url or not file_url:
+            raise ValueError(
+                f"You must specify metadata_url and file_url in case you don't use a config_file"
+            )
+
+        config = {
+            "main": {
+                "metadata_url": metadata_url,
+                "file_url": file_url,
+                "default_bucket": bucket or "main",
+            }
+        }
+    elif not config_file:
+        raise ValueError("You must specify a config file")
+    else:
+        config = parse_config(config_file, default_value="")
+
+        logger.info("Initializing sources")
+        sys.path.append(os.path.dirname(config_file))
+        for name, source_args in config.get("sources", {}).items():
+            sources[name] = build_source(name=name, source_args=source_args)
 
     logger.info("Initializing IngestionEngine")
     store = get_dataset_store_by_urls(
@@ -248,13 +269,13 @@ def get_engine(
             # but makes it easier later one where we loop over selectors.
             selectors = [Selector.build({}, data_spec_versions=data_spec_versions)]
 
-        ingestion_plan = IngestionPlan(
+        ingestion_plan_ = IngestionPlan(
             source=sources[ingestion_plan["source"]],
             dataset_type=ingestion_plan["dataset_type"],
             selectors=selectors,
             fetch_policy=fetch_policy,
             data_spec_versions=data_spec_versions,
         )
-        ingestion_engine.add_ingestion_plan(ingestion_plan)
+        ingestion_engine.add_ingestion_plan(ingestion_plan_)
 
     return ingestion_engine

@@ -73,8 +73,8 @@ class AttributeBag:
         return Template(string).substitute(**self.attributes)
 
     def matches(self, attributes: Dict) -> bool:
-        for k, v in self.attributes.items():
-            if attributes.get(k) != v:
+        for k, v in attributes.items():
+            if k in self.attributes and self.attributes[k] != v:
                 return False
         return True
 

@@ -5,6 +5,8 @@ import uuid
 from enum import Enum
 from typing import Optional, Iterator, Union
 
+from pydantic import ValidationError
+
 from ingestify import retrieve_http
 from ingestify.application.dataset_store import DatasetStore
 from ingestify.domain import Selector, Identifier, TaskSet, Dataset, DraftFile, Task
@@ -14,12 +16,13 @@ from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
 )
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
+from ingestify.domain.models.dataset.events import SelectorSkipped, DatasetSkipped
 from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
 )
 from ingestify.domain.models.task.task_summary import TaskSummary
-from ingestify.exceptions import SaveError
+from ingestify.exceptions import SaveError, IngestifyError
 from ingestify.utils import TaskExecutor, chunker
 
 logger = logging.getLogger(__name__)
@@ -241,6 +244,9 @@ class IngestionJob:
                     f"'{self.selector.last_modified}' < metadata last_modified "
                     f"'{dataset_collection_metadata.last_modified}'"
                 )
+                # Emit event for streaming datasets
+                store.dispatch(SelectorSkipped(selector=self.selector))
+
                 ingestion_job_summary.set_skipped()
                 yield ingestion_job_summary
                 return
@@ -260,6 +266,16 @@ class IngestionJob:
 
                 # We need to include the to_batches as that will start the generator
                 batches = to_batches(dataset_resources)
+        except ValidationError as e:
+            # Make sure to pass this to the highest level as this means the Source is wrong
+            if "Field required" in str(e):
+                raise IngestifyError("failed to run find_datasets") from e
+            else:
+                logger.exception("Failed to find datasets")
+
+                ingestion_job_summary.set_exception(e)
+                yield ingestion_job_summary
+                return
         except Exception as e:
             logger.exception("Failed to find datasets")
 
@@ -327,6 +343,8 @@ class IngestionJob:
                                 )
                             )
                         else:
+                            # Emit event for streaming datasets
+                            store.dispatch(DatasetSkipped(dataset=dataset))
                             skipped_tasks += 1
                     else:
                         if self.ingestion_plan.fetch_policy.should_fetch(
@@ -348,9 +366,10 @@ class IngestionJob:
                         f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
                     )
                     logger.info(f"Running {len(task_set)} tasks")
-                    ingestion_job_summary.add_task_summaries(
-                        task_executor.run(run_task, task_set)
-                    )
+
+                    task_summaries = task_executor.run(run_task, task_set)
+
+                    ingestion_job_summary.add_task_summaries(task_summaries)
                 else:
                     logger.info(
                         f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
