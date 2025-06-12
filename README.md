@@ -149,6 +149,11 @@ for dataset in engine.iter_datasets(
 
 Ingestify has build-in support for StatsBomb Open Data (more to come).
 
+```shell
+mkdir database_open_data
+pip install kloppy
+```
+
 ```python
 from ingestify.main import get_engine
 

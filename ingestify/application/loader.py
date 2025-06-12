@@ -307,4 +307,7 @@ class Loader:
             auto_ingest_config=auto_ingest_config,
             **selector_filters,
         )
-        self.run(selectors, dry_run=dry_run)
+        if selector_filters and not selectors:
+            logger.warning(f"No data found matching {selector_filters}")
+        else:
+            self.run(selectors, dry_run=dry_run)
