@@ -56,7 +56,6 @@ Ingestify fixes that by building **your own data lake** of untouched provider fi
 
 ```bash
 pip install ingestify            # or: pip install git+https://github.com/PySport/ingestify.git
-ingestify init --template statsbomb_github
 ```
 
 ### Minimal `config.yaml`
@@ -87,6 +86,8 @@ Kafka, RabbitMQ or any other system becomes trivial.
 
 ```bash
 mkdir -p database
+pip install kloppy
+
 ingestify run                                # fills your data lake
 ```
 
