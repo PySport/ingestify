@@ -279,3 +279,158 @@ def get_engine(
         ingestion_engine.add_ingestion_plan(ingestion_plan_)
 
     return ingestion_engine
+
+
+def get_dev_engine(
+    source: Source,
+    dataset_type: str,
+    data_spec_versions: dict,
+    ephemeral: bool = True,
+    configure_logging: bool = True,
+    dev_dir: Optional[str] = None,
+) -> IngestionEngine:
+    """
+    Quick development helper - creates an engine with minimal setup.
+
+    Args:
+        source: The source to test
+        dataset_type: Dataset type to ingest
+        data_spec_versions: Dict like {"hops": "v1"}
+        ephemeral: If True, uses temp dir that gets cleaned. If False, uses persistent /tmp storage.
+        configure_logging: If True, configures basic logging (default: True)
+        dev_dir: Optional custom directory for data storage (overrides ephemeral)
+
+    Returns:
+        IngestionEngine configured for development
+
+    Example:
+        >>> source = MySource(name="test", ...)
+        >>> engine = get_dev_engine(source, "hops", {"hops": "v1"})
+        >>> engine.run()
+        >>>
+        >>> # Access the datasets
+        >>> datasets = engine.store.get_dataset_collection()
+        >>> print(f"Ingested {len(datasets)} datasets")
+    """
+    import tempfile
+    from pathlib import Path
+
+    if configure_logging:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+
+    if dev_dir:
+        # Use provided directory
+        dev_dir = Path(dev_dir)
+    elif ephemeral:
+        # Use temp directory that will be cleaned up
+        import uuid
+
+        dev_dir = Path(tempfile.gettempdir()) / f"ingestify-dev-{uuid.uuid4().hex[:8]}"
+    else:
+        # Use persistent directory
+        dev_dir = Path(tempfile.gettempdir()) / "ingestify-dev"
+
+    dev_dir.mkdir(parents=True, exist_ok=True)
+    metadata_url = f"sqlite:///{dev_dir / 'database.db'}"
+    file_url = f"file://{dev_dir}"
+
+    logger.info(f"Dev mode: storing data in {dev_dir}")
+
+    engine = get_engine(
+        metadata_url=metadata_url,
+        file_url=file_url,
+        bucket="main",
+        disable_events=True,
+    )
+
+    data_spec_versions_obj = DataSpecVersionCollection.from_dict(data_spec_versions)
+
+    engine.add_ingestion_plan(
+        IngestionPlan(
+            source=source,
+            dataset_type=dataset_type,
+            selectors=[Selector.build({}, data_spec_versions=data_spec_versions_obj)],
+            fetch_policy=FetchPolicy(),
+            data_spec_versions=data_spec_versions_obj,
+        )
+    )
+
+    return engine
+
+
+def debug_source(
+    source: Source,
+    *,
+    dataset_type: str,
+    data_spec_versions: dict,
+    ephemeral: bool = True,
+    configure_logging: bool = True,
+    dev_dir: Optional[str] = None,
+    **kwargs,
+) -> IngestionEngine:
+    """
+    Debug helper - creates a dev engine, runs ingestion, and shows results.
+
+    This is a convenience wrapper around get_dev_engine() that does everything:
+    creates the engine, runs ingestion, and displays results.
+
+    Args:
+        source: The source to debug
+        dataset_type: Dataset type (e.g., "match")
+        data_spec_versions: Dict like {"match": "v1"} - explicit, no defaults!
+        ephemeral: If True, uses temp dir. If False, uses persistent /tmp storage.
+        configure_logging: If True, configures basic logging (default: True)
+        dev_dir: Optional custom directory for data storage (overrides ephemeral)
+        **kwargs: Selector arguments. For sources with discover_selectors(), these
+                  filter discovered selectors. Otherwise passed to find_datasets().
+
+    Returns:
+        IngestionEngine: The engine used for ingestion (for further inspection)
+
+    Example:
+        >>> # Simple source without discover_selectors
+        >>> source = StatsBombHOPSS3(name="test", s3_bucket="my-bucket", s3_prefix="HOPS")
+        >>> engine = debug_source(source, dataset_type="hops", data_spec_versions={"hops": "v1"})
+
+        >>> # Source with discover_selectors - discovers all competitions
+        >>> source = StatsBombMatchAPI(name="test", ...)
+        >>> engine = debug_source(
+        ...     source,
+        ...     dataset_type="match",
+        ...     data_spec_versions={"match": "v6"}
+        ... )
+
+        >>> # Filter discovered selectors
+        >>> engine = debug_source(
+        ...     source,
+        ...     dataset_type="match",
+        ...     data_spec_versions={"match": "v6"},
+        ...     competition_id=46  # Filters to specific competition
+        ... )
+    """
+    logger.info(f"Debug mode for source: {source.name}")
+
+    engine = get_dev_engine(
+        source=source,
+        dataset_type=dataset_type,
+        data_spec_versions=data_spec_versions,
+        ephemeral=ephemeral,
+        configure_logging=configure_logging,
+        dev_dir=dev_dir,
+    )
+
+    # Run ingestion
+    # Empty selector {} automatically triggers discover_selectors() if available
+    # kwargs filter discovered selectors or are passed to find_datasets()
+    engine.run(**kwargs)
+
+    # Show results
+    datasets = engine.store.get_dataset_collection()
+    logger.info("=" * 60)
+    logger.info(f"✓ Ingestion complete: {len(datasets)} dataset(s)")
+    logger.info("=" * 60)
+
+    return engine
