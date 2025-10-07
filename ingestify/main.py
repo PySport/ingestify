@@ -287,6 +287,7 @@ def get_dev_engine(
     data_spec_versions: dict,
     ephemeral: bool = True,
     configure_logging: bool = True,
+    dev_dir: Optional[str] = None,
 ) -> IngestionEngine:
     """
     Quick development helper - creates an engine with minimal setup.
@@ -297,6 +298,7 @@ def get_dev_engine(
         data_spec_versions: Dict like {"hops": "v1"}
         ephemeral: If True, uses temp dir that gets cleaned. If False, uses persistent /tmp storage.
         configure_logging: If True, configures basic logging (default: True)
+        dev_dir: Optional custom directory for data storage (overrides ephemeral)
 
     Returns:
         IngestionEngine configured for development
@@ -319,7 +321,10 @@ def get_dev_engine(
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
-    if ephemeral:
+    if dev_dir:
+        # Use provided directory
+        dev_dir = Path(dev_dir)
+    elif ephemeral:
         # Use temp directory that will be cleaned up
         import uuid
 
@@ -363,8 +368,9 @@ def debug_source(
     data_spec_versions: dict,
     ephemeral: bool = True,
     configure_logging: bool = True,
+    dev_dir: Optional[str] = None,
     **kwargs,
-):
+) -> IngestionEngine:
     """
     Debug helper - creates a dev engine, runs ingestion, and shows results.
 
@@ -373,15 +379,37 @@ def debug_source(
 
     Args:
         source: The source to debug
-        dataset_type: Dataset type (e.g., "hops", "match")
-        data_spec_versions: Dict like {"hops": "v1"} - explicit, no defaults!
+        dataset_type: Dataset type (e.g., "match")
+        data_spec_versions: Dict like {"match": "v1"} - explicit, no defaults!
         ephemeral: If True, uses temp dir. If False, uses persistent /tmp storage.
         configure_logging: If True, configures basic logging (default: True)
-        **kwargs: Additional selector arguments passed to engine.run()
+        dev_dir: Optional custom directory for data storage (overrides ephemeral)
+        **kwargs: Selector arguments. For sources with discover_selectors(), these
+                  filter discovered selectors. Otherwise passed to find_datasets().
+
+    Returns:
+        IngestionEngine: The engine used for ingestion (for further inspection)
 
     Example:
+        >>> # Simple source without discover_selectors
         >>> source = StatsBombHOPSS3(name="test", s3_bucket="my-bucket", s3_prefix="HOPS")
-        >>> debug_source(source, dataset_type="hops", data_spec_versions={"hops": "v1"})
+        >>> engine = debug_source(source, dataset_type="hops", data_spec_versions={"hops": "v1"})
+
+        >>> # Source with discover_selectors - discovers all competitions
+        >>> source = StatsBombMatchAPI(name="test", ...)
+        >>> engine = debug_source(
+        ...     source,
+        ...     dataset_type="match",
+        ...     data_spec_versions={"match": "v6"}
+        ... )
+
+        >>> # Filter discovered selectors
+        >>> engine = debug_source(
+        ...     source,
+        ...     dataset_type="match",
+        ...     data_spec_versions={"match": "v6"},
+        ...     competition_id=46  # Filters to specific competition
+        ... )
     """
     logger.info(f"Debug mode for source: {source.name}")
 
@@ -391,8 +419,12 @@ def debug_source(
         data_spec_versions=data_spec_versions,
         ephemeral=ephemeral,
         configure_logging=configure_logging,
+        dev_dir=dev_dir,
     )
 
+    # Run ingestion
+    # Empty selector {} automatically triggers discover_selectors() if available
+    # kwargs filter discovered selectors or are passed to find_datasets()
     engine.run(**kwargs)
 
     # Show results
@@ -400,3 +432,5 @@ def debug_source(
     logger.info("=" * 60)
     logger.info(f"✓ Ingestion complete: {len(datasets)} dataset(s)")
     logger.info("=" * 60)
+
+    return engine
