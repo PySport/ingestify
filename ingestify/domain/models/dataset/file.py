@@ -39,6 +39,12 @@ class DraftFile(BaseModel):
             stream = BytesIO(file_.read().encode("utf-8"))
         elif isinstance(file_, BytesIO):
             stream = file_
+        elif hasattr(file_, "read"):
+            data = file_.read()
+            if isinstance(data, bytes):
+                stream = BytesIO(data)
+            else:
+                stream = BytesIO(data.encode("utf-8"))
         else:
             raise Exception(f"Not possible to create DraftFile from {type(file_)}")
 
