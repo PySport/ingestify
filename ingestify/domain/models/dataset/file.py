@@ -44,7 +44,7 @@ class DraftFile(BaseModel):
             if isinstance(data, bytes):
                 stream = BytesIO(data)
             else:
-                stream = BytesIO(data)
+                stream = BytesIO(data.encode("utf-8"))
         else:
             raise Exception(f"Not possible to create DraftFile from {type(file_)}")
 
