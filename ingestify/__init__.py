@@ -9,4 +9,4 @@ if not __INGESTIFY_SETUP__:
     from .source_base import Source, DatasetResource
     from .main import debug_source
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
