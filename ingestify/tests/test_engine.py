@@ -24,7 +24,7 @@ from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.models.task.task_summary import TaskState
 from ingestify.infra.serialization import serialize, deserialize
-from ingestify.main import get_engine
+from ingestify.main import get_engine, get_dev_engine
 
 
 def add_ingestion_plan(engine: IngestionEngine, source: Source, **selector):
@@ -417,3 +417,21 @@ def test_empty_dataset_resource_id(config_file):
 
     add_ingestion_plan(engine, EmptyDatasetResourceIdSource("fake-source"))
     engine.load()
+
+
+def test_dev_engine():
+    """Test dev engine helper for easy development without config file"""
+    source = SimpleFakeSource("test-source")
+
+    engine = get_dev_engine(
+        source=source,
+        dataset_type="match",
+        data_spec_versions={"default": "v1"},
+        ephemeral=True,
+    )
+
+    engine.run(competition_id=1, season_id=2)
+
+    datasets = engine.store.get_dataset_collection()
+    assert len(datasets) == 1
+    assert datasets.first().name == "Test Dataset"

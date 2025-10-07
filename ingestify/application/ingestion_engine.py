@@ -110,6 +110,9 @@ class IngestionEngine:
         else:
             do_load()
 
+    # Alias for load() - more intuitive name for running ingestion
+    run = load
+
     def list_datasets(self, as_count: bool = False):
         """Consider moving this to DataStore"""
         datasets = sorted(

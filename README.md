@@ -58,6 +58,43 @@ Ingestify fixes that by building **your own data lake** of untouched provider fi
 pip install ingestify            # or: pip install git+https://github.com/PySport/ingestify.git
 ```
 
+### Developing a new Source
+
+When developing a new `Source`, use the `debug_source()` helper for rapid iteration:
+
+```python
+from ingestify import Source, debug_source
+
+class MyCustomSource(Source):
+    provider = "my_provider"
+
+    def __init__(self, name: str, api_key: str):
+        super().__init__(name)
+        self.api_key = api_key
+
+    def find_datasets(self, dataset_type, data_spec_versions, **kwargs):
+        # Your source implementation
+        ...
+
+# Quick debug - runs full ingestion with temp storage
+if __name__ == "__main__":
+    source = MyCustomSource(name="test", api_key="...")
+
+    debug_source(
+        source,
+        dataset_type="match",
+        data_spec_versions={"events": "v1"},
+    )
+```
+
+The `debug_source()` helper:
+- ✅ Creates an ephemeral dev engine with temp storage
+- ✅ Configures logging automatically
+- ✅ Runs the full ingestion cycle
+- ✅ Shows storage location and results
+
+Perfect for testing your source before adding it to production config!
+
 ### Minimal `config.yaml`
 
 ```yaml
