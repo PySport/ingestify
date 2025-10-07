@@ -308,12 +308,16 @@ class Loader:
             **selector_filters,
         )
         if (provider or source or dataset_type or selector_filters) and not selectors:
-            filters_applied = {k: v for k, v in {
-                'provider': provider,
-                'source': source,
-                'dataset_type': dataset_type,
-                **selector_filters
-            }.items() if v}
+            filters_applied = {
+                k: v
+                for k, v in {
+                    "provider": provider,
+                    "source": source,
+                    "dataset_type": dataset_type,
+                    **selector_filters,
+                }.items()
+                if v
+            }
             logger.warning(f"No data found matching filters: {filters_applied}")
         else:
             self.run(selectors, dry_run=dry_run)
