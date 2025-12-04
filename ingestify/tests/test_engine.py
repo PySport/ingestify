@@ -10,6 +10,7 @@ from ingestify.domain import (
     DataSpecVersionCollection,
     DraftFile,
     Dataset,
+    DatasetState,
     DatasetCreated,
 )
 from ingestify.domain.models.dataset.collection_metadata import (
@@ -435,3 +436,66 @@ def test_dev_engine():
     datasets = engine.store.get_dataset_collection()
     assert len(datasets) == 1
     assert datasets.first().name == "Test Dataset"
+
+
+def post_load_hook(dataset_resource: DatasetResource, files: dict[str, DraftFile]):
+    # Change state to COMPLETE if file content is not '{}'
+    for file in files.values():
+        if file.size > 2:
+            dataset_resource.state = DatasetState.COMPLETE
+            break
+
+
+def file_loader_with_hook(file_resource, current_file):
+    # First run: empty JSON, second run: actual data
+    content = "{}" if not current_file else '{"data": "value"}'
+    return DraftFile.from_input(content, data_feed_key="file1")
+
+
+class SourceWithHook(Source):
+    provider = "test"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata,
+        competition_id,
+        season_id,
+        **kwargs,
+    ):
+        last_modified = datetime.now(pytz.utc)
+
+        yield (
+            DatasetResource(
+                dataset_resource_id=dict(
+                    competition_id=competition_id, season_id=season_id, match_id=1
+                ),
+                provider="test",
+                dataset_type="match",
+                name="Test Dataset",
+                state=DatasetState.SCHEDULED,
+                post_load_files=post_load_hook,
+            ).add_file(
+                last_modified=last_modified,
+                data_feed_key="file1",
+                data_spec_version="v1",
+                file_loader=file_loader_with_hook,
+            )
+        )
+
+
+def test_post_load_files_hook(config_file):
+    """Test that post_load_files hook changes state from SCHEDULED to COMPLETE when content is not empty."""
+    engine = get_engine(config_file, "main")
+    add_ingestion_plan(engine, SourceWithHook("test"), competition_id=1, season_id=2)
+
+    # First run: file contains '{}', state should remain SCHEDULED
+    engine.load()
+    dataset1 = engine.store.get_dataset_collection().first()
+    assert dataset1.state == DatasetState.SCHEDULED
+
+    # Second run: file contains actual data, state should change to COMPLETE
+    engine.load()
+    dataset2 = engine.store.get_dataset_collection().first()
+    assert dataset2.state == DatasetState.COMPLETE

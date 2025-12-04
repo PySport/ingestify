@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Callable, Any, Protocol, TYPE_CHECKING  # noqa
+from typing import Optional, Callable, Any, Protocol, TYPE_CHECKING, Dict  # noqa
 from pydantic import Field
 
 from ingestify.domain.models.base import BaseModel
@@ -50,6 +50,18 @@ class DatasetResource(BaseModel):
     metadata: dict = Field(default_factory=dict)
     state: DatasetState = Field(default_factory=lambda: DatasetState.COMPLETE)
     files: dict[str, FileResource] = Field(default_factory=dict)
+    post_load_files: Optional[
+        Callable[["DatasetResource", Dict[str, DraftFile]], None]
+    ] = None
+
+    def run_post_load_files(self, files: Dict[str, DraftFile]):
+        """Hook to modify dataset attributes based on loaded file content.
+
+        Useful for setting state based on file content, e.g., keep state=SCHEDULED
+        when files contain '{}', change to COMPLETE when they contain actual data.
+        """
+        if self.post_load_files:
+            self.post_load_files(self, files)
 
     def add_file(
         self,

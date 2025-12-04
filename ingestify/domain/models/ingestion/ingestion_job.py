@@ -129,7 +129,6 @@ class UpdateDatasetTask(Task):
         with TaskSummary.update(
             self.task_id, dataset_identifier=dataset_identifier
         ) as task_summary:
-
             files = {
                 file_id: task_summary.record_load_file(
                     lambda: load_file(file_resource, dataset=self.dataset),
@@ -137,6 +136,8 @@ class UpdateDatasetTask(Task):
                 )
                 for file_id, file_resource in self.dataset_resource.files.items()
             }
+
+            self.dataset_resource.run_post_load_files(files)
 
             try:
                 revision = self.store.update_dataset(
@@ -181,6 +182,9 @@ class CreateDatasetTask(Task):
                 )
                 for file_id, file_resource in self.dataset_resource.files.items()
             }
+
+            self.dataset_resource.run_post_load_files(files)
+
             try:
                 revision = self.store.create_dataset(
                     dataset_type=self.dataset_resource.dataset_type,
