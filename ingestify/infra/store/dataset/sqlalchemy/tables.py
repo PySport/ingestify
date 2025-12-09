@@ -149,185 +149,199 @@ class IngestionJobStateString(TypeDecorator):
         return IngestionJobState[value]
 
 
-metadata = MetaData()
+def get_tables(table_prefix: str = ""):
+    """
+    Create all SQLAlchemy table definitions with an optional prefix.
 
-dataset_table = Table(
-    "dataset",
-    metadata,
-    Column("bucket", String(255), default=None),
-    Column("dataset_id", String(255), primary_key=True),
-    Column("provider", String(255), index=True),
-    Column("dataset_type", String(255), index=True),
-    Column("state", DatasetStateString),
-    Column("name", String(255)),
-    Column(
-        "identifier",
-        # Use JSONB when available
-        JSON().with_variant(JSONB(), "postgresql"),
-    ),
-    Column("metadata", JSON),
-    Column("created_at", TZDateTime(6)),
-    Column("updated_at", TZDateTime(6)),
-    Column("last_modified_at", TZDateTime(6)),
-    # Required for performance querying when there are a lot of Datasets
-    # with the same provider and dataset_type
-    Index(
-        "idx_bucket_type_provider_last_modified",
-        "bucket",
-        "provider",
-        "dataset_type",
-        "last_modified_at",
-    ),
-)
+    Args:
+        table_prefix: Optional prefix for all table names (e.g., "prod_" would create "prod_dataset")
 
-revision_table = Table(
-    "revision",
-    metadata,
-    Column(
-        "dataset_id", String(255), ForeignKey("dataset.dataset_id"), primary_key=True
-    ),
-    Column("revision_id", Integer, primary_key=True),
-    Column("description", String(255)),
-    Column("created_at", TZDateTime(6)),
-    Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
-    Column("source", JSONType()),
-)
+    Returns:
+        A dictionary containing all table objects and metadata
+    """
+    metadata = MetaData()
 
-file_table = Table(
-    "file",
-    metadata,
-    Column("dataset_id", String(255), primary_key=True),
-    Column("revision_id", Integer, primary_key=True),
-    Column("file_id", String(255), primary_key=True),
-    Column("created_at", TZDateTime(6)),
-    Column("modified_at", TZDateTime(6)),
-    Column("tag", String(255)),
-    Column("content_type", String(255)),
-    Column("size", BigInteger),
-    Column("data_feed_key", String(255)),
-    Column("data_spec_version", String(255)),
-    Column("data_serialization_format", String(255)),
-    Column("storage_compression_method", String(255)),
-    Column("storage_size", BigInteger),
-    Column("storage_path", PathString),
-    ForeignKeyConstraint(
-        ("dataset_id", "revision_id"),
-        [revision_table.c.dataset_id, revision_table.c.revision_id],
-        ondelete="CASCADE",
-    ),
-)
+    dataset_table = Table(
+        f"{table_prefix}dataset",
+        metadata,
+        Column("bucket", String(255), default=None),
+        Column("dataset_id", String(255), primary_key=True),
+        Column("provider", String(255), index=True),
+        Column("dataset_type", String(255), index=True),
+        Column("state", DatasetStateString),
+        Column("name", String(255)),
+        Column(
+            "identifier",
+            # Use JSONB when available
+            JSON().with_variant(JSONB(), "postgresql"),
+        ),
+        Column("metadata", JSON),
+        Column("created_at", TZDateTime(6)),
+        Column("updated_at", TZDateTime(6)),
+        Column("last_modified_at", TZDateTime(6)),
+        # Required for performance querying when there are a lot of Datasets
+        # with the same provider and dataset_type
+        Index(
+            "idx_bucket_type_provider_last_modified",
+            "bucket",
+            "provider",
+            "dataset_type",
+            "last_modified_at",
+        ),
+    )
 
-ingestion_job_summary_table = Table(
-    "ingestion_job_summary",
-    metadata,
-    Column("ingestion_job_summary_id", String(255), primary_key=True),
-    Column("ingestion_job_id", String(255), index=True),
-    # From the IngestionPlan
-    Column("source_name", String(255)),
-    Column("provider", String(255)),
-    Column("dataset_type", String(255)),
-    Column(
-        "data_spec_versions",
-        JSONType(
-            serializer=lambda data_spec_versions: {
-                key: list(value) for key, value in data_spec_versions.items()
-            },
-            deserializer=lambda data_spec_versions: DataSpecVersionCollection.from_dict(
-                data_spec_versions
+    revision_table = Table(
+        f"{table_prefix}revision",
+        metadata,
+        Column(
+            "dataset_id", String(255), ForeignKey(f"{table_prefix}dataset.dataset_id"), primary_key=True
+        ),
+        Column("revision_id", Integer, primary_key=True),
+        Column("description", String(255)),
+        Column("created_at", TZDateTime(6)),
+        Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
+        Column("source", JSONType()),
+    )
+
+    file_table = Table(
+        f"{table_prefix}file",
+        metadata,
+        Column("dataset_id", String(255), primary_key=True),
+        Column("revision_id", Integer, primary_key=True),
+        Column("file_id", String(255), primary_key=True),
+        Column("created_at", TZDateTime(6)),
+        Column("modified_at", TZDateTime(6)),
+        Column("tag", String(255)),
+        Column("content_type", String(255)),
+        Column("size", BigInteger),
+        Column("data_feed_key", String(255)),
+        Column("data_spec_version", String(255)),
+        Column("data_serialization_format", String(255)),
+        Column("storage_compression_method", String(255)),
+        Column("storage_size", BigInteger),
+        Column("storage_path", PathString),
+        ForeignKeyConstraint(
+            ("dataset_id", "revision_id"),
+            [revision_table.c.dataset_id, revision_table.c.revision_id],
+            ondelete="CASCADE",
+        ),
+    )
+
+    ingestion_job_summary_table = Table(
+        f"{table_prefix}ingestion_job_summary",
+        metadata,
+        Column("ingestion_job_summary_id", String(255), primary_key=True),
+        Column("ingestion_job_id", String(255), index=True),
+        # From the IngestionPlan
+        Column("source_name", String(255)),
+        Column("provider", String(255)),
+        Column("dataset_type", String(255)),
+        Column(
+            "data_spec_versions",
+            JSONType(
+                serializer=lambda data_spec_versions: {
+                    key: list(value) for key, value in data_spec_versions.items()
+                },
+                deserializer=lambda data_spec_versions: DataSpecVersionCollection.from_dict(
+                    data_spec_versions
+                ),
             ),
         ),
-    ),
-    Column(
-        "selector",
-        JSONType(
-            serializer=lambda selector: selector.filtered_attributes,
-            deserializer=lambda selector: Selector(**selector),
+        Column(
+            "selector",
+            JSONType(
+                serializer=lambda selector: selector.filtered_attributes,
+                deserializer=lambda selector: Selector(**selector),
+            ),
         ),
-    ),
-    Column("started_at", TZDateTime(6)),
-    Column("ended_at", TZDateTime(6)),
-    # Some task counters
-    Column("state", IngestionJobStateString),
-    Column("total_tasks", Integer),
-    Column("successful_tasks", Integer),
-    Column("ignored_successful_tasks", Integer),
-    Column("skipped_tasks", Integer),
-    Column("failed_tasks", Integer),
-    Column(
-        "timings",
-        JSONType(
-            serializer=lambda timings: [
-                # Timing is probably already a dictionary. Load it into Timing first, so it can be dumped
-                # in json mode
-                Timing.model_validate(timing).model_dump(mode="json")
-                for timing in timings
-            ],
-            deserializer=lambda timings: [
-                Timing.model_validate(timing) for timing in timings
-            ],
+        Column("started_at", TZDateTime(6)),
+        Column("ended_at", TZDateTime(6)),
+        # Some task counters
+        Column("state", IngestionJobStateString),
+        Column("total_tasks", Integer),
+        Column("successful_tasks", Integer),
+        Column("ignored_successful_tasks", Integer),
+        Column("skipped_tasks", Integer),
+        Column("failed_tasks", Integer),
+        Column(
+            "timings",
+            JSONType(
+                serializer=lambda timings: [
+                    # Timing is probably already a dictionary. Load it into Timing first, so it can be dumped
+                    # in json mode
+                    Timing.model_validate(timing).model_dump(mode="json")
+                    for timing in timings
+                ],
+                deserializer=lambda timings: [
+                    Timing.model_validate(timing) for timing in timings
+                ],
+            ),
         ),
-    ),
-    # Column(
-    #     "task_summaries",
-    #     JSONType(
-    #         serializer=lambda task_summaries: [
-    #             task_summary.model_dump(mode="json") for task_summary in task_summaries
-    #         ],
-    #         deserializer=lambda task_summaries: [
-    #             TaskSummary.model_validate(task_summary)
-    #             for task_summary in task_summaries
-    #         ],
-    #     ),
-    # ),
-)
+    )
+
+    task_summary_table = Table(
+        f"{table_prefix}task_summary",
+        metadata,
+        Column(
+            "ingestion_job_summary_id",
+            String(255),
+            ForeignKey(f"{table_prefix}ingestion_job_summary.ingestion_job_summary_id"),
+            primary_key=True,
+        ),
+        Column("task_id", String(255), primary_key=True),
+        Column("started_at", TZDateTime(6)),
+        Column("ended_at", TZDateTime(6)),
+        Column("operation", OperationString),
+        Column(
+            "dataset_identifier", JSONType(deserializer=lambda item: Identifier(**item))
+        ),
+        Column("persisted_file_count", Integer),
+        Column("bytes_retrieved", Integer),
+        Column("last_modified", TZDateTime(6)),
+        Column("state", TaskStateString),
+        Column(
+            "timings",
+            JSONType(
+                serializer=lambda timings: [
+                    Timing.model_validate(timing).model_dump(mode="json")
+                    for timing in timings
+                ],
+                deserializer=lambda timings: [
+                    Timing.model_validate(timing) for timing in timings
+                ],
+            ),
+        ),
+    )
+
+    store_version_table = Table(
+        f"{table_prefix}store_version",
+        metadata,
+        Column("id", Integer, primary_key=True, default=1),
+        Column("ingestify_version", String(255), nullable=False),
+        Column("created_at", TZDateTime(6), nullable=False),
+        Column("updated_at", TZDateTime(6), nullable=False),
+    )
+
+    return {
+        "metadata": metadata,
+        "dataset_table": dataset_table,
+        "revision_table": revision_table,
+        "file_table": file_table,
+        "ingestion_job_summary_table": ingestion_job_summary_table,
+        "task_summary_table": task_summary_table,
+        "store_version_table": store_version_table,
+    }
 
 
-task_summary_table = Table(
-    "task_summary",
-    metadata,
-    Column(
-        "ingestion_job_summary_id",
-        String(255),
-        ForeignKey("ingestion_job_summary.ingestion_job_summary_id"),
-        primary_key=True,
-    ),
-    Column("task_id", String(255), primary_key=True),
-    Column("started_at", TZDateTime(6)),
-    Column("ended_at", TZDateTime(6)),
-    Column("operation", OperationString),
-    Column(
-        "dataset_identifier", JSONType(deserializer=lambda item: Identifier(**item))
-    ),
-    Column("persisted_file_count", Integer),
-    Column("bytes_retrieved", Integer),
-    Column("last_modified", TZDateTime(6)),
-    Column("state", TaskStateString),
-    Column(
-        "timings",
-        JSONType(
-            serializer=lambda timings: [
-                Timing.model_validate(timing).model_dump(mode="json")
-                for timing in timings
-            ],
-            deserializer=lambda timings: [
-                Timing.model_validate(timing) for timing in timings
-            ],
-        ),
-    ),
-    # Column("description", String(255)),
-    # Column("created_at", TZDateTime(6)),
-    # Column("state", RevisionStateString, default=RevisionState.PENDING_VALIDATION),
-    # Column("source", JSONType()),
-)
-
-store_version_table = Table(
-    "store_version",
-    metadata,
-    Column("id", Integer, primary_key=True, default=1),
-    Column("ingestify_version", String(255), nullable=False),
-    Column("created_at", TZDateTime(6), nullable=False),
-    Column("updated_at", TZDateTime(6), nullable=False),
-)
+# Create default tables without prefix for backward compatibility
+_default_tables = get_tables("")
+metadata = _default_tables["metadata"]
+dataset_table = _default_tables["dataset_table"]
+revision_table = _default_tables["revision_table"]
+file_table = _default_tables["file_table"]
+ingestion_job_summary_table = _default_tables["ingestion_job_summary_table"]
+task_summary_table = _default_tables["task_summary_table"]
+store_version_table = _default_tables["store_version_table"]
 #
 #
 # mapper_registry = registry()

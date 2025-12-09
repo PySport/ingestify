@@ -40,15 +40,7 @@ from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
 from ingestify.utils import get_concurrency
 
-from .tables import (
-    metadata,
-    dataset_table,
-    file_table,
-    revision_table,
-    ingestion_job_summary_table,
-    task_summary_table,
-    store_version_table,
-)
+from .tables import get_tables
 
 logger = logging.getLogger(__name__)
 
@@ -112,20 +104,33 @@ class SqlAlchemySessionProvider:
         session_factory = sessionmaker(bind=self.engine)
         self.session = scoped_session(session_factory)
 
+        # Create tables with the specified prefix
+        tables = get_tables(self.table_prefix)
+        self.metadata = tables["metadata"]
+        self.dataset_table = tables["dataset_table"]
+        self.revision_table = tables["revision_table"]
+        self.file_table = tables["file_table"]
+        self.ingestion_job_summary_table = tables["ingestion_job_summary_table"]
+        self.task_summary_table = tables["task_summary_table"]
+        self.store_version_table = tables["store_version_table"]
+
+        # Create all tables in the database
+        self.metadata.create_all(self.engine)
+
     def __getstate__(self):
-        return {"url": self.url}
+        return {"url": self.url, "table_prefix": self.table_prefix}
 
     def __setstate__(self, state):
         self.url = state["url"]
+        self.table_prefix = state.get("table_prefix", "")
         self._init_engine()
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, table_prefix: str = ""):
         url = self.fix_url(url)
 
         self.url = url
+        self.table_prefix = table_prefix
         self._init_engine()
-
-        metadata.create_all(self.engine)
 
     def __del__(self):
         self.close()
@@ -153,6 +158,30 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     @property
     def dialect(self) -> Dialect:
         return self.session_provider.dialect
+
+    @property
+    def dataset_table(self):
+        return self.session_provider.dataset_table
+
+    @property
+    def revision_table(self):
+        return self.session_provider.revision_table
+
+    @property
+    def file_table(self):
+        return self.session_provider.file_table
+
+    @property
+    def ingestion_job_summary_table(self):
+        return self.session_provider.ingestion_job_summary_table
+
+    @property
+    def task_summary_table(self):
+        return self.session_provider.task_summary_table
+
+    @property
+    def store_version_table(self):
+        return self.session_provider.store_version_table
 
     def _upsert(
         self,
