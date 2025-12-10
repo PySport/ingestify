@@ -280,13 +280,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 )
 
                 query = query.select_from(
-                    dataset_table.join(
+                    self.dataset_table.join(
                         dataset_ids_cte,
-                        dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                        dataset_ids_cte.c.dataset_id == self.dataset_table.c.dataset_id,
                     )
                 )
             else:
-                query = query.filter(dataset_table.c.dataset_id == dataset_id)
+                query = query.filter(self.dataset_table.c.dataset_id == dataset_id)
 
         dialect = self.dialect.name
 
@@ -316,7 +316,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 join_conditions = []
                 for k in keys:
                     if dialect == "postgresql":
-                        column = dataset_table.c.identifier[k]
+                        column = self.dataset_table.c.identifier[k]
 
                         # Take the value from the first selector to determine the type.
                         # TODO: check all selectors to determine the type
@@ -326,24 +326,26 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                         else:
                             column = column.as_string()
                     else:
-                        column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
+                        column = func.json_extract(
+                            self.dataset_table.c.identifier, f"$.{k}"
+                        )
 
                     join_conditions.append(attribute_cte.c[k] == column)
 
                 query = query.select_from(
-                    dataset_table.join(attribute_cte, and_(*join_conditions))
+                    self.dataset_table.join(attribute_cte, and_(*join_conditions))
                 )
 
         if where:
             query = query.filter(text(where))
 
-        query = query.filter(dataset_table.c.bucket == bucket)
+        query = query.filter(self.dataset_table.c.bucket == bucket)
         if dataset_type:
-            query = query.filter(dataset_table.c.dataset_type == dataset_type)
+            query = query.filter(self.dataset_table.c.dataset_type == dataset_type)
         if provider:
-            query = query.filter(dataset_table.c.provider == provider)
+            query = query.filter(self.dataset_table.c.provider == provider)
         if dataset_state:
-            query = query.filter(dataset_table.c.state.in_(dataset_state))
+            query = query.filter(self.dataset_table.c.state.in_(dataset_state))
 
         return query
 
@@ -665,7 +667,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def get_store_version(self) -> Optional[str]:
         """Get the current Ingestify version stored for this store."""
         with self.session:
-            row = self.session.query(store_version_table.c.ingestify_version).first()
+            row = self.session.query(
+                self.store_version_table.c.ingestify_version
+            ).first()
             return row.ingestify_version if row else None
 
     def set_store_version(self, version: str):
@@ -682,7 +686,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         with self.connect() as connection:
             try:
-                self._upsert(connection, store_version_table, [entity])
+                self._upsert(connection, self.store_version_table, [entity])
                 connection.commit()
             except Exception:
                 connection.rollback()

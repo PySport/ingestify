@@ -82,7 +82,11 @@ def build_file_repository(file_url: str, identifier_transformer) -> FileReposito
 
 
 def get_dataset_store_by_urls(
-    metadata_url: str, file_url: str, bucket: str, dataset_types, metadata_options: dict = None
+    metadata_url: str,
+    file_url: str,
+    bucket: str,
+    dataset_types,
+    metadata_options: dict = None,
 ) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
@@ -123,7 +127,9 @@ def get_dataset_store_by_urls(
     # Extract table_prefix from metadata_options
     table_prefix = metadata_options.get("table_prefix", "")
 
-    sqlalchemy_session_provider = SqlAlchemySessionProvider(metadata_url, table_prefix=table_prefix)
+    sqlalchemy_session_provider = SqlAlchemySessionProvider(
+        metadata_url, table_prefix=table_prefix
+    )
 
     dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
 

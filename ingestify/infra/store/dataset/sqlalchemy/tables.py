@@ -194,7 +194,10 @@ def get_tables(table_prefix: str = ""):
         f"{table_prefix}revision",
         metadata,
         Column(
-            "dataset_id", String(255), ForeignKey(f"{table_prefix}dataset.dataset_id"), primary_key=True
+            "dataset_id",
+            String(255),
+            ForeignKey(f"{table_prefix}dataset.dataset_id"),
+            primary_key=True,
         ),
         Column("revision_id", Integer, primary_key=True),
         Column("description", String(255)),
