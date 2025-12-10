@@ -114,9 +114,6 @@ class SqlAlchemySessionProvider:
         self.task_summary_table = tables["task_summary_table"]
         self.store_version_table = tables["store_version_table"]
 
-        # Create all tables in the database
-        self.metadata.create_all(self.engine)
-
     def __getstate__(self):
         return {"url": self.url, "table_prefix": self.table_prefix}
 
@@ -131,6 +128,9 @@ class SqlAlchemySessionProvider:
         self.url = url
         self.table_prefix = table_prefix
         self._init_engine()
+
+        # Create all tables in the database
+        self.metadata.create_all(self.engine)
 
     def __del__(self):
         self.close()
