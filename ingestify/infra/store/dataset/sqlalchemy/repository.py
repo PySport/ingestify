@@ -40,15 +40,7 @@ from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
 from ingestify.utils import get_concurrency
 
-from .tables import (
-    metadata,
-    dataset_table,
-    file_table,
-    revision_table,
-    ingestion_job_summary_table,
-    task_summary_table,
-    store_version_table,
-)
+from .tables import get_tables
 
 logger = logging.getLogger(__name__)
 
@@ -112,20 +104,33 @@ class SqlAlchemySessionProvider:
         session_factory = sessionmaker(bind=self.engine)
         self.session = scoped_session(session_factory)
 
+        # Create tables with the specified prefix
+        tables = get_tables(self.table_prefix)
+        self.metadata = tables["metadata"]
+        self.dataset_table = tables["dataset_table"]
+        self.revision_table = tables["revision_table"]
+        self.file_table = tables["file_table"]
+        self.ingestion_job_summary_table = tables["ingestion_job_summary_table"]
+        self.task_summary_table = tables["task_summary_table"]
+        self.store_version_table = tables["store_version_table"]
+
     def __getstate__(self):
-        return {"url": self.url}
+        return {"url": self.url, "table_prefix": self.table_prefix}
 
     def __setstate__(self, state):
         self.url = state["url"]
+        self.table_prefix = state.get("table_prefix", "")
         self._init_engine()
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, table_prefix: str = ""):
         url = self.fix_url(url)
 
         self.url = url
+        self.table_prefix = table_prefix
         self._init_engine()
 
-        metadata.create_all(self.engine)
+        # Create all tables in the database
+        self.metadata.create_all(self.engine)
 
     def __del__(self):
         self.close()
@@ -153,6 +158,30 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     @property
     def dialect(self) -> Dialect:
         return self.session_provider.dialect
+
+    @property
+    def dataset_table(self):
+        return self.session_provider.dataset_table
+
+    @property
+    def revision_table(self):
+        return self.session_provider.revision_table
+
+    @property
+    def file_table(self):
+        return self.session_provider.file_table
+
+    @property
+    def ingestion_job_summary_table(self):
+        return self.session_provider.ingestion_job_summary_table
+
+    @property
+    def task_summary_table(self):
+        return self.session_provider.task_summary_table
+
+    @property
+    def store_version_table(self):
+        return self.session_provider.store_version_table
 
     def _upsert(
         self,
@@ -251,13 +280,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 )
 
                 query = query.select_from(
-                    dataset_table.join(
+                    self.dataset_table.join(
                         dataset_ids_cte,
-                        dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                        dataset_ids_cte.c.dataset_id == self.dataset_table.c.dataset_id,
                     )
                 )
             else:
-                query = query.filter(dataset_table.c.dataset_id == dataset_id)
+                query = query.filter(self.dataset_table.c.dataset_id == dataset_id)
 
         dialect = self.dialect.name
 
@@ -287,7 +316,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 join_conditions = []
                 for k in keys:
                     if dialect == "postgresql":
-                        column = dataset_table.c.identifier[k]
+                        column = self.dataset_table.c.identifier[k]
 
                         # Take the value from the first selector to determine the type.
                         # TODO: check all selectors to determine the type
@@ -297,24 +326,26 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                         else:
                             column = column.as_string()
                     else:
-                        column = func.json_extract(dataset_table.c.identifier, f"$.{k}")
+                        column = func.json_extract(
+                            self.dataset_table.c.identifier, f"$.{k}"
+                        )
 
                     join_conditions.append(attribute_cte.c[k] == column)
 
                 query = query.select_from(
-                    dataset_table.join(attribute_cte, and_(*join_conditions))
+                    self.dataset_table.join(attribute_cte, and_(*join_conditions))
                 )
 
         if where:
             query = query.filter(text(where))
 
-        query = query.filter(dataset_table.c.bucket == bucket)
+        query = query.filter(self.dataset_table.c.bucket == bucket)
         if dataset_type:
-            query = query.filter(dataset_table.c.dataset_type == dataset_type)
+            query = query.filter(self.dataset_table.c.dataset_type == dataset_type)
         if provider:
-            query = query.filter(dataset_table.c.provider == provider)
+            query = query.filter(self.dataset_table.c.provider == provider)
         if dataset_state:
-            query = query.filter(dataset_table.c.state.in_(dataset_state))
+            query = query.filter(self.dataset_table.c.state.in_(dataset_state))
 
         return query
 
@@ -328,23 +359,23 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         )
 
         dataset_rows = list(
-            self.session.query(dataset_table).select_from(
-                dataset_table.join(
+            self.session.query(self.dataset_table).select_from(
+                self.dataset_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.dataset_table.c.dataset_id,
                 )
             )
         )
         revisions_per_dataset = {}
         rows = (
-            self.session.query(revision_table)
+            self.session.query(self.revision_table)
             .select_from(
-                revision_table.join(
+                self.revision_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == revision_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.revision_table.c.dataset_id,
                 )
             )
-            .order_by(revision_table.c.dataset_id)
+            .order_by(self.revision_table.c.dataset_id)
         )
 
         for dataset_id, revisions in itertools.groupby(
@@ -354,14 +385,14 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         files_per_revision = {}
         rows = (
-            self.session.query(file_table)
+            self.session.query(self.file_table)
             .select_from(
-                file_table.join(
+                self.file_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == file_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.file_table.c.dataset_id,
                 )
             )
-            .order_by(file_table.c.dataset_id, file_table.c.revision_id)
+            .order_by(self.file_table.c.dataset_id, self.file_table.c.revision_id)
         )
 
         for (dataset_id, revision_id), files in itertools.groupby(
@@ -425,8 +456,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not metadata_only:
                 # Apply sorting by created_at in ascending order
                 dataset_query = apply_query_filter(
-                    self.session.query(dataset_table.c.dataset_id)
-                ).order_by(dataset_table.c.created_at.asc())
+                    self.session.query(self.dataset_table.c.dataset_id)
+                ).order_by(self.dataset_table.c.created_at.asc())
 
                 # Apply pagination if both page and page_size are provided
                 if page is not None and page_size is not None:
@@ -448,9 +479,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
                 metadata_result_query = (
                     apply_query_filter(
-                        self.session.query(dataset_table.c.last_modified_at)
+                        self.session.query(self.dataset_table.c.last_modified_at)
                     )
-                    .order_by(dataset_table.c.last_modified_at.desc())
+                    .order_by(self.dataset_table.c.last_modified_at.desc())
                     .limit(1)
                 )
 
@@ -508,11 +539,16 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         with self.connect() as connection:
             try:
-                self._upsert(connection, dataset_table, datasets_entities)
+                self._upsert(connection, self.dataset_table, datasets_entities)
                 self._upsert(
-                    connection, revision_table, revision_entities, immutable_rows=True
+                    connection,
+                    self.revision_table,
+                    revision_entities,
+                    immutable_rows=True,
                 )
-                self._upsert(connection, file_table, file_entities, immutable_rows=True)
+                self._upsert(
+                    connection, self.file_table, file_entities, immutable_rows=True
+                )
             except Exception:
                 connection.rollback()
                 raise
@@ -569,11 +605,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             try:
                 self._upsert(
                     connection,
-                    ingestion_job_summary_table,
+                    self.ingestion_job_summary_table,
                     ingestion_job_summary_entities,
                 )
                 if task_summary_entities:
-                    self._upsert(connection, task_summary_table, task_summary_entities)
+                    self._upsert(
+                        connection, self.task_summary_table, task_summary_entities
+                    )
             except Exception:
                 connection.rollback()
                 raise
@@ -584,13 +622,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         ingestion_job_summary_ids = [
             row.ingestion_job_summary_id
             for row in self.session.query(
-                ingestion_job_summary_table.c.ingestion_job_summary_id
+                self.ingestion_job_summary_table.c.ingestion_job_summary_id
             )
         ]
 
         ingestion_job_summary_rows = list(
-            self.session.query(ingestion_job_summary_table).filter(
-                ingestion_job_summary_table.c.ingestion_job_summary_id.in_(
+            self.session.query(self.ingestion_job_summary_table).filter(
+                self.ingestion_job_summary_table.c.ingestion_job_summary_id.in_(
                     ingestion_job_summary_ids
                 )
             )
@@ -598,13 +636,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         task_summary_entities_per_job_summary = {}
         rows = (
-            self.session.query(task_summary_table)
+            self.session.query(self.task_summary_table)
             .filter(
-                task_summary_table.c.ingestion_job_summary_id.in_(
+                self.task_summary_table.c.ingestion_job_summary_id.in_(
                     ingestion_job_summary_ids
                 )
             )
-            .order_by(task_summary_table.c.ingestion_job_summary_id)
+            .order_by(self.task_summary_table.c.ingestion_job_summary_id)
         )
 
         for ingestion_job_summary_id, task_summaries_rows in itertools.groupby(
@@ -636,7 +674,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def get_store_version(self) -> Optional[str]:
         """Get the current Ingestify version stored for this store."""
         with self.session:
-            row = self.session.query(store_version_table.c.ingestify_version).first()
+            row = self.session.query(
+                self.store_version_table.c.ingestify_version
+            ).first()
             return row.ingestify_version if row else None
 
     def set_store_version(self, version: str):
@@ -653,7 +693,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         with self.connect() as connection:
             try:
-                self._upsert(connection, store_version_table, [entity])
+                self._upsert(connection, self.store_version_table, [entity])
                 connection.commit()
             except Exception:
                 connection.rollback()
