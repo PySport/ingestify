@@ -359,23 +359,23 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         )
 
         dataset_rows = list(
-            self.session.query(dataset_table).select_from(
-                dataset_table.join(
+            self.session.query(self.dataset_table).select_from(
+                self.dataset_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == dataset_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.dataset_table.c.dataset_id,
                 )
             )
         )
         revisions_per_dataset = {}
         rows = (
-            self.session.query(revision_table)
+            self.session.query(self.revision_table)
             .select_from(
-                revision_table.join(
+                self.revision_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == revision_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.revision_table.c.dataset_id,
                 )
             )
-            .order_by(revision_table.c.dataset_id)
+            .order_by(self.revision_table.c.dataset_id)
         )
 
         for dataset_id, revisions in itertools.groupby(
@@ -385,14 +385,14 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         files_per_revision = {}
         rows = (
-            self.session.query(file_table)
+            self.session.query(self.file_table)
             .select_from(
-                file_table.join(
+                self.file_table.join(
                     dataset_ids_cte,
-                    dataset_ids_cte.c.dataset_id == file_table.c.dataset_id,
+                    dataset_ids_cte.c.dataset_id == self.file_table.c.dataset_id,
                 )
             )
-            .order_by(file_table.c.dataset_id, file_table.c.revision_id)
+            .order_by(self.file_table.c.dataset_id, self.file_table.c.revision_id)
         )
 
         for (dataset_id, revision_id), files in itertools.groupby(
@@ -456,8 +456,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if not metadata_only:
                 # Apply sorting by created_at in ascending order
                 dataset_query = apply_query_filter(
-                    self.session.query(dataset_table.c.dataset_id)
-                ).order_by(dataset_table.c.created_at.asc())
+                    self.session.query(self.dataset_table.c.dataset_id)
+                ).order_by(self.dataset_table.c.created_at.asc())
 
                 # Apply pagination if both page and page_size are provided
                 if page is not None and page_size is not None:
@@ -479,9 +479,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
                 metadata_result_query = (
                     apply_query_filter(
-                        self.session.query(dataset_table.c.last_modified_at)
+                        self.session.query(self.dataset_table.c.last_modified_at)
                     )
-                    .order_by(dataset_table.c.last_modified_at.desc())
+                    .order_by(self.dataset_table.c.last_modified_at.desc())
                     .limit(1)
                 )
 
@@ -539,11 +539,16 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         with self.connect() as connection:
             try:
-                self._upsert(connection, dataset_table, datasets_entities)
+                self._upsert(connection, self.dataset_table, datasets_entities)
                 self._upsert(
-                    connection, revision_table, revision_entities, immutable_rows=True
+                    connection,
+                    self.revision_table,
+                    revision_entities,
+                    immutable_rows=True,
                 )
-                self._upsert(connection, file_table, file_entities, immutable_rows=True)
+                self._upsert(
+                    connection, self.file_table, file_entities, immutable_rows=True
+                )
             except Exception:
                 connection.rollback()
                 raise
@@ -600,11 +605,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             try:
                 self._upsert(
                     connection,
-                    ingestion_job_summary_table,
+                    self.ingestion_job_summary_table,
                     ingestion_job_summary_entities,
                 )
                 if task_summary_entities:
-                    self._upsert(connection, task_summary_table, task_summary_entities)
+                    self._upsert(
+                        connection, self.task_summary_table, task_summary_entities
+                    )
             except Exception:
                 connection.rollback()
                 raise
@@ -615,13 +622,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         ingestion_job_summary_ids = [
             row.ingestion_job_summary_id
             for row in self.session.query(
-                ingestion_job_summary_table.c.ingestion_job_summary_id
+                self.ingestion_job_summary_table.c.ingestion_job_summary_id
             )
         ]
 
         ingestion_job_summary_rows = list(
-            self.session.query(ingestion_job_summary_table).filter(
-                ingestion_job_summary_table.c.ingestion_job_summary_id.in_(
+            self.session.query(self.ingestion_job_summary_table).filter(
+                self.ingestion_job_summary_table.c.ingestion_job_summary_id.in_(
                     ingestion_job_summary_ids
                 )
             )
@@ -629,13 +636,13 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         task_summary_entities_per_job_summary = {}
         rows = (
-            self.session.query(task_summary_table)
+            self.session.query(self.task_summary_table)
             .filter(
-                task_summary_table.c.ingestion_job_summary_id.in_(
+                self.task_summary_table.c.ingestion_job_summary_id.in_(
                     ingestion_job_summary_ids
                 )
             )
-            .order_by(task_summary_table.c.ingestion_job_summary_id)
+            .order_by(self.task_summary_table.c.ingestion_job_summary_id)
         )
 
         for ingestion_job_summary_id, task_summaries_rows in itertools.groupby(
