@@ -82,13 +82,27 @@ def build_file_repository(file_url: str, identifier_transformer) -> FileReposito
 
 
 def get_dataset_store_by_urls(
-    metadata_url: str, file_url: str, bucket: str, dataset_types
+    metadata_url: str,
+    file_url: str,
+    bucket: str,
+    dataset_types,
+    metadata_options: dict = None,
 ) -> DatasetStore:
     """
     Initialize a DatasetStore by a DatasetRepository and a FileRepository
+
+    Args:
+        metadata_url: Database connection URL
+        file_url: File storage URL
+        bucket: Bucket name
+        dataset_types: Dataset type configurations
+        metadata_options: Optional dict with metadata store options (e.g., table_prefix)
     """
     if not bucket:
         raise Exception("Bucket is not specified")
+
+    if metadata_options is None:
+        metadata_options = {}
 
     identifier_transformer = IdentifierTransformer()
     for dataset_type in dataset_types:
@@ -110,7 +124,12 @@ def get_dataset_store_by_urls(
     if metadata_url.startswith("postgres://"):
         metadata_url = metadata_url.replace("postgress://", "postgress+")
 
-    sqlalchemy_session_provider = SqlAlchemySessionProvider(metadata_url)
+    # Extract table_prefix from metadata_options
+    table_prefix = metadata_options.get("table_prefix", "")
+
+    sqlalchemy_session_provider = SqlAlchemySessionProvider(
+        metadata_url, table_prefix=table_prefix
+    )
 
     dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
 
@@ -124,11 +143,16 @@ def get_dataset_store_by_urls(
 def get_datastore(config_file, bucket: Optional[str] = None) -> DatasetStore:
     config = parse_config(config_file, default_value="")
 
+    # Extract metadata_options if provided
+    main_config = config["main"]
+    metadata_options = main_config.get("metadata_options", {})
+
     return get_dataset_store_by_urls(
-        metadata_url=config["main"]["metadata_url"],
-        file_url=config["main"]["file_url"],
-        bucket=bucket or config["main"].get("default_bucket"),
+        metadata_url=main_config["metadata_url"],
+        file_url=main_config["file_url"],
+        bucket=bucket or main_config.get("default_bucket"),
         dataset_types=config.get("dataset_types", []),
+        metadata_options=metadata_options,
     )
 
 
@@ -219,11 +243,16 @@ def get_engine(
             sources[name] = build_source(name=name, source_args=source_args)
 
     logger.info("Initializing IngestionEngine")
+
+    # Extract metadata_options if provided
+    metadata_options = config["main"].get("metadata_options", {})
+
     store = get_dataset_store_by_urls(
         metadata_url=config["main"]["metadata_url"],
         file_url=config["main"]["file_url"],
         bucket=bucket or config["main"].get("default_bucket"),
         dataset_types=config.get("dataset_types", []),
+        metadata_options=metadata_options,
     )
 
     # Setup an EventBus and wire some more components
