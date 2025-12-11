@@ -58,9 +58,7 @@ def retrieve_http(
             )
         # else:
         #     print(f"{current_file.modified_at=} {last_modified=}")
-        headers["if-modified-since"] = (
-            format_datetime(current_file.modified_at, usegmt=True),
-        )
+        headers["if-modified-since"] = format_datetime(current_file.modified_at, usegmt=True)
         headers["if-none-match"] = current_file.tag
 
     http_kwargs = {}
