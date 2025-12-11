@@ -10,6 +10,7 @@ class DatasetState(str, Enum):
     SCHEDULED = "SCHEDULED"
     PARTIAL = "PARTIAL"
     COMPLETE = "COMPLETE"
+    MISSING = "MISSING"
 
     @property
     def is_complete(self):

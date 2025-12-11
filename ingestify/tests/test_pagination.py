@@ -91,9 +91,14 @@ def test_dataset_state_filter(config_file):
     now = datetime.now(pytz.utc)
 
     # Create datasets with different states
-    states = [DatasetState.COMPLETE, DatasetState.PARTIAL, DatasetState.SCHEDULED]
-    for i in range(9):  # 3 datasets per state
-        state = states[i % 3]
+    states = [
+        DatasetState.COMPLETE,
+        DatasetState.PARTIAL,
+        DatasetState.SCHEDULED,
+        DatasetState.MISSING,
+    ]
+    for i in range(12):  # 3 datasets per state
+        state = states[i % 4]
         dataset = Dataset(
             bucket=bucket,
             dataset_id=f"state-test-{i}",
@@ -124,9 +129,13 @@ def test_dataset_state_filter(config_file):
     # Test filtering by multiple states using a list of enums
     mixed_datasets = store.get_dataset_collection(
         dataset_type="state-test",
-        dataset_state=[DatasetState.COMPLETE, DatasetState.SCHEDULED],
+        dataset_state=[
+            DatasetState.COMPLETE,
+            DatasetState.SCHEDULED,
+            DatasetState.MISSING,
+        ],
     )
-    assert len(mixed_datasets) == 6
+    assert len(mixed_datasets) == 9
 
     # Test filtering by multiple states using a list of strings
     mixed_datasets_strings = store.get_dataset_collection(
