@@ -526,12 +526,22 @@ def test_post_load_files_hook(config_file):
 def test_force_save_creates_revision(config_file):
     """Test that datasets get a revision even when no files are persisted."""
     engine = get_engine(config_file, "main")
+
+    # Create one dataset with files and one without
     add_ingestion_plan(
-        engine, NoFilesSource("fake-source"), competition_id=1, season_id=2
+        engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
+    )
+    add_ingestion_plan(
+        engine, NoFilesSource("fake-source"), competition_id=1, season_id=3
     )
 
     engine.load()
-    dataset = engine.store.get_dataset_collection().first()
 
-    assert len(dataset.revisions) == 1
-    assert len(dataset.current_revision.modified_files) == 0
+    # This should not fail even though one dataset has no last_modified_at
+    datasets = engine.store.get_dataset_collection()
+    assert len(datasets) == 2
+
+    # Verify the dataset without files still has a revision
+    dataset_without_files = engine.store.get_dataset_collection(season_id=3).first()
+    assert len(dataset_without_files.revisions) == 1
+    assert len(dataset_without_files.current_revision.modified_files) == 0

@@ -470,9 +470,14 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 dataset_ids = [row.dataset_id for row in dataset_query]
                 datasets = self._load_datasets(dataset_ids)
 
+                last_modified_values = [
+                    dataset.last_modified_at
+                    for dataset in datasets
+                    if dataset.last_modified_at is not None
+                ]
                 dataset_collection_metadata = DatasetCollectionMetadata(
-                    last_modified=max(dataset.last_modified_at for dataset in datasets)
-                    if datasets
+                    last_modified=max(last_modified_values)
+                    if last_modified_values
                     else None,
                     row_count=len(datasets),
                 )
