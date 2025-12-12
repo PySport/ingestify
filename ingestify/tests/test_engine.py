@@ -251,6 +251,28 @@ class FailingJobSource(Source):
         raise Exception("some failure")
 
 
+class NoFilesSource(Source):
+    provider = "fake"
+
+    def find_datasets(
+        self,
+        dataset_type: str,
+        data_spec_versions: DataSpecVersionCollection,
+        dataset_collection_metadata: DatasetCollectionMetadata,
+        competition_id,
+        season_id,
+        **kwargs,
+    ):
+        yield DatasetResource(
+            dataset_resource_id=dict(
+                competition_id=competition_id, season_id=season_id, match_id=1
+            ),
+            provider="fake",
+            dataset_type="match",
+            name="Dataset Without Files",
+        )
+
+
 def test_engine(config_file):
     engine = get_engine(config_file, "main")
 
@@ -499,3 +521,17 @@ def test_post_load_files_hook(config_file):
     engine.load()
     dataset2 = engine.store.get_dataset_collection().first()
     assert dataset2.state == DatasetState.COMPLETE
+
+
+def test_force_save_creates_revision(config_file):
+    """Test that datasets get a revision even when no files are persisted."""
+    engine = get_engine(config_file, "main")
+    add_ingestion_plan(
+        engine, NoFilesSource("fake-source"), competition_id=1, season_id=2
+    )
+
+    engine.load()
+    dataset = engine.store.get_dataset_collection().first()
+
+    assert len(dataset.revisions) == 1
+    assert len(dataset.current_revision.modified_files) == 0

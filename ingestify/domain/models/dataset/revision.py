@@ -38,7 +38,9 @@ class Revision(BaseModel):
 
     @property
     def last_modified_at(self):
-        return max(file.modified_at for file in self.modified_files)
+        if self.modified_files:
+            return max(file.modified_at for file in self.modified_files)
+        return None
 
     @property
     def modified_files_map(self) -> Dict[str, File]:
