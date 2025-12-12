@@ -86,9 +86,7 @@ class TaskSummary(BaseModel, HasTiming):
         if revision:
             self.persisted_file_count = len(revision.modified_files)
             self.bytes_retrieved = sum(file.size for file in revision.modified_files)
-            self.last_modified = max(
-                file.modified_at for file in revision.modified_files
-            )
+            self.last_modified = revision.last_modified_at
         else:
             self.state = TaskState.FINISHED_IGNORED
 

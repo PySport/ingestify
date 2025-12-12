@@ -383,6 +383,7 @@ class DatasetStore:
         files: Dict[str, DraftFile],
         revision_source: RevisionSource,
         description: str = "Update",
+        force_save: bool = False,
     ):
         """
         Create new revision first, so FileRepository can use
@@ -392,7 +393,7 @@ class DatasetStore:
         created_at = utcnow()
 
         persisted_files_ = self._persist_files(dataset, revision_id, files)
-        if persisted_files_:
+        if persisted_files_ or force_save:
             # It can happen an API tells us data is changed, but it was not changed. In this case
             # we decide to ignore it.
             # Make sure there are files changed before creating a new revision
@@ -487,7 +488,9 @@ class DatasetStore:
             updated_at=now,
             last_modified_at=None,  # Not known at this moment
         )
-        revision = self.add_revision(dataset, files, revision_source, description)
+        revision = self.add_revision(
+            dataset, files, revision_source, description, force_save=True
+        )
 
         self.dispatch(DatasetCreated(dataset=dataset))
         return revision

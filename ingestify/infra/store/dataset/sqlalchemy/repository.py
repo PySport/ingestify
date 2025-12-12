@@ -375,7 +375,9 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     dataset_ids_cte.c.dataset_id == self.revision_table.c.dataset_id,
                 )
             )
-            .order_by(self.revision_table.c.dataset_id)
+            .order_by(
+                self.revision_table.c.dataset_id, self.revision_table.c.revision_id
+            )
         )
 
         for dataset_id, revisions in itertools.groupby(
@@ -560,22 +562,22 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             try:
                 # Delete modified files related to the dataset
                 connection.execute(
-                    file_table.delete().where(
-                        file_table.c.dataset_id == dataset.dataset_id
+                    self.file_table.delete().where(
+                        self.file_table.c.dataset_id == dataset.dataset_id
                     )
                 )
 
                 # Delete revisions related to the dataset
                 connection.execute(
-                    revision_table.delete().where(
-                        revision_table.c.dataset_id == dataset.dataset_id
+                    self.revision_table.delete().where(
+                        self.revision_table.c.dataset_id == dataset.dataset_id
                     )
                 )
 
                 # Delete the dataset itself
                 connection.execute(
-                    dataset_table.delete().where(
-                        dataset_table.c.dataset_id == dataset.dataset_id
+                    self.dataset_table.delete().where(
+                        self.dataset_table.c.dataset_id == dataset.dataset_id
                     )
                 )
 

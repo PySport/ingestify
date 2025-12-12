@@ -1,0 +1,11 @@
+requests<3,>=2.0.0
+SQLAlchemy<3,>=2
+click>=8
+python-dotenv
+pyaml_env
+boto3
+pydantic>=2.0.0
+
+[test]
+pytest<7,>=6.2.5
+pytz
