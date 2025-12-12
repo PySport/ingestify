@@ -3,6 +3,7 @@ from typing import Optional, Callable, Any, Protocol, TYPE_CHECKING, Dict  # noq
 from pydantic import Field
 
 from ingestify.domain.models.base import BaseModel
+from ingestify.domain.models.dataset import Dataset
 from ingestify.domain.models.dataset.dataset_state import DatasetState
 from ingestify.exceptions import DuplicateFile
 
@@ -51,17 +52,19 @@ class DatasetResource(BaseModel):
     state: DatasetState = Field(default_factory=lambda: DatasetState.COMPLETE)
     files: dict[str, FileResource] = Field(default_factory=dict)
     post_load_files: Optional[
-        Callable[["DatasetResource", Dict[str, DraftFile]], None]
+        Callable[["DatasetResource", Dict[str, DraftFile], Optional[Dataset]], None]
     ] = None
 
-    def run_post_load_files(self, files: Dict[str, DraftFile]):
+    def run_post_load_files(
+        self, files: Dict[str, DraftFile], existing_dataset: Optional[Dataset] = None
+    ):
         """Hook to modify dataset attributes based on loaded file content.
 
         Useful for setting state based on file content, e.g., keep state=SCHEDULED
         when files contain '{}', change to COMPLETE when they contain actual data.
         """
         if self.post_load_files:
-            self.post_load_files(self, files)
+            self.post_load_files(self, files, existing_dataset)
 
     def add_file(
         self,

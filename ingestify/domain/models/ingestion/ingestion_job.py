@@ -137,7 +137,7 @@ class UpdateDatasetTask(Task):
                 for file_id, file_resource in self.dataset_resource.files.items()
             }
 
-            self.dataset_resource.run_post_load_files(files)
+            self.dataset_resource.run_post_load_files(files, self.dataset)
 
             try:
                 revision = self.store.update_dataset(
