@@ -460,7 +460,9 @@ def test_dev_engine():
     assert datasets.first().name == "Test Dataset"
 
 
-def post_load_hook(dataset_resource: DatasetResource, files: dict[str, DraftFile]):
+def post_load_hook(
+    dataset_resource: DatasetResource, files: dict[str, DraftFile], existing_dataset
+):
     # Change state to COMPLETE if file content is not '{}'
     for file in files.values():
         if file.size > 2:
