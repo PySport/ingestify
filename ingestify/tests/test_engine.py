@@ -460,7 +460,9 @@ def test_dev_engine():
     assert datasets.first().name == "Test Dataset"
 
 
-def post_load_hook(dataset_resource: DatasetResource, files: dict[str, DraftFile]):
+def post_load_hook(
+    dataset_resource: DatasetResource, files: dict[str, DraftFile], existing_dataset
+):
     # Change state to COMPLETE if file content is not '{}'
     for file in files.values():
         if file.size > 2:
@@ -545,3 +547,13 @@ def test_force_save_creates_revision(config_file):
     dataset_without_files = engine.store.get_dataset_collection(season_id=3).first()
     assert len(dataset_without_files.revisions) == 1
     assert len(dataset_without_files.current_revision.modified_files) == 0
+
+    dataset_with_last_modified = engine.store.get_dataset_collection(
+        season_id=2
+    ).first()
+
+    dataset_without_files = engine.store.get_dataset_collection(metadata_only=True)
+    assert (
+        dataset_without_files.metadata.last_modified
+        == dataset_with_last_modified.last_modified_at
+    )
