@@ -1,6 +1,7 @@
 main:
-  # Cannot use in memory data because database is shared between processes
-  metadata_url: !ENV "sqlite:///${TEST_DIR}/main.db"
+  # Database URL can be overridden via INGESTIFY_TEST_DATABASE_URL environment variable
+  # Defaults to SQLite if not set
+  metadata_url: !ENV ${INGESTIFY_TEST_DATABASE_URL}
   file_url: !ENV file://${TEST_DIR}/data
   default_bucket: main
 

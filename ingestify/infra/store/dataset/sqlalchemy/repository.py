@@ -208,18 +208,39 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         primary_key_columns = [column for column in table.columns if column.primary_key]
 
-        if immutable_rows:
-            stmt = stmt.on_conflict_do_nothing(index_elements=primary_key_columns)
+        if dialect == "mysql":
+            # MySQL uses ON DUPLICATE KEY UPDATE syntax
+            if immutable_rows:
+                # For MySQL, we simulate do_nothing by updating with the same values
+                # This prevents errors but doesn't actually change anything
+                set_ = {
+                    name: table.c[name]
+                    for name, column in table.columns.items()
+                    if column not in primary_key_columns
+                }
+                stmt = stmt.on_duplicate_key_update(set_)
+            else:
+                # MySQL uses stmt.inserted instead of stmt.excluded
+                set_ = {
+                    name: stmt.inserted[name]
+                    for name, column in table.columns.items()
+                    if column not in primary_key_columns
+                }
+                stmt = stmt.on_duplicate_key_update(set_)
         else:
-            set_ = {
-                name: getattr(stmt.excluded, name)
-                for name, column in table.columns.items()
-                if column not in primary_key_columns
-            }
+            # PostgreSQL and SQLite use ON CONFLICT syntax
+            if immutable_rows:
+                stmt = stmt.on_conflict_do_nothing(index_elements=primary_key_columns)
+            else:
+                set_ = {
+                    name: getattr(stmt.excluded, name)
+                    for name, column in table.columns.items()
+                    if column not in primary_key_columns
+                }
 
-            stmt = stmt.on_conflict_do_update(
-                index_elements=primary_key_columns, set_=set_
-            )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=primary_key_columns, set_=set_
+                )
 
         connection.execute(stmt)
 
@@ -242,7 +263,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def _build_cte(self, records: list[dict], name: str) -> CTE:
         """Build a CTE from a list of dictionaries."""
 
-        if self.dialect.name == "sqlite":
+        if self.dialect.name in ("sqlite", "mysql"):
+            # SQLite and MySQL don't support VALUES syntax, use UNION ALL instead
             return self._build_cte_sqlite(records, name)
 
         first_row = records[0]
