@@ -38,8 +38,23 @@ def config_file(ingestify_test_database_url):
     return os.path.abspath(os.path.dirname(__file__) + "/config.yaml")
 
 
+@pytest.fixture
+def db_cleanup():
+    def do_cleanup(engine):
+        # # Close connections after test
+        session_provider = getattr(
+            engine.store.dataset_repository, "session_provider", None
+        )
+        if session_provider:
+            session_provider.session.remove()
+            session_provider.engine.dispose()
+            session_provider.drop_all_tables()
+
+    return do_cleanup
+
+
 @pytest.fixture(scope="function")
-def engine(config_file):
+def engine(config_file, db_cleanup):
     # Now create the engine for the test
     engine = get_engine(config_file, "main")
     # session_provider = getattr(engine.store.dataset_repository, "session_provider", None)
@@ -51,12 +66,4 @@ def engine(config_file):
 
     yield engine
 
-    #
-    # # Close connections after test
-    session_provider = getattr(
-        engine.store.dataset_repository, "session_provider", None
-    )
-    if session_provider:
-        session_provider.session.remove()
-        session_provider.engine.dispose()
-        session_provider.drop_all_tables()
+    db_cleanup(engine)
