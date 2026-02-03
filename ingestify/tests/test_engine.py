@@ -291,8 +291,6 @@ def test_engine(engine):
 
     dataset = datasets.first()
     assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
-    for revision in dataset.revisions:
-        print("Rev", revision)
 
     assert len(dataset.revisions) == 2
     assert len(dataset.revisions[0].modified_files) == 3

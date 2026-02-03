@@ -219,10 +219,6 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             if immutable_rows:
                 # For MySQL immutable rows, use INSERT IGNORE to skip duplicates
                 stmt = stmt.prefix_with("IGNORE")
-                print("Inserting")
-                for entity in entities:
-                    print(entity)
-                print("Done")
             else:
                 # MySQL uses stmt.inserted instead of stmt.excluded
                 set_ = {
