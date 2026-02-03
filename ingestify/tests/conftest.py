@@ -14,9 +14,11 @@ def datastore_dir():
 
 @pytest.fixture(scope="function", autouse=True)
 def ingestify_test_database_url(datastore_dir):
+    # Only set and pop when not yet set
     if not os.environ.get("INGESTIFY_TEST_DATABASE_URL"):
-        tmp_dir = os.environ["TEST_DIR"]
-        os.environ["INGESTIFY_TEST_DATABASE_URL"] = f"sqlite:///${tmp_dir}/main.db"
+        os.environ["INGESTIFY_TEST_DATABASE_URL"] = f"sqlite:///{datastore_dir}/main.db"
+        yield
+        os.environ.pop("INGESTIFY_TEST_DATABASE_URL")
 
 
 @pytest.fixture(scope="function")
