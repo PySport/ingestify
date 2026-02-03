@@ -28,8 +28,6 @@ def ingestify_test_database_url(datastore_dir, monkeypatch):
         value = f"sqlite:///{datastore_dir}/main.db"
         monkeypatch.setenv(key, value)
 
-    monkeypatch.setenv("INGESTIFY_TEST_DATABASE_PREFIX", "test_")
-
     return value
 
 
@@ -41,12 +39,24 @@ def config_file(ingestify_test_database_url):
 
 
 @pytest.fixture(scope="function")
-def engine(config_file, ingestify_test_database_url):
+def engine(config_file):
+    # Now create the engine for the test
     engine = get_engine(config_file, "main")
+    # session_provider = getattr(engine.store.dataset_repository, "session_provider", None)
+    # if session_provider:
+    #     session_provider.close()
+    #
+    #     session_provider.drop_all_tables()
+    #     session_provider.create_all_tables()
 
     yield engine
-
-    session_provider = getattr(engine.store.dataset_repository, "session_provider")
+    #
+    # # Close connections after test
+    session_provider = getattr(
+        engine.store.dataset_repository, "session_provider", None
+    )
     if session_provider:
+        session_provider.session.remove()
+        session_provider.engine.dispose()
+
         session_provider.drop_all_tables()
-        # session_provider.close()

@@ -54,9 +54,8 @@ def test_store_version_tracking_version_mismatch(config_file, caplog):
         assert "stored=1.0.0, current=2.0.0" in caplog.text
 
 
-def test_store_version_methods(config_file):
+def test_store_version_methods(engine):
     """Test the repository version methods directly."""
-    engine = get_engine(config_file)
     repo = engine.store.dataset_repository
 
     from ingestify import __version__

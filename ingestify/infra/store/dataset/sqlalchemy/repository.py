@@ -131,7 +131,7 @@ class SqlAlchemySessionProvider:
 
         # Create all tables in the database
         if create_tables:
-            self.metadata.create_all(self.engine)
+            self.create_all_tables()
 
     def __del__(self):
         self.close()
@@ -143,6 +143,9 @@ class SqlAlchemySessionProvider:
     def close(self):
         if hasattr(self, "engine"):
             self.engine.dispose()
+
+    def create_all_tables(self):
+        self.metadata.create_all(self.engine)
 
     def drop_all_tables(self):
         """Drop all tables in the database. Useful for test cleanup."""

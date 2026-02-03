@@ -8,6 +8,7 @@ from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain import Selector, DataSpecVersionCollection
 from ingestify import Source, DatasetResource
+from ingestify.utils import utcnow
 
 
 class MockSource(Source):
@@ -39,7 +40,7 @@ class MockSource(Source):
                 url="http://test.com/match1",
             ).add_file(
                 data_feed_key="test",
-                last_modified=datetime.datetime.now(),
+                last_modified=utcnow(),
                 json_content={"blaat": "piet"},
             )
 
@@ -75,7 +76,7 @@ class MockSourceWithDiscoverSelectors(Source):
                 url="http://test.com/match1",
             ).add_file(
                 data_feed_key="test",
-                last_modified=datetime.datetime.now(),
+                last_modified=utcnow(),
                 json_content={"competition_id": 11},
             )
         elif competition_id == 22:
@@ -91,7 +92,7 @@ class MockSourceWithDiscoverSelectors(Source):
                 url="http://test.com/match2",
             ).add_file(
                 data_feed_key="test",
-                last_modified=datetime.datetime.now(),
+                last_modified=utcnow(),
                 json_content={"competition_id": 22},
             )
 
@@ -279,7 +280,7 @@ def test_selector_filters_make_discovered_selectors_more_strict(engine):
                         url=f"http://test.com/match{mid}",
                     ).add_file(
                         data_feed_key="test",
-                        last_modified=datetime.datetime.now(),
+                        last_modified=utcnow(),
                         json_content={"match_id": mid},
                     )
             return []
@@ -373,7 +374,7 @@ def test_iter_datasets_with_open_data_auto_discovery(engine):
                     url="http://open-data.com/match123",
                 ).add_file(
                     data_feed_key="test",
-                    last_modified=datetime.datetime.now(),
+                    last_modified=utcnow(),
                     json_content={"match_id": 123},
                 )
 
