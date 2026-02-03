@@ -539,7 +539,9 @@ def test_force_save_creates_revision(engine):
         season_id=2
     ).first()
 
-    dataset_without_files = engine.store.get_dataset_collection(metadata_only=True)
+    dataset_without_files = engine.store.get_dataset_collection(
+        season_id=2, metadata_only=True
+    )
     assert (
         dataset_without_files.metadata.last_modified
         == dataset_with_last_modified.last_modified_at
