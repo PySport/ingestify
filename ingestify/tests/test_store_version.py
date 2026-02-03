@@ -32,13 +32,15 @@ def test_store_version_tracking_existing_store_same_version(config_file):
 
 def test_store_version_tracking_version_mismatch(config_file, caplog):
     """Test that version mismatch is logged as warning."""
-    # Initialize store with version 1.0.0
-    with patch("ingestify.__version__", "1.0.0"):
+    # Use engine as fixture as this cleans up the database
+
+    # Initialize store with version 1.0.1
+    with patch("ingestify.__version__", "1.0.1"):
         engine1 = get_engine(config_file)
         store1 = engine1.store
 
         stored_version = store1.dataset_repository.get_store_version()
-        assert stored_version == "1.0.0"
+        assert stored_version == "1.0.1"
 
     # Open store with different version
     with patch("ingestify.__version__", "2.0.0"):

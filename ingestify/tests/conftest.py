@@ -28,7 +28,7 @@ def ingestify_test_database_url(datastore_dir, monkeypatch):
         value = f"sqlite:///{datastore_dir}/main.db"
         monkeypatch.setenv(key, value)
 
-    return value
+    yield value
 
 
 @pytest.fixture(scope="function")
@@ -50,6 +50,7 @@ def engine(config_file):
     #     session_provider.create_all_tables()
 
     yield engine
+
     #
     # # Close connections after test
     session_provider = getattr(
@@ -58,5 +59,4 @@ def engine(config_file):
     if session_provider:
         session_provider.session.remove()
         session_provider.engine.dispose()
-
         session_provider.drop_all_tables()

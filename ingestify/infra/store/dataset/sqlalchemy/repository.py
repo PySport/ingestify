@@ -122,12 +122,17 @@ class SqlAlchemySessionProvider:
         self.table_prefix = state.get("table_prefix", "")
         self._init_engine()
 
-    def __init__(self, url: str, table_prefix: str = "", create_tables=True):
+    def __init__(
+        self, url: str, table_prefix: str = "", create_tables=True, drop_tables=False
+    ):
         url = self.fix_url(url)
 
         self.url = url
         self.table_prefix = table_prefix
         self._init_engine()
+
+        if drop_tables:
+            self.drop_all_tables()
 
         # Create all tables in the database
         if create_tables:
