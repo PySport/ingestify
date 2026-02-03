@@ -122,7 +122,7 @@ class SqlAlchemySessionProvider:
         self.table_prefix = state.get("table_prefix", "")
         self._init_engine()
 
-    def __init__(self, url: str, table_prefix: str = ""):
+    def __init__(self, url: str, table_prefix: str = "", create_tables=True):
         url = self.fix_url(url)
 
         self.url = url
@@ -130,7 +130,8 @@ class SqlAlchemySessionProvider:
         self._init_engine()
 
         # Create all tables in the database
-        self.metadata.create_all(self.engine)
+        if create_tables:
+            self.metadata.create_all(self.engine)
 
     def __del__(self):
         self.close()
@@ -216,14 +217,12 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         if dialect == "mysql":
             # MySQL uses ON DUPLICATE KEY UPDATE syntax
             if immutable_rows:
-                # For MySQL, we simulate do_nothing by updating with the same values
-                # This prevents errors but doesn't actually change anything
-                set_ = {
-                    name: table.c[name]
-                    for name, column in table.columns.items()
-                    if column not in primary_key_columns
-                }
-                stmt = stmt.on_duplicate_key_update(set_)
+                # For MySQL immutable rows, use INSERT IGNORE to skip duplicates
+                stmt = stmt.prefix_with("IGNORE")
+                print("Inserting")
+                for entity in entities:
+                    print(entity)
+                print("Done")
             else:
                 # MySQL uses stmt.inserted instead of stmt.excluded
                 set_ = {

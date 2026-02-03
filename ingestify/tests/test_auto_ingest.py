@@ -106,10 +106,8 @@ class MockSourceWithDiscoverSelectors(Source):
         ]
 
 
-def test_iter_datasets_basic_auto_ingest(config_file):
+def test_iter_datasets_basic_auto_ingest(engine):
     """Test basic auto-ingest functionality."""
-    engine = get_engine(config_file)
-
     # Add a simple ingestion plan
     mock_source = MockSource(name="test_source")
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
@@ -141,20 +139,16 @@ def test_iter_datasets_basic_auto_ingest(config_file):
     assert datasets[0].identifier["competition_id"] == 11
 
 
-def test_iter_datasets_auto_ingest_disabled(config_file):
+def test_iter_datasets_auto_ingest_disabled(engine):
     """Test that auto_ingest=False returns only existing datasets."""
-    engine = get_engine(config_file)
-
     # Should only return existing datasets (none in empty store)
     datasets = list(engine.iter_datasets(competition_id=11, auto_ingest=False))
 
     assert len(datasets) == 0
 
 
-def test_iter_datasets_outside_config_scope(config_file):
+def test_iter_datasets_outside_config_scope(engine):
     """Test that requests outside IngestionPlan scope return nothing."""
-    engine = get_engine(config_file)
-
     # Add plan only for competition_id=11
     mock_source = MockSource(name="test_source")
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
@@ -180,10 +174,8 @@ def test_iter_datasets_outside_config_scope(config_file):
     assert len(datasets) == 0
 
 
-def test_iter_datasets_discover_selectors_with_filters(config_file):
+def test_iter_datasets_discover_selectors_with_filters(engine):
     """Test that selector_filters are applied after discover_selectors runs."""
-    engine = get_engine(config_file)
-
     # Create an IngestionPlan with empty selector - this will trigger discover_selectors
     mock_source = MockSourceWithDiscoverSelectors(name="test_source_discover")
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
@@ -216,10 +208,8 @@ def test_iter_datasets_discover_selectors_with_filters(config_file):
     assert datasets[0].name == "Mock match comp 11"
 
 
-def test_iter_datasets_discover_selectors_multiple_matches(config_file):
+def test_iter_datasets_discover_selectors_multiple_matches(engine):
     """Test that multiple discovered selectors can match the filters."""
-    engine = get_engine(config_file)
-
     # Create an IngestionPlan with empty selector - this will trigger discover_selectors
     mock_source = MockSourceWithDiscoverSelectors(name="test_source_discover")
     data_spec_versions = DataSpecVersionCollection.from_dict({"default": {"v1"}})
@@ -248,11 +238,9 @@ def test_iter_datasets_discover_selectors_multiple_matches(config_file):
     assert competition_ids == {11, 22}
 
 
-def test_selector_filters_make_discovered_selectors_more_strict(config_file):
+def test_selector_filters_make_discovered_selectors_more_strict(engine):
     """Test that when selector_filters are more strict than discovered selectors, we make the selectors more strict."""
     from unittest.mock import Mock
-
-    engine = get_engine(config_file)
 
     # Create a source that returns multiple matches per season
     class MockSourceMultipleMatches(Source):
@@ -348,12 +336,10 @@ def test_selector_filters_make_discovered_selectors_more_strict(config_file):
     # Without this optimization, we'd call with match_id=None and fetch 3 matches instead of 1
 
 
-def test_iter_datasets_with_open_data_auto_discovery(config_file):
+def test_iter_datasets_with_open_data_auto_discovery(engine):
     """Test that use_open_data=True auto-discovers open data sources without configuration."""
     from unittest.mock import Mock
     from ingestify.application import loader
-
-    engine = get_engine(config_file)
 
     # Create mock source class that inherits from Source
     class MockOpenDataSource(Source):

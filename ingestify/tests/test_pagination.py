@@ -6,10 +6,9 @@ from ingestify.domain import Dataset, Identifier, DatasetState
 from ingestify.main import get_engine
 
 
-def test_iter_dataset_collection_batches(config_file):
+def test_iter_dataset_collection_batches(engine):
     """Test iteration over datasets with batches using iter_dataset_collection_batches."""
     # Get engine from the fixture
-    engine = get_engine(config_file, "main")
     store = engine.store
     bucket = store.bucket
 
@@ -81,10 +80,9 @@ def test_iter_dataset_collection_batches(config_file):
     assert filtered_dataset_ids[0] == "dataset-5"
 
 
-def test_dataset_state_filter(config_file):
+def test_dataset_state_filter(engine):
     """Test filtering datasets by state."""
     # Get engine from the fixture
-    engine = get_engine(config_file, "main")
     store = engine.store
     bucket = store.bucket
 

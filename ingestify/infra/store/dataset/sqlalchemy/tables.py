@@ -51,14 +51,31 @@ class TZDateTime(TypeDecorator):
     LOCAL_TIMEZONE = datetime.datetime.utcnow().astimezone().tzinfo
     cache_ok = True
 
+    def __init__(self, fsp=None, **kwargs):
+        super().__init__(**kwargs)
+        self.fsp = fsp
+
+    def load_dialect_impl(self, dialect):
+        # For MySQL, use DATETIME with fractional seconds precision
+        if dialect.name == "mysql" and self.fsp is not None:
+            from sqlalchemy.dialects.mysql import DATETIME as MySQL_DATETIME
+
+            # Return the type without type_descriptor to ensure our process methods are called
+            return MySQL_DATETIME(fsp=self.fsp)
+        return super().load_dialect_impl(dialect)
+
     def process_bind_param(self, value: Optional[datetime.datetime], dialect):
         if not value:
             return None
 
         if value.tzinfo is None:
-            value = value.astimezone(self.LOCAL_TIMEZONE)
+            # Assume naive datetimes are already in UTC
+            value = value.replace(tzinfo=datetime.timezone.utc)
+        else:
+            # Convert timezone-aware datetimes to UTC
+            value = value.astimezone(datetime.timezone.utc)
 
-        return value.astimezone(datetime.timezone.utc)
+        return value
 
     def process_result_value(self, value, dialect):
         if not value:

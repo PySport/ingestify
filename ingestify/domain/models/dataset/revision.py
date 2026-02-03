@@ -54,6 +54,7 @@ class Revision(BaseModel):
             if file_id not in modified_files_map:
                 return True
 
+            print("Test", modified_files_map[file_id].modified_at, last_modified)
             if modified_files_map[file_id].modified_at < last_modified:
                 if dataset_last_modified_at < last_modified:
                     # For StatsBomb we use last_modified of match for lineups, and events files.
