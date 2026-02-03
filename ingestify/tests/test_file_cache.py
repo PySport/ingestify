@@ -8,10 +8,9 @@ from ingestify.domain import Dataset, Identifier, Revision, File
 from ingestify.domain.models.dataset.revision import RevisionSource, SourceType
 
 
-def test_file_cache(config_file):
+def test_file_cache(engine):
     """Test file caching with the with_file_cache context manager."""
     # Get engine from the fixture
-    engine = get_engine(config_file, "main")
     store = engine.store
 
     # Create a timestamp for test data

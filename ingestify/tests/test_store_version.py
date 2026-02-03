@@ -4,7 +4,7 @@ from unittest.mock import patch
 from ingestify.main import get_engine
 
 
-def test_store_version_tracking_new_store(config_file):
+def test_store_version_tracking_new_store(config_file, db_cleanup):
     """Test that a new store gets initialized with the current version."""
     with patch("ingestify.__version__", "1.0.0"):
         engine = get_engine(config_file)
@@ -13,8 +13,10 @@ def test_store_version_tracking_new_store(config_file):
         stored_version = engine.store.dataset_repository.get_store_version()
         assert stored_version == "1.0.0"
 
+    db_cleanup(engine)
 
-def test_store_version_tracking_existing_store_same_version(config_file):
+
+def test_store_version_tracking_existing_store_same_version(config_file, db_cleanup):
     """Test that an existing store with same version doesn't cause issues."""
     with patch("ingestify.__version__", "1.0.0"):
         # Initialize store first time
@@ -29,16 +31,20 @@ def test_store_version_tracking_existing_store_same_version(config_file):
         stored_version = store2.dataset_repository.get_store_version()
         assert stored_version == "1.0.0"
 
+    db_cleanup(engine1)
 
-def test_store_version_tracking_version_mismatch(config_file, caplog):
+
+def test_store_version_tracking_version_mismatch(config_file, caplog, db_cleanup):
     """Test that version mismatch is logged as warning."""
-    # Initialize store with version 1.0.0
-    with patch("ingestify.__version__", "1.0.0"):
+    # Use engine as fixture as this cleans up the database
+
+    # Initialize store with version 1.0.1
+    with patch("ingestify.__version__", "1.0.1"):
         engine1 = get_engine(config_file)
         store1 = engine1.store
 
         stored_version = store1.dataset_repository.get_store_version()
-        assert stored_version == "1.0.0"
+        assert stored_version == "1.0.1"
 
     # Open store with different version
     with patch("ingestify.__version__", "2.0.0"):
@@ -47,16 +53,17 @@ def test_store_version_tracking_version_mismatch(config_file, caplog):
 
         # Version should still be the original one
         stored_version = store2.dataset_repository.get_store_version()
-        assert stored_version == "1.0.0"
+        assert stored_version == "1.0.1"
 
         # Should have logged a warning about version mismatch
         assert "Store version mismatch" in caplog.text
-        assert "stored=1.0.0, current=2.0.0" in caplog.text
+        assert "stored=1.0.1, current=2.0.0" in caplog.text
+
+    db_cleanup(engine1)
 
 
-def test_store_version_methods(config_file):
+def test_store_version_methods(engine):
     """Test the repository version methods directly."""
-    engine = get_engine(config_file)
     repo = engine.store.dataset_repository
 
     from ingestify import __version__

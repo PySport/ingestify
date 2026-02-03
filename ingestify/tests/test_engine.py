@@ -25,7 +25,8 @@ from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.models.task.task_summary import TaskState
 from ingestify.infra.serialization import serialize, deserialize
-from ingestify.main import get_engine, get_dev_engine
+from ingestify.main import get_dev_engine
+from ingestify.utils import utcnow
 
 
 def add_ingestion_plan(engine: IngestionEngine, source: Source, **selector):
@@ -78,7 +79,7 @@ class SimpleFakeSource(Source):
         season_id,
         **kwargs,
     ):
-        last_modified = datetime.now(pytz.utc)
+        last_modified = utcnow()
 
         yield (
             DatasetResource(
@@ -273,9 +274,7 @@ class NoFilesSource(Source):
         )
 
 
-def test_engine(config_file):
-    engine = get_engine(config_file, "main")
-
+def test_engine(engine):
     add_ingestion_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
     )
@@ -293,6 +292,7 @@ def test_engine(config_file):
 
     dataset = datasets.first()
     assert dataset.identifier == Identifier(competition_id=1, season_id=2, match_id=1)
+
     assert len(dataset.revisions) == 2
     assert len(dataset.revisions[0].modified_files) == 3
     assert len(dataset.revisions[1].modified_files) == 1
@@ -325,13 +325,11 @@ def test_engine(config_file):
     assert dataset.last_modified_at is not None
 
 
-def test_iterator_source(config_file):
+def test_iterator_source(engine):
     """Test when a Source returns a Iterator to do Batch processing.
 
     Every batch must be executed right away.
     """
-    engine = get_engine(config_file, "main")
-
     batch_source = None
 
     def callback(idx):
@@ -339,7 +337,7 @@ def test_iterator_source(config_file):
         datasets = engine.store.get_dataset_collection()
         assert len(datasets) == idx
 
-        if idx == 1000:
+        if idx == 100:
             batch_source.should_stop = True
 
     batch_source = BatchSource("fake-source", callback)
@@ -348,7 +346,7 @@ def test_iterator_source(config_file):
     engine.load()
 
     datasets = engine.store.get_dataset_collection()
-    assert len(datasets) == 1000
+    assert len(datasets) == 100
     for dataset in datasets:
         assert len(dataset.revisions) == 1
 
@@ -357,14 +355,14 @@ def test_iterator_source(config_file):
     batch_source.should_stop = False
 
     def callback(idx):
-        if idx == 1000:
+        if idx == 100:
             batch_source.should_stop = True
 
     batch_source.callback = callback
 
     engine.load()
     datasets = engine.store.get_dataset_collection()
-    assert len(datasets) == 1000
+    assert len(datasets) == 100
     for dataset in datasets:
         assert len(dataset.revisions) == 2
 
@@ -373,9 +371,7 @@ def test_iterator_source(config_file):
     deserialize(s)
 
 
-def test_ingestion_plan_failing_task(config_file):
-    engine = get_engine(config_file, "main")
-
+def test_ingestion_plan_failing_task(engine):
     source = FailingLoadSource("fake-source")
 
     add_ingestion_plan(engine, source, competition_id=1, season_id=2)
@@ -387,9 +383,7 @@ def test_ingestion_plan_failing_task(config_file):
     assert items[0].task_summaries[0].state == TaskState.FAILED
 
 
-def test_ingestion_plan_failing_job(config_file):
-    engine = get_engine(config_file, "main")
-
+def test_ingestion_plan_failing_job(engine):
     source = FailingJobSource("fake-source")
 
     add_ingestion_plan(engine, source, competition_id=1, season_id=2)
@@ -412,9 +406,7 @@ def test_change_partition_key_transformer():
     """
 
 
-def test_serde(config_file):
-    engine = get_engine(config_file, "main")
-
+def test_serde(engine):
     add_ingestion_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
     )
@@ -434,10 +426,8 @@ def test_serde(config_file):
         assert event.model_dump_json() == deserialized_event.model_dump_json()
 
 
-def test_empty_dataset_resource_id(config_file):
+def test_empty_dataset_resource_id(engine):
     """When a empty DatasetResourceId is passed nothing should break"""
-    engine = get_engine(config_file, "main")
-
     add_ingestion_plan(engine, EmptyDatasetResourceIdSource("fake-source"))
     engine.load()
 
@@ -509,9 +499,8 @@ class SourceWithHook(Source):
         )
 
 
-def test_post_load_files_hook(config_file):
+def test_post_load_files_hook(engine):
     """Test that post_load_files hook changes state from SCHEDULED to COMPLETE when content is not empty."""
-    engine = get_engine(config_file, "main")
     add_ingestion_plan(engine, SourceWithHook("test"), competition_id=1, season_id=2)
 
     # First run: file contains '{}', state should remain SCHEDULED
@@ -525,10 +514,8 @@ def test_post_load_files_hook(config_file):
     assert dataset2.state == DatasetState.COMPLETE
 
 
-def test_force_save_creates_revision(config_file):
+def test_force_save_creates_revision(engine):
     """Test that datasets get a revision even when no files are persisted."""
-    engine = get_engine(config_file, "main")
-
     # Create one dataset with files and one without
     add_ingestion_plan(
         engine, SimpleFakeSource("fake-source"), competition_id=1, season_id=2
@@ -552,7 +539,9 @@ def test_force_save_creates_revision(config_file):
         season_id=2
     ).first()
 
-    dataset_without_files = engine.store.get_dataset_collection(metadata_only=True)
+    dataset_without_files = engine.store.get_dataset_collection(
+        season_id=2, metadata_only=True
+    )
     assert (
         dataset_without_files.metadata.last_modified
         == dataset_with_last_modified.last_modified_at

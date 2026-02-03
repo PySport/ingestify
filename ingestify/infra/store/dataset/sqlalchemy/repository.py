@@ -130,7 +130,7 @@ class SqlAlchemySessionProvider:
         self._init_engine()
 
         # Create all tables in the database
-        self.metadata.create_all(self.engine)
+        self.create_all_tables()
 
     def __del__(self):
         self.close()
@@ -142,6 +142,14 @@ class SqlAlchemySessionProvider:
     def close(self):
         if hasattr(self, "engine"):
             self.engine.dispose()
+
+    def create_all_tables(self):
+        self.metadata.create_all(self.engine)
+
+    def drop_all_tables(self):
+        """Drop all tables in the database. Useful for test cleanup."""
+        if hasattr(self, "metadata") and hasattr(self, "engine"):
+            self.metadata.drop_all(self.engine)
 
     def get(self):
         return self.session()
@@ -208,18 +216,33 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
         primary_key_columns = [column for column in table.columns if column.primary_key]
 
-        if immutable_rows:
-            stmt = stmt.on_conflict_do_nothing(index_elements=primary_key_columns)
+        if dialect == "mysql":
+            # MySQL uses ON DUPLICATE KEY UPDATE syntax
+            if immutable_rows:
+                # For MySQL immutable rows, use INSERT IGNORE to skip duplicates
+                stmt = stmt.prefix_with("IGNORE")
+            else:
+                # MySQL uses stmt.inserted instead of stmt.excluded
+                set_ = {
+                    name: stmt.inserted[name]
+                    for name, column in table.columns.items()
+                    if column not in primary_key_columns
+                }
+                stmt = stmt.on_duplicate_key_update(set_)
         else:
-            set_ = {
-                name: getattr(stmt.excluded, name)
-                for name, column in table.columns.items()
-                if column not in primary_key_columns
-            }
+            # PostgreSQL and SQLite use ON CONFLICT syntax
+            if immutable_rows:
+                stmt = stmt.on_conflict_do_nothing(index_elements=primary_key_columns)
+            else:
+                set_ = {
+                    name: getattr(stmt.excluded, name)
+                    for name, column in table.columns.items()
+                    if column not in primary_key_columns
+                }
 
-            stmt = stmt.on_conflict_do_update(
-                index_elements=primary_key_columns, set_=set_
-            )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=primary_key_columns, set_=set_
+                )
 
         connection.execute(stmt)
 
@@ -242,7 +265,8 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     def _build_cte(self, records: list[dict], name: str) -> CTE:
         """Build a CTE from a list of dictionaries."""
 
-        if self.dialect.name == "sqlite":
+        if self.dialect.name in ("sqlite", "mysql"):
+            # SQLite and MySQL don't support VALUES syntax, use UNION ALL instead
             return self._build_cte_sqlite(records, name)
 
         first_row = records[0]
