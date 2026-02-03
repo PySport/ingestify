@@ -1,7 +1,7 @@
 main:
   # For MySQL tests, INGESTIFY_TEST_DATABASE_URL will be set
   # For SQLite tests, falls back to using TEST_DIR
-  metadata_url: !ENV ${INGESTIFY_TEST_DATABASE_URL:-sqlite:///${TEST_DIR}/main.db}
+  metadata_url: !ENV ${INGESTIFY_TEST_DATABASE_URL}
   file_url: !ENV file://${TEST_DIR}/data
   default_bucket: main
 
