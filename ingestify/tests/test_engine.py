@@ -25,7 +25,8 @@ from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.models.task.task_summary import TaskState
 from ingestify.infra.serialization import serialize, deserialize
-from ingestify.main import get_engine, get_dev_engine
+from ingestify.main import get_dev_engine
+from ingestify.utils import utcnow
 
 
 def add_ingestion_plan(engine: IngestionEngine, source: Source, **selector):
@@ -78,7 +79,7 @@ class SimpleFakeSource(Source):
         season_id,
         **kwargs,
     ):
-        last_modified = datetime.now(pytz.utc)
+        last_modified = utcnow()
 
         yield (
             DatasetResource(
@@ -498,9 +499,8 @@ class SourceWithHook(Source):
         )
 
 
-def test_post_load_files_hook(config_file):
+def test_post_load_files_hook(engine):
     """Test that post_load_files hook changes state from SCHEDULED to COMPLETE when content is not empty."""
-    engine = get_engine(config_file, "main")
     add_ingestion_plan(engine, SourceWithHook("test"), competition_id=1, season_id=2)
 
     # First run: file contains '{}', state should remain SCHEDULED
