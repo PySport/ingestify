@@ -143,6 +143,11 @@ class SqlAlchemySessionProvider:
         if hasattr(self, "engine"):
             self.engine.dispose()
 
+    def drop_all_tables(self):
+        """Drop all tables in the database. Useful for test cleanup."""
+        if hasattr(self, "metadata") and hasattr(self, "engine"):
+            self.metadata.drop_all(self.engine)
+
     def get(self):
         return self.session()
 
