@@ -1,13 +1,9 @@
 import tempfile
 
 import os
-import uuid
 
 import pytest
 
-from ingestify.infra.store.dataset.sqlalchemy.repository import (
-    SqlAlchemySessionProvider,
-)
 from ingestify.main import get_engine
 
 
@@ -57,12 +53,6 @@ def db_cleanup():
 def engine(config_file, db_cleanup):
     # Now create the engine for the test
     engine = get_engine(config_file, "main")
-    # session_provider = getattr(engine.store.dataset_repository, "session_provider", None)
-    # if session_provider:
-    #     session_provider.close()
-    #
-    #     session_provider.drop_all_tables()
-    #     session_provider.create_all_tables()
 
     yield engine
 
