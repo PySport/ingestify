@@ -1,7 +1,7 @@
 import tempfile
 
-import pytest
 import os
+import pytest
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -12,13 +12,16 @@ def datastore_dir():
         yield tmpdirname
 
 
-@pytest.fixture(scope="function", autouse=True)
-def ingestify_test_database_url(datastore_dir):
-    # Only set and pop when not yet set
-    if not os.environ.get("INGESTIFY_TEST_DATABASE_URL"):
-        os.environ["INGESTIFY_TEST_DATABASE_URL"] = f"sqlite:///{datastore_dir}/main.db"
-        yield
-        os.environ.pop("INGESTIFY_TEST_DATABASE_URL")
+@pytest.fixture(autouse=True)
+def ingestify_test_database_url(datastore_dir, monkeypatch):
+    key = "INGESTIFY_TEST_DATABASE_URL"
+
+    value = os.environ.get(key)
+    if value is None:
+        value = f"sqlite:///{datastore_dir}/main.db"
+        monkeypatch.setenv(key, value)
+
+    return value
 
 
 @pytest.fixture(scope="function")
