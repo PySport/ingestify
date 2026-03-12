@@ -299,7 +299,15 @@ class DatasetStore:
     #     dataset = self.dataset_repository.
     #     self.dataset_repository.destroy_dataset(dataset_id)
 
-    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BinaryIO, int, str]:
+    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BinaryIO, int, str, Optional[str]]:
+        if file_.content_compression_method == "gzip":
+            # Already gzip - store as-is, no CPU cost
+            stream = file_.stream
+            stream.seek(0, os.SEEK_END)
+            storage_size = stream.tell()
+            stream.seek(0)
+            return stream, storage_size, ".gz", "gzip"
+
         if self.storage_compression_method == "gzip":
             stream = BufferedStream()
             with gzip.GzipFile(fileobj=stream, compresslevel=9, mode="wb") as fp:
@@ -308,13 +316,9 @@ class DatasetStore:
             stream.seek(0, os.SEEK_END)
             storage_size = stream.tell()
             stream.seek(0)
-            suffix = ".gz"
-        else:
-            stream = file_.stream
-            storage_size = file_.size
-            suffix = ""
+            return stream, storage_size, ".gz", "gzip"
 
-        return stream, storage_size, suffix
+        return file_.stream, file_.size, "", None
 
     def _prepare_read_stream(
         self,
@@ -356,7 +360,7 @@ class DatasetStore:
                 # File didn't change. Ignore it.
                 continue
 
-            stream, storage_size, suffix = self._prepare_write_stream(file_)
+            stream, storage_size, suffix, compression_method = self._prepare_write_stream(file_)
 
             # TODO: check if this is a very clean way to go from DraftFile to File
             full_path = self.file_repository.save_content(
@@ -370,7 +374,7 @@ class DatasetStore:
                 file_,
                 file_id,
                 storage_size=storage_size,
-                storage_compression_method=self.storage_compression_method,
+                storage_compression_method=compression_method,
                 path=self.file_repository.get_relative_path(full_path),
             )
 

@@ -19,6 +19,7 @@ class DraftFile(BaseModel):
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
     data_serialization_format: str  # Example: 'json'
+    content_compression_method: Optional[str] = None  # Example: 'gzip'
     stream: BufferedStream
 
     @field_validator("stream", mode="before")

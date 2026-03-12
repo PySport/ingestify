@@ -1,6 +1,4 @@
-import gzip
 import json
-import shutil
 from datetime import datetime
 from email.utils import format_datetime, parsedate
 from hashlib import sha1
@@ -42,15 +40,12 @@ def get_session():
     return _session
 
 
-def _decompress(source: BinaryIO) -> tuple[BufferedStream, int]:
-    """Stream-decompress gzip content into a BufferedStream, returning (stream, uncompressed_size)."""
-    stream = BufferedStream()
-    with gzip.GzipFile(fileobj=source, mode="rb") as gz:
-        shutil.copyfileobj(gz, stream)
-    stream.seek(0, 2)
-    size = stream.tell()
+def _uncompressed_size_from_gzip_trailer(stream: BinaryIO) -> int:
+    """Read uncompressed size from the gzip trailer (last 4 bytes, mod 2^32)."""
+    stream.seek(-4, 2)
+    size = int.from_bytes(stream.read(4), "little")
     stream.seek(0)
-    return stream, size
+    return size
 
 
 def retrieve_http(
@@ -87,7 +82,6 @@ def retrieve_http(
             raise Exception(f"Don't know how to use {key}")
 
     ignore_not_found = http_kwargs.pop("ignore_not_found", False)
-    decompress = http_kwargs.pop("decompress", False)
 
     response = get_session().get(url, headers=headers, stream=True, **http_kwargs)
     if response.status_code == 404 and ignore_not_found:
@@ -146,13 +140,17 @@ def retrieve_http(
             return NotModifiedFile(modified_at=last_modified, reason="tag matched current_file")
 
         raw_stream.seek(0)
-        if decompress:
-            stream, content_length = _decompress(raw_stream)
+        header = raw_stream.read(2)
+        raw_stream.seek(0)
+        if header == b"\x1f\x8b":
+            content_compression_method = "gzip"
+            content_length = _uncompressed_size_from_gzip_trailer(raw_stream)
         else:
+            content_compression_method = None
             raw_stream.seek(0, 2)
             content_length = raw_stream.tell()
             raw_stream.seek(0)
-            stream = raw_stream
+        stream = raw_stream
 
     return DraftFile(
         created_at=utcnow(),
@@ -160,6 +158,7 @@ def retrieve_http(
         tag=tag,
         size=content_length,
         content_type=response.headers.get("content-type"),
+        content_compression_method=content_compression_method,
         stream=stream,
         **file_attributes,
     )

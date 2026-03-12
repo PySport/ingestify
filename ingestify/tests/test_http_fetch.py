@@ -28,7 +28,17 @@ FILE_KWARGS = dict(
 PLAIN_JSON = b'{"key": "value"}' * 100
 
 
-def test_decompress_false_stores_gzip_as_is():
+def test_plain_content_size_and_stream():
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_mock_response(PLAIN_JSON)
+        result = retrieve_http("https://example.com/data.json", **FILE_KWARGS)
+
+    assert isinstance(result.stream, BufferedStream)
+    assert result.size == len(PLAIN_JSON)
+    assert result.stream.read() == PLAIN_JSON
+
+
+def test_gzip_content_stored_as_is_with_uncompressed_size():
     compressed = gzip.compress(PLAIN_JSON)
 
     with patch("ingestify.infra.fetch.http.get_session") as mock_session:
@@ -36,34 +46,5 @@ def test_decompress_false_stores_gzip_as_is():
         result = retrieve_http("https://example.com/data.json.gz", **FILE_KWARGS)
 
     assert isinstance(result.stream, BufferedStream)
-    assert result.size == len(compressed)
-    assert result.stream.read() == compressed
-
-
-def test_decompress_true_decompresses_and_sets_correct_size():
-    compressed = gzip.compress(PLAIN_JSON)
-
-    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
-        mock_session.return_value.get.return_value = make_mock_response(compressed)
-        result = retrieve_http(
-            "https://s3.amazonaws.com/bucket/data.json.gz?X-Amz-Signature=abc123",
-            http_decompress=True,
-            **FILE_KWARGS,
-        )
-
-    assert isinstance(result.stream, BufferedStream)
-    assert result.size == len(PLAIN_JSON)
-    assert result.stream.read() == PLAIN_JSON
-
-
-def test_decompress_true_corrupt_gzip_raises():
-    corrupt = b"\x1f\x8b" + b"\x00" * 20
-
-    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
-        mock_session.return_value.get.return_value = make_mock_response(corrupt)
-        with pytest.raises(Exception):
-            retrieve_http(
-                "https://example.com/data.json.gz",
-                http_decompress=True,
-                **FILE_KWARGS,
-            )
+    assert result.size == len(PLAIN_JSON)   # uncompressed size from gzip trailer
+    assert result.stream.read() == compressed  # stored as-is
