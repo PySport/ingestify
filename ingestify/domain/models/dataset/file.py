@@ -4,8 +4,10 @@ from typing import BinaryIO, Optional, Union, Callable, Awaitable
 from io import BytesIO, StringIO
 import hashlib
 
+from pydantic import field_validator
+
 from ingestify.domain.models.base import BaseModel
-from ingestify.utils import utcnow
+from ingestify.utils import utcnow, BufferedStream
 
 
 class DraftFile(BaseModel):
@@ -17,7 +19,19 @@ class DraftFile(BaseModel):
     data_feed_key: str  # Example: 'events'
     data_spec_version: str  # Example: 'v3'
     data_serialization_format: str  # Example: 'json'
-    stream: BytesIO
+    stream: BufferedStream
+
+    @field_validator("stream", mode="before")
+    @classmethod
+    def coerce_to_buffered_stream(cls, v):
+        if isinstance(v, BufferedStream):
+            return v
+        if isinstance(v, (BytesIO, bytes)):
+            data = v if isinstance(v, bytes) else v.getvalue()
+            return BufferedStream.from_stream(BytesIO(data))
+        if hasattr(v, "read"):
+            return BufferedStream.from_stream(v)
+        raise ValueError(f"Cannot coerce {type(v)} to BufferedStream")
 
     @classmethod
     def from_input(
@@ -32,26 +46,20 @@ class DraftFile(BaseModel):
         if isinstance(file_, (DraftFile, NotModifiedFile)):
             return file_
         elif isinstance(file_, str):
-            stream = BytesIO(file_.encode("utf-8"))
+            data = file_.encode("utf-8")
         elif isinstance(file_, bytes):
-            stream = BytesIO(file_)
+            data = file_
         elif isinstance(file_, StringIO):
-            stream = BytesIO(file_.read().encode("utf-8"))
-        elif isinstance(file_, BytesIO):
-            stream = file_
+            data = file_.read().encode("utf-8")
         elif hasattr(file_, "read"):
-            data = file_.read()
-            if isinstance(data, bytes):
-                stream = BytesIO(data)
-            else:
-                stream = BytesIO(data.encode("utf-8"))
+            raw = file_.read()
+            data = raw if isinstance(raw, bytes) else raw.encode("utf-8")
         else:
             raise Exception(f"Not possible to create DraftFile from {type(file_)}")
 
-        data = stream.read()
         size = len(data)
         tag = hashlib.sha1(data).hexdigest()
-        stream.seek(0)
+        stream = BufferedStream.from_stream(BytesIO(data))
 
         now = utcnow()
 
@@ -127,7 +135,7 @@ class LoadedFile(BaseModel):
     data_serialization_format: Optional[str]  # Example: 'json'
     storage_compression_method: Optional[str]  # Example: 'gzip'
     storage_path: Path
-    stream_: Union[BinaryIO, BytesIO, Callable[[], Awaitable[Union[BinaryIO, BytesIO]]]]
+    stream_: Union[BinaryIO, BytesIO, BufferedStream, Callable[[], Awaitable[Union[BinaryIO, BytesIO, BufferedStream]]]]
     revision_id: Optional[int] = None  # This can be used when a Revision is squashed
 
     def load_stream(self):

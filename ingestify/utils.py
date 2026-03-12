@@ -1,5 +1,7 @@
 import logging
 import os
+import shutil
+import tempfile
 import time
 import re
 import traceback
@@ -8,7 +10,7 @@ from contextlib import contextmanager
 
 from datetime import datetime, timezone
 from string import Template
-from typing import Dict, Tuple, Optional, Any, List
+from typing import BinaryIO, Dict, Tuple, Optional, Any, List
 
 from pydantic import Field
 from typing_extensions import Self
@@ -19,6 +21,28 @@ from itertools import islice
 from ingestify.domain.models.timing import Timing
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_BUFFER_SIZE = 5 * 1024 * 1024  # 5MB before spilling to disk
+
+
+class BufferedStream(tempfile.SpooledTemporaryFile):
+    """Stays in memory up to max_size, then spills to disk. Drop-in for BytesIO for large streams."""
+
+    def __init__(self, max_size: int = _DEFAULT_BUFFER_SIZE):
+        super().__init__(max_size=max_size, mode="w+b")
+
+    def write(self, data: bytes) -> int:
+        return super().write(data)
+
+    def read(self, n: int = -1) -> bytes:
+        return super().read(n)
+
+    @classmethod
+    def from_stream(cls, source: BinaryIO, max_size: int = _DEFAULT_BUFFER_SIZE) -> "BufferedStream":
+        buffer = cls(max_size=max_size)
+        shutil.copyfileobj(source, buffer)
+        buffer.seek(0)
+        return buffer
 
 
 def chunker(it, size):

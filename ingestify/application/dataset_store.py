@@ -5,6 +5,7 @@ import shutil
 from contextlib import contextmanager
 import threading
 from io import BytesIO
+from ingestify.utils import BufferedStream
 
 from typing import (
     Dict,
@@ -298,9 +299,9 @@ class DatasetStore:
     #     dataset = self.dataset_repository.
     #     self.dataset_repository.destroy_dataset(dataset_id)
 
-    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BytesIO, int, str]:
+    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BinaryIO, int, str]:
         if self.storage_compression_method == "gzip":
-            stream = BytesIO()
+            stream = BufferedStream()
             with gzip.GzipFile(fileobj=stream, compresslevel=9, mode="wb") as fp:
                 shutil.copyfileobj(file_.stream, fp)
 
@@ -317,11 +318,11 @@ class DatasetStore:
 
     def _prepare_read_stream(
         self,
-    ) -> tuple[Callable[[BinaryIO], Awaitable[BytesIO]], str]:
+    ) -> tuple[Callable[[BinaryIO], Awaitable[BinaryIO]], str]:
         if self.storage_compression_method == "gzip":
 
-            def reader(fh: BinaryIO) -> BytesIO:
-                stream = BytesIO()
+            def reader(fh: BinaryIO) -> BinaryIO:
+                stream = BufferedStream()
                 with gzip.GzipFile(fileobj=fh, compresslevel=9, mode="rb") as fp:
                     shutil.copyfileobj(fp, stream)
                 stream.seek(0)
