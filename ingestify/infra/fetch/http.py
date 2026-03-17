@@ -3,7 +3,7 @@ from datetime import datetime
 from email.utils import format_datetime, parsedate
 from hashlib import sha1
 from io import BytesIO
-from typing import Optional, Callable, Tuple, Union
+from typing import BinaryIO, Optional, Callable, Tuple, Union
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -11,7 +11,12 @@ from urllib3 import Retry
 
 from ingestify.domain.models import DraftFile, File
 from ingestify.domain.models.dataset.file import NotModifiedFile
-from ingestify.utils import utcnow
+from ingestify.utils import (
+    utcnow,
+    BufferedStream,
+    detect_compression,
+    gzip_uncompressed_size,
+)
 
 _session = None
 
@@ -75,7 +80,7 @@ def retrieve_http(
 
     ignore_not_found = http_kwargs.pop("ignore_not_found", False)
 
-    response = get_session().get(url, headers=headers, **http_kwargs)
+    response = get_session().get(url, headers=headers, stream=True, **http_kwargs)
     if response.status_code == 404 and ignore_not_found:
         return NotModifiedFile(
             modified_at=last_modified, reason="404 http code and ignore-not-found"
@@ -96,12 +101,9 @@ def retrieve_http(
         modified_at = utcnow()
 
     tag = response.headers.get("etag")
-    # content_length = int(response.headers.get("content-length", 0))
 
     if pager:
-        """
-        A pager helps with responses that return the data in pages.
-        """
+        # Pager assembles multiple small JSON responses — load fully into memory
         data_path, pager_fn = pager
         data = []
         while True:
@@ -111,24 +113,44 @@ def retrieve_http(
             if not next_url:
                 break
             else:
-                response = requests.get(next_url, headers=headers, **http_kwargs)
+                response = requests.get(
+                    next_url, headers=headers, stream=True, **http_kwargs
+                )
 
-        content = json.dumps({data_path: data}).encode("utf-8")
+        content_bytes = json.dumps({data_path: data}).encode("utf-8")
+        if not tag:
+            tag = sha1(content_bytes).hexdigest()
+        if current_file and current_file.tag == tag:
+            return NotModifiedFile(
+                modified_at=last_modified, reason="tag matched current_file"
+            )
+        stream = BufferedStream.from_stream(BytesIO(content_bytes))
+        content_length = len(content_bytes)
     else:
-        content = response.content
+        # Stream response body directly into BufferedStream, hashing on the fly
+        raw_stream = BufferedStream()
+        hasher = sha1()
+        for chunk in response.iter_content(chunk_size=1024 * 1024):
+            hasher.update(chunk)
+            raw_stream.write(chunk)
 
-    if not tag:
-        tag = sha1(content).hexdigest()
+        if not tag:
+            tag = hasher.hexdigest()
 
-    # if not content_length: - Don't use http header as it might be wrong
-    # for example in case of compressed data
-    content_length = len(content)
+        if current_file and current_file.tag == tag:
+            return NotModifiedFile(
+                modified_at=last_modified, reason="tag matched current_file"
+            )
 
-    if current_file and current_file.tag == tag:
-        # Not changed. Don't keep it
-        return NotModifiedFile(
-            modified_at=last_modified, reason="tag matched current_file"
-        )
+        raw_stream.seek(0)
+        content_compression_method = detect_compression(raw_stream)
+        if content_compression_method == "gzip":
+            content_length = gzip_uncompressed_size(raw_stream)
+        else:
+            raw_stream.seek(0, 2)
+            content_length = raw_stream.tell()
+            raw_stream.seek(0)
+        stream = raw_stream
 
     return DraftFile(
         created_at=utcnow(),
@@ -136,6 +158,7 @@ def retrieve_http(
         tag=tag,
         size=content_length,
         content_type=response.headers.get("content-type"),
-        stream=BytesIO(content),
+        content_compression_method=content_compression_method,
+        stream=stream,
         **file_attributes,
     )
