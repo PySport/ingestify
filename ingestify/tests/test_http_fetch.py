@@ -46,5 +46,14 @@ def test_gzip_content_stored_as_is_with_uncompressed_size():
         result = retrieve_http("https://example.com/data.json.gz", **FILE_KWARGS)
 
     assert isinstance(result.stream, BufferedStream)
-    assert result.size == len(PLAIN_JSON)   # uncompressed size from gzip trailer
+    assert result.content_compression_method == "gzip"
+    assert result.size == len(PLAIN_JSON)  # uncompressed size from gzip trailer
     assert result.stream.read() == compressed  # stored as-is
+
+
+def test_plain_content_has_no_compression_method():
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_mock_response(PLAIN_JSON)
+        result = retrieve_http("https://example.com/data.json", **FILE_KWARGS)
+
+    assert result.content_compression_method is None

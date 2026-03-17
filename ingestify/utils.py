@@ -38,11 +38,30 @@ class BufferedStream(tempfile.SpooledTemporaryFile):
         return super().read(n)
 
     @classmethod
-    def from_stream(cls, source: BinaryIO, max_size: int = _DEFAULT_BUFFER_SIZE) -> "BufferedStream":
+    def from_stream(
+        cls, source: BinaryIO, max_size: int = _DEFAULT_BUFFER_SIZE
+    ) -> "BufferedStream":
         buffer = cls(max_size=max_size)
         shutil.copyfileobj(source, buffer)
         buffer.seek(0)
         return buffer
+
+
+def gzip_uncompressed_size(stream: BinaryIO) -> int:
+    """Read uncompressed size from the gzip trailer (last 4 bytes, mod 2^32)."""
+    stream.seek(-4, 2)
+    size = int.from_bytes(stream.read(4), "little")
+    stream.seek(0)
+    return size
+
+
+def detect_compression(stream: BinaryIO) -> Optional[str]:
+    """Detect compression method by reading magic bytes. Resets stream position afterwards."""
+    header = stream.read(2)
+    stream.seek(0)
+    if header == b"\x1f\x8b":
+        return "gzip"
+    return None
 
 
 def chunker(it, size):

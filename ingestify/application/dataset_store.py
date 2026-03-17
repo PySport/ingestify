@@ -299,7 +299,9 @@ class DatasetStore:
     #     dataset = self.dataset_repository.
     #     self.dataset_repository.destroy_dataset(dataset_id)
 
-    def _prepare_write_stream(self, file_: DraftFile) -> tuple[BinaryIO, int, str, Optional[str]]:
+    def _prepare_write_stream(
+        self, file_: DraftFile
+    ) -> tuple[BinaryIO, int, str, Optional[str]]:
         if file_.content_compression_method == "gzip":
             # Already gzip - store as-is, no CPU cost
             stream = file_.stream
@@ -360,7 +362,12 @@ class DatasetStore:
                 # File didn't change. Ignore it.
                 continue
 
-            stream, storage_size, suffix, compression_method = self._prepare_write_stream(file_)
+            (
+                stream,
+                storage_size,
+                suffix,
+                compression_method,
+            ) = self._prepare_write_stream(file_)
 
             # TODO: check if this is a very clean way to go from DraftFile to File
             full_path = self.file_repository.save_content(

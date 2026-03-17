@@ -11,7 +11,12 @@ from urllib3 import Retry
 
 from ingestify.domain.models import DraftFile, File
 from ingestify.domain.models.dataset.file import NotModifiedFile
-from ingestify.utils import utcnow, BufferedStream
+from ingestify.utils import (
+    utcnow,
+    BufferedStream,
+    detect_compression,
+    gzip_uncompressed_size,
+)
 
 _session = None
 
@@ -38,14 +43,6 @@ def get_session():
         _session.mount("https://", adapter)
 
     return _session
-
-
-def _uncompressed_size_from_gzip_trailer(stream: BinaryIO) -> int:
-    """Read uncompressed size from the gzip trailer (last 4 bytes, mod 2^32)."""
-    stream.seek(-4, 2)
-    size = int.from_bytes(stream.read(4), "little")
-    stream.seek(0)
-    return size
 
 
 def retrieve_http(
@@ -116,13 +113,17 @@ def retrieve_http(
             if not next_url:
                 break
             else:
-                response = requests.get(next_url, headers=headers, stream=True, **http_kwargs)
+                response = requests.get(
+                    next_url, headers=headers, stream=True, **http_kwargs
+                )
 
         content_bytes = json.dumps({data_path: data}).encode("utf-8")
         if not tag:
             tag = sha1(content_bytes).hexdigest()
         if current_file and current_file.tag == tag:
-            return NotModifiedFile(modified_at=last_modified, reason="tag matched current_file")
+            return NotModifiedFile(
+                modified_at=last_modified, reason="tag matched current_file"
+            )
         stream = BufferedStream.from_stream(BytesIO(content_bytes))
         content_length = len(content_bytes)
     else:
@@ -137,16 +138,15 @@ def retrieve_http(
             tag = hasher.hexdigest()
 
         if current_file and current_file.tag == tag:
-            return NotModifiedFile(modified_at=last_modified, reason="tag matched current_file")
+            return NotModifiedFile(
+                modified_at=last_modified, reason="tag matched current_file"
+            )
 
         raw_stream.seek(0)
-        header = raw_stream.read(2)
-        raw_stream.seek(0)
-        if header == b"\x1f\x8b":
-            content_compression_method = "gzip"
-            content_length = _uncompressed_size_from_gzip_trailer(raw_stream)
+        content_compression_method = detect_compression(raw_stream)
+        if content_compression_method == "gzip":
+            content_length = gzip_uncompressed_size(raw_stream)
         else:
-            content_compression_method = None
             raw_stream.seek(0, 2)
             content_length = raw_stream.tell()
             raw_stream.seek(0)
