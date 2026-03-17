@@ -213,7 +213,7 @@ def get_tables(table_prefix: str = ""):
         Column(
             "dataset_id",
             String(255),
-            ForeignKey(f"{table_prefix}dataset.dataset_id"),
+            ForeignKey(f"{table_prefix}dataset.dataset_id", ondelete="CASCADE"),
             primary_key=True,
         ),
         Column("revision_id", Integer, primary_key=True),
