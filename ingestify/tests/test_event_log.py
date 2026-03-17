@@ -95,7 +95,9 @@ def test_cursor_not_advanced_on_error():
         original(conn, event_id)
 
     consumer._update_cursor = capture
-    exit_code = consumer._run_once(lambda et, p: (_ for _ in ()).throw(RuntimeError("boom")))
+    exit_code = consumer._run_once(
+        lambda et, p: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
 
     assert exit_code == 1
     assert cursors == []

@@ -226,6 +226,57 @@ for dataset in dataset_iter:
 
 ---
 
+## Event Log
+
+Ingestify ships a built-in event log that lets a separate service (or cron job) react to dataset lifecycle events — without polling the database or coupling services together.
+
+### How it works
+
+```
+Ingestify ingestion run
+  └── EventLogSubscriber writes to event_log table (same DB)
+
+Consumer process (your service / cron)
+  └── EventLogConsumer reads new rows, calls your callback, advances cursor
+```
+
+The cursor is per-reader — multiple independent consumers can each track their own position.
+
+### Enable the subscriber
+
+Add one line to `config.yaml`:
+
+```yaml
+event_subscribers:
+  - type: ingestify.infra.event_log.EventLogSubscriber
+```
+
+That's it. The `event_log` and `reader_state` tables are created automatically in the same database as the rest of ingestify.
+
+### Write a consumer
+
+```python
+# run_consumer.py
+from ingestify.infra.event_log import EventLogConsumer
+
+def on_event(event_type: str, payload: dict) -> None:
+    if event_type == "revision_added":
+        dataset_id = payload["dataset_id"]
+        # trigger your downstream logic here
+
+# Run once (e.g. from a cron job):
+EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event)
+
+# Or keep running, polling every 5 seconds:
+EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event, poll_interval=5)
+```
+
+`from_config` reads `metadata_url` from your existing `config.yaml` — no duplicate connection strings.
+
+`run()` returns `0` on success and `1` if a processing error occurred. On error the cursor is **not** advanced, so the failing event will be retried on the next run.
+
+---
+
 ## Roadmap
 
 * Workflow orchestration helpers (Airflow, Dagster, Prefect)

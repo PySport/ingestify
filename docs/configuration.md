@@ -155,7 +155,7 @@ ingestion_plans:
 
 ## Event Subscribers Section (Optional)
 
-The `event_subscribers` section defines handlers for processing data after ingestion:
+The `event_subscribers` section defines handlers that are called after each dataset lifecycle event (`dataset_created`, `revision_added`, `metadata_updated`).
 
 ```yaml
 event_subscribers:
@@ -165,6 +165,44 @@ event_subscribers:
 ### Options
 
 - `type`: Full import path to the event subscriber class
+
+### Built-in: EventLogSubscriber
+
+Ingestify ships a ready-made subscriber that persists every event to an `event_log` table in the **same database** as the rest of the metadata. This makes it easy to build consumers that react to changes without polling the dataset table.
+
+```yaml
+event_subscribers:
+  - type: ingestify.infra.event_log.EventLogSubscriber
+```
+
+Two tables are created automatically (respecting the configured `table_prefix`):
+
+| Table | Purpose |
+|---|---|
+| `event_log` | One row per domain event, with `event_type`, JSON payload, `source`, and `dataset_id` |
+| `reader_state` | One row per named consumer, tracking the last processed event id |
+
+### Consuming events
+
+Write a small script (run as a cron job or long-running process) that reads from the event log:
+
+```python
+from ingestify.infra.event_log import EventLogConsumer
+
+def on_event(event_type: str, payload: dict) -> None:
+    if event_type == "revision_added":
+        trigger_downstream(payload["dataset_id"])
+
+# Run once (cron-friendly, exits 0 on success or 1 on error):
+EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event)
+
+# Keep running, poll every 5 seconds:
+EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event, poll_interval=5)
+```
+
+`reader_name` is an arbitrary string that scopes the cursor — use a different name for each independent consumer so they track their own position.
+
+`from_config` reads `metadata_url` (and `table_prefix` if set) directly from your existing config file, so there is no duplication of connection strings.
 
 ## Environment Variables and Secrets
 

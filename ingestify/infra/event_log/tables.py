@@ -11,7 +11,9 @@ def get_tables(table_prefix: str = ""):
         metadata,
         Column(
             "id",
-            Integer().with_variant(BigInteger(), "postgresql").with_variant(BigInteger(), "mysql"),
+            Integer()
+            .with_variant(BigInteger(), "postgresql")
+            .with_variant(BigInteger(), "mysql"),
             primary_key=True,
             autoincrement=True,
         ),
