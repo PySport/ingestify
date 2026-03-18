@@ -29,6 +29,23 @@ def dataset():
 
 
 @pytest.fixture
+def dataset2():
+    return Dataset(
+        bucket="main",
+        dataset_id="ds2",
+        name="test",
+        state=DatasetState.COMPLETE,
+        dataset_type="match",
+        provider="test",
+        identifier={"match_id": "2"},
+        metadata={},
+        created_at=utcnow(),
+        updated_at=utcnow(),
+        last_modified_at=None,
+    )
+
+
+@pytest.fixture
 def event_log():
     return EventLog(create_engine("sqlite:///:memory:"))
 
@@ -69,6 +86,17 @@ def test_consumer_cursor_not_advanced_on_error(consumer, dataset):
     received = []
     consumer._run_once(lambda e: received.append(e))
     assert len(received) == 1
+
+
+def test_consumer_only_processes_new_events(consumer, dataset, dataset2):
+    consumer._event_log.write(RevisionAdded(dataset=dataset))
+    consumer._run_once(lambda e: None)
+
+    consumer._event_log.write(RevisionAdded(dataset=dataset2))
+    received = []
+    consumer._run_once(lambda e: received.append(e.dataset.dataset_id))
+
+    assert received == ["ds2"]
 
 
 def test_subscriber_writes_event(subscriber, dataset):

@@ -1,9 +1,7 @@
-import json
 import logging
 
 from sqlalchemy import select
 
-from ingestify.domain.models.dataset.dataset import Dataset
 from ingestify.domain.models.dataset.events import (
     DatasetCreated,
     MetadataUpdated,
@@ -31,14 +29,13 @@ class EventLog:
         self._table.create(engine, checkfirst=True)
 
     def write(self, event: DomainEvent) -> None:
-        dataset = event.dataset
         with self._engine.connect() as conn:
             conn.execute(
                 self._table.insert().values(
                     event_type=type(event).event_type,
-                    payload_json=dataset.model_dump(mode="json"),
-                    source=dataset.provider,
-                    dataset_id=dataset.dataset_id,
+                    payload_json=event.model_dump(mode="json"),
+                    source=event.dataset.provider,
+                    dataset_id=event.dataset.dataset_id,
                     created_at=utcnow(),
                 )
             )
@@ -66,13 +63,6 @@ class EventLog:
                     "Skipping unknown event_type=%r (id=%d)", event_type, event_id
                 )
                 continue
-            payload = (
-                payload_json
-                if isinstance(payload_json, dict)
-                else json.loads(payload_json)
-            )
-            result.append(
-                (event_id, event_cls(dataset=Dataset.model_validate(payload)))
-            )
+            result.append((event_id, event_cls.model_validate(payload_json)))
 
         return result
