@@ -77,14 +77,13 @@ class EventLogConsumer:
         )
         conn.commit()
 
-    def _run_once(self, on_event: Callable, batch_size: int = 100) -> int:
+    def _run_once(self, on_event: Callable, batch_size: int = 100) -> bool:
+        """Returns True on success, False if a processing error occurred."""
         with self._engine.connect() as conn:
             self._ensure_reader_state(conn)
             last_id = self._get_last_event_id(conn)
 
         rows = self._event_log.fetch_batch(last_id, batch_size)
-        if not rows:
-            return 0
 
         with self._engine.connect() as conn:
             for event_id, event in rows:
@@ -96,10 +95,10 @@ class EventLogConsumer:
                         event_id,
                         type(event).event_type,
                     )
-                    return 1
+                    return False
                 self._update_cursor(conn, event_id)
 
-        return 0
+        return True
 
     def run(
         self,
@@ -108,7 +107,7 @@ class EventLogConsumer:
         batch_size: int = 100,
     ) -> int:
         while True:
-            exit_code = self._run_once(on_event, batch_size)
-            if exit_code != 0 or poll_interval is None:
-                return exit_code
+            success = self._run_once(on_event, batch_size)
+            if not success or poll_interval is None:
+                return 0 if success else 1
             time.sleep(poll_interval)

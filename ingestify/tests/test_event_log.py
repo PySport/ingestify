@@ -80,8 +80,7 @@ def test_consumer_processes_events(consumer, dataset):
 
 def test_consumer_cursor_not_advanced_on_error(consumer, dataset):
     consumer._event_log.write(RevisionAdded(dataset=dataset))
-    exit_code = consumer._run_once(lambda e: 1 / 0)
-    assert exit_code == 1
+    assert not consumer._run_once(lambda e: 1 / 0)
     # Next run still sees the same event
     received = []
     consumer._run_once(lambda e: received.append(e))
