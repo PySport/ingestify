@@ -189,9 +189,9 @@ Write a small script (run as a cron job or long-running process) that reads from
 ```python
 from ingestify.infra.event_log import EventLogConsumer
 
-def on_event(event_type: str, payload: dict) -> None:
-    if event_type == "revision_added":
-        trigger_downstream(payload["dataset_id"])
+def on_event(event) -> None:
+    if event.event_type == "revision_added":
+        trigger_downstream(event.dataset.dataset_id)
 
 # Run once (cron-friendly, exits 0 on success or 1 on error):
 EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event)

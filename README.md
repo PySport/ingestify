@@ -259,10 +259,9 @@ That's it. The `event_log` and `reader_state` tables are created automatically i
 # run_consumer.py
 from ingestify.infra.event_log import EventLogConsumer
 
-def on_event(event_type: str, payload: dict) -> None:
-    if event_type == "revision_added":
-        dataset_id = payload["dataset_id"]
-        # trigger your downstream logic here
+def on_event(event) -> None:
+    if event.event_type == "revision_added":
+        trigger_downstream(event.dataset.dataset_id)
 
 # Run once (e.g. from a cron job):
 EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event)
@@ -270,6 +269,8 @@ EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_eve
 # Or keep running, polling every 5 seconds:
 EventLogConsumer.from_config("config.yaml", reader_name="my-service").run(on_event, poll_interval=5)
 ```
+
+`on_event` receives a domain event with `event.event_type` and `event.dataset`. Available event types: `dataset_created`, `revision_added`, `metadata_updated`.
 
 `from_config` reads `metadata_url` from your existing `config.yaml` — no duplicate connection strings.
 
