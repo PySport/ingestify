@@ -1,9 +1,8 @@
 import logging
 
 from ingestify.domain.models.event import Subscriber
-from ingestify.utils import utcnow
 
-from .tables import get_tables
+from .event_log import EventLog
 
 logger = logging.getLogger(__name__)
 
@@ -21,38 +20,25 @@ class EventLogSubscriber(Subscriber):
     def __init__(self, store):
         super().__init__(store)
         session_provider = store.dataset_repository.session_provider
-        tables = get_tables(session_provider.table_prefix)
-        tables["metadata"].create_all(session_provider.engine, checkfirst=True)
-        self._engine = session_provider.engine
-        self._event_log_table = tables["event_log_table"]
+        self._event_log = EventLog(
+            session_provider.engine, session_provider.table_prefix
+        )
 
-    def _write(self, event_type: str, dataset) -> None:
+    def _write(self, event) -> None:
         try:
-            with self._engine.connect() as conn:
-                conn.execute(
-                    self._event_log_table.insert().values(
-                        event_type=event_type,
-                        payload_json=dataset.model_dump(
-                            mode="json", exclude={"revisions"}
-                        ),
-                        source=dataset.provider,
-                        dataset_id=dataset.dataset_id,
-                        created_at=utcnow(),
-                    )
-                )
-                conn.commit()
+            self._event_log.write(event)
         except Exception:
             logger.exception(
                 "EventLogSubscriber: failed to write event_type=%r dataset_id=%r",
-                event_type,
-                dataset.dataset_id,
+                type(event).event_type,
+                event.dataset.dataset_id,
             )
 
     def on_dataset_created(self, event) -> None:
-        self._write(type(event).event_type, event.dataset)
+        self._write(event)
 
     def on_metadata_updated(self, event) -> None:
-        self._write(type(event).event_type, event.dataset)
+        self._write(event)
 
     def on_revision_added(self, event) -> None:
-        self._write(type(event).event_type, event.dataset)
+        self._write(event)

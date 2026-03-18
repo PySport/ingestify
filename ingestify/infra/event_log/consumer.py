@@ -1,10 +1,10 @@
-import json
 import logging
 import time
 from typing import Callable, Optional
 
 from sqlalchemy import create_engine, select
 
+from .event_log import EventLog
 from .tables import get_tables
 
 logger = logging.getLogger(__name__)
@@ -14,10 +14,10 @@ class EventLogConsumer:
     """Cursor-based consumer for the event_log table.
 
     Usage (run once, e.g. cron):
-        EventLogConsumer.from_config("ingestify.yaml", reader_name="importer").run(on_event)
+        EventLogConsumer.from_config("ingestify.yaml", reader_name="default").run(on_event)
 
     Usage (keep running, poll every 5 seconds):
-        EventLogConsumer.from_config("ingestify.yaml", reader_name="importer").run(on_event, poll_interval=5)
+        EventLogConsumer.from_config("ingestify.yaml", reader_name="default").run(on_event, poll_interval=5)
 
     Exit codes (returned by run):
         0  Batch processed successfully (or nothing new).
@@ -25,13 +25,13 @@ class EventLogConsumer:
     """
 
     def __init__(self, database_url: str, reader_name: str, table_prefix: str = ""):
+        engine = create_engine(database_url)
+        self._event_log = EventLog(engine, table_prefix)
         self._reader_name = reader_name
+        self._engine = engine
         tables = get_tables(table_prefix)
-        self._metadata = tables["metadata"]
-        self._event_log_table = tables["event_log_table"]
         self._reader_state_table = tables["reader_state_table"]
-        self._engine = create_engine(database_url)
-        self._metadata.create_all(self._engine, checkfirst=True)
+        self._reader_state_table.create(engine, checkfirst=True)
 
     @classmethod
     def from_config(cls, config_file: str, reader_name: str) -> "EventLogConsumer":
@@ -39,10 +39,9 @@ class EventLogConsumer:
 
         config = parse_config(config_file, default_value="")
         main = config["main"]
-        database_url = main["metadata_url"]
         table_prefix = main.get("metadata_options", {}).get("table_prefix", "")
         return cls(
-            database_url=database_url,
+            database_url=main["metadata_url"],
             reader_name=reader_name,
             table_prefix=table_prefix,
         )
@@ -70,18 +69,6 @@ class EventLogConsumer:
         ).fetchone()
         return row[0] if row else 0
 
-    def _fetch_batch(self, conn, last_event_id: int, batch_size: int) -> list:
-        return conn.execute(
-            select(
-                self._event_log_table.c.id,
-                self._event_log_table.c.event_type,
-                self._event_log_table.c.payload_json,
-            )
-            .where(self._event_log_table.c.id > last_event_id)
-            .order_by(self._event_log_table.c.id)
-            .limit(batch_size)
-        ).fetchall()
-
     def _update_cursor(self, conn, event_id: int) -> None:
         conn.execute(
             self._reader_state_table.update()
@@ -94,27 +81,22 @@ class EventLogConsumer:
         with self._engine.connect() as conn:
             self._ensure_reader_state(conn)
             last_id = self._get_last_event_id(conn)
-            rows = self._fetch_batch(conn, last_id, batch_size)
 
-            if not rows:
-                return 0
+        rows = self._event_log.fetch_batch(last_id, batch_size)
+        if not rows:
+            return 0
 
-            for event_id, event_type, payload_json in rows:
+        with self._engine.connect() as conn:
+            for event_id, event in rows:
                 try:
-                    payload = (
-                        payload_json
-                        if isinstance(payload_json, dict)
-                        else json.loads(payload_json)
-                    )
-                    on_event(event_type, payload)
+                    on_event(event)
                 except Exception:
                     logger.exception(
                         "Failed to process event id=%d type=%r — cursor NOT advanced",
                         event_id,
-                        event_type,
+                        type(event).event_type,
                     )
                     return 1
-
                 self._update_cursor(conn, event_id)
 
         return 0
