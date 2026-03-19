@@ -40,7 +40,10 @@ def setup_package():
             "boto3",
             "pydantic>=2.0.0",
         ],
-        extras_require={"test": ["pytest>=6.2.5,<7", "pytz"]},
+        extras_require={
+            "gcs": ["google-cloud-storage>=2.0.0"],
+            "test": ["pytest>=6.2.5,<7", "pytz"],
+        },
     )
 
 

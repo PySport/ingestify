@@ -22,6 +22,7 @@ from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.services.identifier_key_transformer import IdentifierTransformer
 from ingestify.exceptions import ConfigurationError
 from ingestify.infra import S3FileRepository, LocalFileRepository
+from ingestify.infra.store.file.gcs_file_repository import GCSFileRepository
 from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
 from ingestify.infra.store.dataset.sqlalchemy.repository import (
     SqlAlchemySessionProvider,
@@ -65,6 +66,10 @@ def import_cls(name):
 def build_file_repository(file_url: str, identifier_transformer) -> FileRepository:
     if file_url.startswith("s3://"):
         repository = S3FileRepository(
+            url=file_url, identifier_transformer=identifier_transformer
+        )
+    elif file_url.startswith("gcs://"):
+        repository = GCSFileRepository(
             url=file_url, identifier_transformer=identifier_transformer
         )
     elif file_url.startswith("file://"):
