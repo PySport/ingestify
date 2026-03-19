@@ -41,9 +41,11 @@ class GCSFileRepository(FileRepository):
     def load_content(self, storage_path: str) -> BinaryIO:
         key = self.get_read_path(storage_path)
         gcs_bucket = Path(key.parts[0])
-        return self.client.bucket(str(gcs_bucket)).blob(
-            str(key.relative_to(gcs_bucket))
-        ).open("rb")
+        return (
+            self.client.bucket(str(gcs_bucket))
+            .blob(str(key.relative_to(gcs_bucket)))
+            .open("rb")
+        )
 
     @classmethod
     def supports(cls, url: str) -> bool:
