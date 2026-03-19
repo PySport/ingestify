@@ -1,2 +1,3 @@
+from .gcs_file_repository import GCSFileRepository
 from .local_file_repository import LocalFileRepository
 from .s3_file_repository import S3FileRepository
