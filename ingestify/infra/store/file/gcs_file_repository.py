@@ -32,17 +32,18 @@ class GCSFileRepository(FileRepository):
         stream: BinaryIO,
     ) -> Path:
         key = self.get_write_path(bucket, dataset, revision_id, filename)
-        gcs_bucket = key.parts[0]
-        blob_name = str(Path(*key.parts[1:]))
-        self.client.bucket(gcs_bucket).blob(blob_name).upload_from_file(stream)
+        gcs_bucket = Path(key.parts[0])
+        self.client.bucket(str(gcs_bucket)).blob(
+            str(key.relative_to(gcs_bucket))
+        ).upload_from_file(stream)
         return key
 
     def load_content(self, storage_path: str) -> BinaryIO:
         key = self.get_read_path(storage_path)
-        gcs_bucket = key.parts[0]
-        blob_name = str(Path(*key.parts[1:]))
-        blob = self.client.bucket(gcs_bucket).blob(blob_name)
-        return blob.open("rb")
+        gcs_bucket = Path(key.parts[0])
+        return self.client.bucket(str(gcs_bucket)).blob(
+            str(key.relative_to(gcs_bucket))
+        ).open("rb")
 
     @classmethod
     def supports(cls, url: str) -> bool:

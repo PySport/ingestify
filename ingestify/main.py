@@ -21,8 +21,7 @@ from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.services.identifier_key_transformer import IdentifierTransformer
 from ingestify.exceptions import ConfigurationError
-from ingestify.infra import S3FileRepository, LocalFileRepository
-from ingestify.infra.store.file.gcs_file_repository import GCSFileRepository
+from ingestify.infra import S3FileRepository, LocalFileRepository, GCSFileRepository
 from ingestify.infra.store.dataset.sqlalchemy import SqlAlchemyDatasetRepository
 from ingestify.infra.store.dataset.sqlalchemy.repository import (
     SqlAlchemySessionProvider,
