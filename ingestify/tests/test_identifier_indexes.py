@@ -66,27 +66,13 @@ def test_create_identifier_indexes_idempotent(repository):
     repository.create_identifier_indexes(INDEX_CONFIGS)
 
 
-def test_dataset_store_create_indexes(repository, tmp_path):
+def test_dataset_store_create_indexes(engine):
     """DatasetStore.create_indexes() delegates to the repository."""
-    from ingestify.infra.store.file.local_file_repository import LocalFileRepository
-
-    store = DatasetStore(
-        dataset_repository=repository,
-        file_repository=LocalFileRepository(str(tmp_path)),
-        bucket="test",
-        identifier_index_configs=INDEX_CONFIGS,
-    )
-    store.create_indexes()
+    engine.store._identifier_index_configs = INDEX_CONFIGS
+    engine.store.create_indexes()
 
 
-def test_dataset_store_create_indexes_empty(repository, tmp_path):
+def test_dataset_store_create_indexes_empty(engine):
     """create_indexes() with empty configs is a no-op."""
-    from ingestify.infra.store.file.local_file_repository import LocalFileRepository
-
-    store = DatasetStore(
-        dataset_repository=repository,
-        file_repository=LocalFileRepository(str(tmp_path)),
-        bucket="test",
-        identifier_index_configs=[],
-    )
-    store.create_indexes()
+    engine.store._identifier_index_configs = []
+    engine.store.create_indexes()
