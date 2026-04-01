@@ -132,7 +132,9 @@ class DatasetStore:
         Should be triggered explicitly (e.g. via `ingestify sync-indexes`),
         never automatically, as it can be slow on large tables.
         """
-        self.dataset_repository.create_identifier_indexes(self._identifier_index_configs)
+        self.dataset_repository.create_identifier_indexes(
+            self._identifier_index_configs
+        )
 
     @property
     def _thread_local(self):
