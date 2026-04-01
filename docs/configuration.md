@@ -103,6 +103,7 @@ dataset_types:
 
 - `provider`: Provider name (must match a source's provider)
 - `dataset_type`: Type of dataset (e.g., "match", "player", "team")
+- `identifier_index`: When `true`, a composite PostgreSQL expression index on all `identifier_keys` is created when `ingestify sync-indexes` is run. Use this for high-cardinality dataset types (e.g. one dataset per keyword). Never runs automatically — must be triggered explicitly to avoid locking large tables.
 - `identifier_keys`: Keys that uniquely identify datasets
   - Each key can have a transformation applied to standardize the format
   - Common transformations:

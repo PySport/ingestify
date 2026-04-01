@@ -146,6 +146,40 @@ class SqlAlchemySessionProvider:
     def create_all_tables(self):
         self.metadata.create_all(self.engine)
 
+    def create_identifier_indexes(self, index_configs: list[dict]):
+        """Create composite expression indexes on identifier JSONB keys (Postgres only).
+
+        Each entry in index_configs should have:
+            - name: a label used in the index name
+            - keys: list of identifier key names to include in the composite index
+
+        Generates one functional index per config entry:
+            CREATE INDEX IF NOT EXISTS idx_dataset_identifier_<name>
+            ON dataset ((identifier->>'key1'), (identifier->>'key2'), ...)
+
+        Call this explicitly (e.g. via `ingestify sync-indexes`) when datasets
+        have high-cardinality identifiers that are queried frequently.
+        """
+        if self.engine.dialect.name != "postgresql":
+            logger.info("Skipping identifier indexes: not a PostgreSQL database")
+            return
+
+        table_name = f"{self.table_prefix}dataset"
+        with self.engine.connect() as conn:
+            for config in index_configs:
+                name = config["name"]
+                keys = config["keys"]
+                index_name = f"{self.table_prefix}idx_dataset_identifier_{name}"
+                expressions = ", ".join(f"(identifier->>'{k}')" for k in keys)
+                conn.execute(
+                    text(
+                        f"CREATE INDEX IF NOT EXISTS {index_name} "
+                        f"ON {table_name} ({expressions})"
+                    )
+                )
+                logger.info("Created index %s on keys: %s", index_name, keys)
+            conn.commit()
+
     def drop_all_tables(self):
         """Drop all tables in the database. Useful for test cleanup."""
         if hasattr(self, "metadata") and hasattr(self, "engine"):
@@ -158,6 +192,9 @@ class SqlAlchemySessionProvider:
 class SqlAlchemyDatasetRepository(DatasetRepository):
     def __init__(self, session_provider: SqlAlchemySessionProvider):
         self.session_provider = session_provider
+
+    def create_identifier_indexes(self, index_configs: list[dict]):
+        self.session_provider.create_identifier_indexes(index_configs)
 
     @property
     def session(self):

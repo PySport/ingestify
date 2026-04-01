@@ -137,10 +137,20 @@ def get_dataset_store_by_urls(
 
     dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
 
+    identifier_index_configs = [
+        {
+            "name": dt["dataset_type"],
+            "keys": list(dt["identifier_keys"].keys()),
+        }
+        for dt in dataset_types
+        if dt.get("identifier_index")
+    ]
+
     return DatasetStore(
         dataset_repository=dataset_repository,
         file_repository=file_repository,
         bucket=bucket,
+        identifier_index_configs=identifier_index_configs,
     )
 
 

@@ -244,6 +244,34 @@ def delete_dataset(
 #
 
 
+@cli.command("sync-indexes")
+@click.option(
+    "--config",
+    "config_file",
+    required=False,
+    help="Yaml config file",
+    type=click.Path(exists=True),
+    default=get_default_config,
+)
+@click.option(
+    "--bucket",
+    "bucket",
+    required=False,
+    help="bucket",
+    type=str,
+)
+def sync_indexes(config_file: str, bucket: Optional[str]):
+    """Create identifier expression indexes for dataset types with identifier_index: true.
+
+    Safe to run multiple times (uses IF NOT EXISTS). Only affects PostgreSQL.
+    Run this explicitly after initial setup or after adding new indexed dataset types —
+    never runs automatically to avoid locking large tables unexpectedly.
+    """
+    engine = get_engine(config_file, bucket)
+    engine.store.create_indexes()
+    logger.info("Done")
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
