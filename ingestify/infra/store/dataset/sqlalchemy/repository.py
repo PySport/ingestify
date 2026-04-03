@@ -150,16 +150,18 @@ class SqlAlchemySessionProvider:
         """Create partial expression indexes on identifier JSONB keys (Postgres only).
 
         Each entry in index_configs should have:
-            - name: a label used in the index name (typically the dataset_type)
+            - name: a label used in the index name (typically provider_dataset_type)
+            - provider: provider value to match in the partial index predicate
+            - dataset_type: dataset_type value to match in the partial index predicate
             - keys: list of identifier key dicts {name, key_type} to index
 
         Generates one partial index per config entry:
             CREATE INDEX IF NOT EXISTS idx_dataset_identifier_<name>
             ON dataset ((identifier->>'key1'), ((identifier->>'key2')::integer), ...)
-            WHERE dataset_type = '<name>'
+            WHERE provider = '<provider>' AND dataset_type = '<dataset_type>'
 
-        The WHERE clause limits the index to a single dataset_type, making it
-        smaller and ensuring dataset_type is never a post-scan filter.
+        The WHERE clause limits the index to a single (provider, dataset_type) pair,
+        making it smaller and ensuring neither column is a post-scan filter.
 
         Call this explicitly (e.g. via `ingestify sync-indexes`) when datasets
         have high-cardinality identifiers that are queried frequently.
@@ -172,6 +174,8 @@ class SqlAlchemySessionProvider:
         with self.engine.connect() as conn:
             for config in index_configs:
                 name = config["name"]
+                provider = config["provider"]
+                dataset_type = config["dataset_type"]
                 keys = config["keys"]
                 index_name = f"{self.table_prefix}idx_dataset_identifier_{name}"
                 expressions = ", ".join(
@@ -184,7 +188,7 @@ class SqlAlchemySessionProvider:
                     text(
                         f"CREATE INDEX IF NOT EXISTS {index_name} "
                         f"ON {table_name} ({expressions}) "
-                        f"WHERE dataset_type = '{name}'"
+                        f"WHERE provider = '{provider}' AND dataset_type = '{dataset_type}'"
                     )
                 )
                 logger.info("Created index %s on keys: %s", index_name, keys)

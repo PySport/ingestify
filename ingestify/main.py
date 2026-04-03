@@ -142,7 +142,9 @@ def get_dataset_store_by_urls(
 
     identifier_index_configs = [
         {
-            "name": dt["dataset_type"],
+            "name": f"{dt['provider']}_{dt['dataset_type']}",
+            "provider": dt["provider"],
+            "dataset_type": dt["dataset_type"],
             "keys": [
                 {
                     "name": k,
