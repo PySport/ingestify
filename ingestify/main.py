@@ -116,6 +116,7 @@ def get_dataset_store_by_urls(
                 dataset_type=dataset_type["dataset_type"],
                 id_key=id_key,
                 transformation=id_config["transformation"],
+                key_type=id_config.get("key_type"),
             )
 
     file_repository = build_file_repository(
@@ -135,12 +136,20 @@ def get_dataset_store_by_urls(
         metadata_url, table_prefix=table_prefix
     )
 
-    dataset_repository = SqlAlchemyDatasetRepository(sqlalchemy_session_provider)
+    dataset_repository = SqlAlchemyDatasetRepository(
+        sqlalchemy_session_provider, identifier_transformer=identifier_transformer
+    )
 
     identifier_index_configs = [
         {
             "name": dt["dataset_type"],
-            "keys": list(dt["identifier_keys"].keys()),
+            "keys": [
+                {
+                    "name": k,
+                    "key_type": v.get("key_type", "str"),
+                }
+                for k, v in dt["identifier_keys"].items()
+            ],
         }
         for dt in dataset_types
         if dt.get("identifier_index")

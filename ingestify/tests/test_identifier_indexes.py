@@ -12,8 +12,14 @@ from ingestify.infra.store.dataset.sqlalchemy.repository import (
 
 
 INDEX_CONFIGS = [
-    {"name": "keyword_metrics", "keys": ["keyword"]},
-    {"name": "keyword_set", "keys": ["dataset_id", "table_name"]},
+    {"name": "keyword_metrics", "keys": [{"name": "keyword", "key_type": "str"}]},
+    {
+        "name": "keyword_set",
+        "keys": [
+            {"name": "dataset_id", "key_type": "int"},
+            {"name": "table_name", "key_type": "str"},
+        ],
+    },
 ]
 
 

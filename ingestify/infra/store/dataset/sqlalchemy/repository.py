@@ -170,7 +170,12 @@ class SqlAlchemySessionProvider:
                 name = config["name"]
                 keys = config["keys"]
                 index_name = f"{self.table_prefix}idx_dataset_identifier_{name}"
-                expressions = ", ".join(f"(identifier->>'{k}')" for k in keys)
+                expressions = ", ".join(
+                    f"((identifier->>'{k['name']}')::integer)"
+                    if isinstance(k, dict) and k.get("key_type") == "int"
+                    else f"(identifier->>'{k['name'] if isinstance(k, dict) else k}')"
+                    for k in keys
+                )
                 conn.execute(
                     text(
                         f"CREATE INDEX IF NOT EXISTS {index_name} "
@@ -190,8 +195,11 @@ class SqlAlchemySessionProvider:
 
 
 class SqlAlchemyDatasetRepository(DatasetRepository):
-    def __init__(self, session_provider: SqlAlchemySessionProvider):
+    def __init__(
+        self, session_provider: SqlAlchemySessionProvider, identifier_transformer=None
+    ):
         self.session_provider = session_provider
+        self._identifier_transformer = identifier_transformer
 
     def create_identifier_indexes(self, index_configs: list[dict]):
         self.session_provider.create_identifier_indexes(index_configs)
@@ -379,10 +387,19 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                     if dialect == "postgresql":
                         column = self.dataset_table.c.identifier[k]
 
-                        # Take the value from the first selector to determine the type.
-                        # TODO: check all selectors to determine the type
-                        v = first_selector[k]
-                        if isinstance(v, int):
+                        # Use declared key_type when available so the cast matches
+                        # the expression index created by sync-indexes.
+                        # Fall back to inferring from the runtime value type.
+                        declared_type = (
+                            self._identifier_transformer.get_key_type(
+                                provider, dataset_type, k
+                            )
+                            if self._identifier_transformer
+                            else None
+                        )
+                        if declared_type == "int" or (
+                            declared_type is None and isinstance(first_selector[k], int)
+                        ):
                             column = column.as_integer()
                         else:
                             column = column.as_string()
