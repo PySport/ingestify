@@ -111,17 +111,30 @@ class DatasetStore:
         dataset_repository: DatasetRepository,
         file_repository: FileRepository,
         bucket: str,
+        identifier_index_configs: list = None,
     ):
         self.dataset_repository = dataset_repository
         self.file_repository = file_repository
         self.storage_compression_method = "gzip"
         self.bucket = bucket
         self.event_bus: Optional[EventBus] = None
+        self._identifier_index_configs = identifier_index_configs or []
 
         # Pass current version to repository for validation/migration
         from ingestify import __version__
 
         self.dataset_repository.ensure_compatible_version(__version__)
+
+    def create_indexes(self):
+        """Create identifier expression indexes for configured dataset types.
+
+        Only runs on PostgreSQL. Safe to call multiple times (IF NOT EXISTS).
+        Should be triggered explicitly (e.g. via `ingestify sync-indexes`),
+        never automatically, as it can be slow on large tables.
+        """
+        self.dataset_repository.create_identifier_indexes(
+            self._identifier_index_configs
+        )
 
     @property
     def _thread_local(self):

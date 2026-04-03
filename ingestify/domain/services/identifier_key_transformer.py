@@ -64,6 +64,8 @@ class IdentifierTransformer:
     def __init__(self):
         # Mapping of (provider, dataset_type, id_key) to the transformation
         self.key_transformations: dict[tuple[str, str, str], Transformation] = {}
+        # Mapping of (provider, dataset_type, id_key) to the declared key type ('str' or 'int')
+        self.key_types: dict[tuple[str, str, str], str] = {}
 
     def register_transformation(
         self,
@@ -71,14 +73,27 @@ class IdentifierTransformer:
         dataset_type: str,
         id_key: str,
         transformation: Union[Transformation, dict],
+        key_type: Optional[str] = None,
     ):
         """
         Registers a transformation for a specific (provider, dataset_type, id_key).
+
+        key_type: declared value type of this identifier key ('str' or 'int').
+        When set, the repository uses this to cast JSONB values in queries and
+        to generate matching expression indexes via sync-indexes.
         """
         if isinstance(transformation, dict):
             transformation = Transformation.from_dict(transformation)
 
         self.key_transformations[(provider, dataset_type, id_key)] = transformation
+        if key_type is not None:
+            self.key_types[(provider, dataset_type, id_key)] = key_type
+
+    def get_key_type(
+        self, provider: str, dataset_type: str, id_key: str
+    ) -> Optional[str]:
+        """Returns the declared key type ('str' or 'int'), or None if not declared."""
+        return self.key_types.get((provider, dataset_type, id_key))
 
     def get_transformation(
         self, provider: str, dataset_type: str, id_key: str
