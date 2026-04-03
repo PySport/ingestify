@@ -147,15 +147,19 @@ class SqlAlchemySessionProvider:
         self.metadata.create_all(self.engine)
 
     def create_identifier_indexes(self, index_configs: list[dict]):
-        """Create composite expression indexes on identifier JSONB keys (Postgres only).
+        """Create partial expression indexes on identifier JSONB keys (Postgres only).
 
         Each entry in index_configs should have:
-            - name: a label used in the index name
-            - keys: list of identifier key names to include in the composite index
+            - name: a label used in the index name (typically the dataset_type)
+            - keys: list of identifier key dicts {name, key_type} to index
 
-        Generates one functional index per config entry:
+        Generates one partial index per config entry:
             CREATE INDEX IF NOT EXISTS idx_dataset_identifier_<name>
-            ON dataset ((identifier->>'key1'), (identifier->>'key2'), ...)
+            ON dataset ((identifier->>'key1'), ((identifier->>'key2')::integer), ...)
+            WHERE dataset_type = '<name>'
+
+        The WHERE clause limits the index to a single dataset_type, making it
+        smaller and ensuring dataset_type is never a post-scan filter.
 
         Call this explicitly (e.g. via `ingestify sync-indexes`) when datasets
         have high-cardinality identifiers that are queried frequently.
@@ -179,7 +183,8 @@ class SqlAlchemySessionProvider:
                 conn.execute(
                     text(
                         f"CREATE INDEX IF NOT EXISTS {index_name} "
-                        f"ON {table_name} ({expressions})"
+                        f"ON {table_name} ({expressions}) "
+                        f"WHERE dataset_type = '{name}'"
                     )
                 )
                 logger.info("Created index %s on keys: %s", index_name, keys)
