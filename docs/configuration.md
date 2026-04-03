@@ -103,7 +103,7 @@ dataset_types:
 
 - `provider`: Provider name (must match a source's provider)
 - `dataset_type`: Type of dataset (e.g., "match", "player", "team")
-- `identifier_index`: When `true`, a composite PostgreSQL expression index on all `identifier_keys` is created when `ingestify sync-indexes` is run. Use this for high-cardinality dataset types (e.g. one dataset per keyword). Never runs automatically — must be triggered explicitly to avoid locking large tables.
+- `identifier_index`: When `true`, a partial PostgreSQL expression index on all `identifier_keys` is created when `ingestify sync-indexes` is run. Use this for high-cardinality dataset types (e.g. one dataset per keyword). Never runs automatically — must be triggered explicitly to avoid locking large tables.
 
   Example — one dataset per keyword with an expression index:
   ```yaml
@@ -113,7 +113,8 @@ dataset_types:
       identifier_index: true
       identifier_keys:
         keyword:
-          transformation: str
+          transformation: identity
+          key_type: str
   ```
 
   After adding `identifier_index: true`, run once to create the index:
@@ -121,13 +122,14 @@ dataset_types:
   ingestify sync-indexes --config config.yaml
   ```
 
-  This creates:
+  This creates a partial index scoped to the specific `(provider, dataset_type)` pair:
   ```sql
-  CREATE INDEX IF NOT EXISTS idx_dataset_identifier_keyword_metrics
-  ON dataset ((identifier->>'keyword'));
+  CREATE INDEX IF NOT EXISTS idx_dataset_identifier_keyword_ads_keyword_metrics
+  ON dataset ((identifier->>'keyword'))
+  WHERE provider = 'keyword_ads' AND dataset_type = 'keyword_metrics';
   ```
 
-  For composite identifiers all keys are combined into a single index:
+  For composite identifiers with mixed types, all keys are combined into a single index:
   ```yaml
   dataset_types:
     - provider: keyword_ads
@@ -135,21 +137,24 @@ dataset_types:
       identifier_index: true
       identifier_keys:
         dataset_id:
-          transformation: str
+          transformation: identity
+          key_type: int
         table_name:
-          transformation: str
+          transformation: identity
+          key_type: str
   ```
   ```sql
-  CREATE INDEX IF NOT EXISTS idx_dataset_identifier_keyword_set
-  ON dataset ((identifier->>'dataset_id'), (identifier->>'table_name'));
+  CREATE INDEX IF NOT EXISTS idx_dataset_identifier_keyword_ads_keyword_set
+  ON dataset (((identifier->>'dataset_id')::integer), (identifier->>'table_name'))
+  WHERE provider = 'keyword_ads' AND dataset_type = 'keyword_set';
   ```
 
 - `identifier_keys`: Keys that uniquely identify datasets
-  - Each key can have a transformation applied to standardize the format
+  - Each key can have a `transformation` and an optional `key_type`
+  - `key_type`: Declared value type of the key (`str` or `int`). When set, the repository uses this to cast JSONB values in queries and to generate the correct expression in `sync-indexes`. Defaults to `str`.
   - Common transformations:
-    - `str`: Convert to string
-    - `int`: Convert to integer
-    - Bucket transformation:
+    - `identity`: Use value as-is (default)
+    - Bucket transformation (for file path organisation only — not related to indexing):
       ```yaml
       transformation:
         type: bucket
