@@ -69,8 +69,8 @@ def test_create_identifier_indexes_creates_indexes(repository):
         )
         index_names = {row[0] for row in result}
 
-    assert "idx_dataset_identifier_keyword_metrics" in index_names
-    assert "idx_dataset_identifier_keyword_set" in index_names
+    assert "idx_dataset_identifier_test_keyword_metrics" in index_names
+    assert "idx_dataset_identifier_test_keyword_set" in index_names
 
 
 def test_create_identifier_indexes_idempotent(repository):
