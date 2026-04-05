@@ -19,7 +19,6 @@ a list of results in the same order:
 current_files may contain None entries (for create tasks) or a File (for
 update tasks) — the loader_fn handles both.
 """
-import threading
 from typing import Callable, List
 
 
@@ -28,19 +27,17 @@ class BatchLoader:
         self.loader_fn = loader_fn
         self.batch_size = batch_size
         self._results: dict = {}
-        self._lock = threading.Lock()
 
     def __call__(self, file_resource, current_file, dataset_resource=None, **kwargs):
-        with self._lock:
-            if id(file_resource) not in self._results:
-                raise RuntimeError(
-                    "BatchLoader result not precomputed. A BatchTask must "
-                    "populate the cache before inner tasks execute."
-                )
-            return self._results.pop(id(file_resource))
+        key = id(file_resource)
+        if key not in self._results:
+            raise RuntimeError(
+                "BatchLoader result not precomputed. A BatchTask must "
+                "populate the cache before inner tasks execute."
+            )
+        return self._results.pop(key)
 
     def _store_results(self, file_resources: List, results: List):
         """Store batch results so they can be retrieved via __call__."""
-        with self._lock:
-            for file_resource, result in zip(file_resources, results):
-                self._results[id(file_resource)] = result
+        for file_resource, result in zip(file_resources, results):
+            self._results[id(file_resource)] = result
