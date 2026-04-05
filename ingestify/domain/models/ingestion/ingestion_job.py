@@ -253,13 +253,15 @@ class BatchTask(Task):
         self.loader = loader
 
     def run(self):
-        # Collect items for the shared loader across all inner tasks. A
-        # dataset_resource may have multiple files, so we match by loader
-        # identity to pick up every FileResource using this loader.
+        # Collect items for the shared loader across all inner tasks.
         file_resources, current_files, dataset_resources = [], [], []
         for task in self.inner_tasks:
             dataset = getattr(task, "dataset", None)
             for file_id, file_resource in task.dataset_resource.files.items():
+                # A DatasetResource can have multiple files, each potentially
+                # using a different file_loader (e.g. a plain loader for one
+                # file and a BatchLoader for another, or multiple BatchLoaders).
+                # We only want files whose loader is this BatchTask's loader.
                 if file_resource.file_loader is not self.loader:
                     continue
                 current_file = None
