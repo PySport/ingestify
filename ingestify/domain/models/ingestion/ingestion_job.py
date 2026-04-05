@@ -242,49 +242,45 @@ class CreateDatasetTask(Task):
 
 
 class BatchTask(Task):
-    """Wraps a group of inner tasks whose DatasetResources share a BatchLoader.
+    """Wraps a group of inner tasks that share a BatchLoader instance.
 
-    On run(), invokes the shared BatchLoader's loader_fn once with all items in
-    the batch, caches the results, then runs each inner task sequentially.
+    On run(), invokes the shared loader_fn once with all items in the batch,
+    caches the results, then runs each inner task sequentially.
     """
 
-    def __init__(self, inner_tasks: list):
+    def __init__(self, inner_tasks: list, loader: BatchLoader):
         self.inner_tasks = inner_tasks
+        self.loader = loader
 
     def run(self):
-        # Collect items per BatchLoader instance found across the inner tasks.
-        # A dataset_resource may have multiple files, each with its own loader;
-        # we group so a single BatchLoader receives all its pending items.
-        items_by_loader: dict = {}
-
+        # Collect items for the shared loader across all inner tasks. A
+        # dataset_resource may have multiple files, so we match by loader
+        # identity to pick up every FileResource using this loader.
+        file_resources, current_files, dataset_resources = [], [], []
         for task in self.inner_tasks:
             dataset = getattr(task, "dataset", None)
             for file_id, file_resource in task.dataset_resource.files.items():
-                loader = file_resource.file_loader
-                if not isinstance(loader, BatchLoader):
+                if file_resource.file_loader is not self.loader:
                     continue
                 current_file = None
                 if dataset is not None:
                     current_file = dataset.current_revision.modified_files_map.get(
                         file_id
                     )
-                items_by_loader.setdefault(id(loader), (loader, []))[1].append(
-                    (file_resource, current_file, task.dataset_resource)
-                )
+                file_resources.append(file_resource)
+                current_files.append(current_file)
+                dataset_resources.append(task.dataset_resource)
 
-        # Execute each BatchLoader's loader_fn with its collected items
-        for loader, items in items_by_loader.values():
-            file_resources = [item[0] for item in items]
-            current_files = [item[1] for item in items]
-            dataset_resources = [item[2] for item in items]
-            results = loader.loader_fn(file_resources, current_files, dataset_resources)
-            if len(results) != len(items):
-                raise RuntimeError(
-                    f"BatchLoader expected {len(items)} results, got {len(results)}"
-                )
-            loader._store_results(file_resources, results)
+        results = self.loader.loader_fn(
+            file_resources, current_files, dataset_resources
+        )
+        if len(results) != len(file_resources):
+            raise RuntimeError(
+                f"BatchLoader expected {len(file_resources)} results, got {len(results)}"
+            )
+        self.loader._store_results(file_resources, results)
 
-        # Run the wrapped inner tasks — they will pick up cached results via
+        # Run the wrapped inner tasks — they pick up cached results via
         # BatchLoader.__call__ inside load_file().
         return [task.run() for task in self.inner_tasks]
 
@@ -315,7 +311,9 @@ def _wrap_batch_tasks(task_set: "TaskSet") -> "TaskSet":
     for loader, tasks in grouped.values():
         batch_size = loader.batch_size
         for i in range(0, len(tasks), batch_size):
-            new_task_set.add(BatchTask(inner_tasks=tasks[i : i + batch_size]))
+            new_task_set.add(
+                BatchTask(inner_tasks=tasks[i : i + batch_size], loader=loader)
+            )
 
     return new_task_set
 
