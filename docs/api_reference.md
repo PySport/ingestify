@@ -216,6 +216,66 @@ class CustomSource(Source):
         yield dataset_resource
 ```
 
+### BatchLoader (batching file loads)
+
+When the underlying data source is more efficient with batched requests (e.g. an API that accepts many items per call), wrap your loader function in a `BatchLoader` and share the instance across the `DatasetResource`s that should be batched together.
+
+Ingestify groups resources by shared `BatchLoader` instance, chunks them into groups of `batch_size`, and calls the wrapped loader once per chunk.
+
+```python
+from ingestify import BatchLoader, DatasetResource, Source
+from ingestify.domain import DraftFile
+
+
+def load_metrics(file_resources, current_files, dataset_resources):
+    """Called once per batch. Each argument is a list of up to batch_size items.
+
+    current_files may contain None (for new datasets) or a File (for existing
+    ones). Return a list of DraftFile / NotModifiedFile in the same order.
+    """
+    identifiers = [dr.dataset_resource_id for dr in dataset_resources]
+    results = fetch_batch_from_api(identifiers)  # single API call
+    return [
+        DraftFile.from_input(
+            file_=json.dumps(result),
+            data_serialization_format="json",
+            data_feed_key=fr.data_feed_key,
+            data_spec_version=fr.data_spec_version,
+            modified_at=fr.last_modified,
+        )
+        for fr, result in zip(file_resources, results)
+    ]
+
+
+class MySource(Source):
+    provider = "my_provider"
+
+    def find_datasets(self, dataset_type, data_spec_versions, **selector):
+        # Share one BatchLoader instance across all DatasetResources that
+        # should be batched together.
+        batch_loader = BatchLoader(load_metrics, batch_size=20)
+
+        for item_id in items:
+            resource = DatasetResource(
+                dataset_resource_id={"item_id": item_id},
+                dataset_type=dataset_type,
+                provider=self.provider,
+                name=str(item_id),
+            )
+            resource.add_file(
+                last_modified=last_modified,
+                data_feed_key="metrics",
+                data_spec_version="v1",
+                file_loader=batch_loader,
+                data_serialization_format="json",
+            )
+            yield resource
+```
+
+Notes:
+- Only resources that actually need loading (i.e. not skipped by `FetchPolicy`) are passed to the loader.
+- The last batch of a group may contain fewer than `batch_size` items if the number of pending items is not a multiple of `batch_size`, or if the group crosses an internal chunk boundary.
+
 ### Custom Event Subscriber
 
 To create a custom event subscriber, extend the `Subscriber` class:
