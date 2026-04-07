@@ -1,5 +1,6 @@
 import hashlib
 from abc import ABC, abstractmethod
+from urllib.parse import quote
 from enum import Enum
 from typing import Callable, Optional, Union
 
@@ -125,8 +126,9 @@ class IdentifierTransformer:
                 suffix = transformation.transformation_type.value.lower()
                 path_parts.append(f"{key}_{suffix}={transformed_value}")
 
-            # Append the original value (either standalone for identity or alongside transformed)
-            path_parts.append(f"{key}={value}")
+            # Append the original value (either standalone for identity or alongside transformed).
+            # URL-encode the value so special characters, spaces, etc. are safe in paths.
+            path_parts.append(f"{key}={quote(str(value), safe='')}")
 
         # Join the parts with `/` to form the full path
         return "/".join(path_parts)
