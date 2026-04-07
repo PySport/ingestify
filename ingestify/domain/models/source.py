@@ -7,6 +7,10 @@ from .resources.dataset_resource import DatasetResource
 
 
 class Source(ABC):
+    # Override in subclass to limit how many tasks run in parallel.
+    # None means use the default (system concurrency).
+    max_concurrency: Optional[int] = None
+
     def __init__(self, name: str, **kwargs):
         self.name = name
 

@@ -253,7 +253,10 @@ class Loader:
                 selector=selector,
             )
 
-            with TaskExecutor(dry_run=dry_run) as task_executor:
+            with TaskExecutor(
+                dry_run=dry_run,
+                processes=ingestion_plan.source.max_concurrency,
+            ) as task_executor:
                 for ingestion_job_summary in ingestion_job.execute(
                     self.store, task_executor=task_executor
                 ):
