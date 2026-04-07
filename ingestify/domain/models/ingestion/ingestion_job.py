@@ -1,8 +1,10 @@
+import inspect
 import itertools
 import json
 import logging
 import uuid
 from enum import Enum
+from functools import lru_cache
 from typing import Optional, Iterator, Union
 
 from pydantic import ValidationError
@@ -21,6 +23,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
 )
+from ingestify.domain.models.resources.batch_loader import BatchLoader
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import SaveError, IngestifyError
 from ingestify.utils import TaskExecutor, chunker
@@ -57,7 +60,9 @@ def to_batches(input_):
 
 
 def load_file(
-    file_resource: FileResource, dataset: Optional[Dataset] = None
+    file_resource: FileResource,
+    dataset: Optional[Dataset] = None,
+    dataset_resource: Optional[DatasetResource] = None,
 ) -> Union[DraftFile, NotModifiedFile]:
     current_file = None
     if dataset:
@@ -99,12 +104,33 @@ def load_file(
             **file_resource.loader_kwargs,
         )
     else:
+        extra_kwargs = {}
+        if _loader_accepts_dataset_resource(file_resource.file_loader):
+            extra_kwargs["dataset_resource"] = dataset_resource
         return file_resource.file_loader(
             file_resource,
             current_file,
-            # TODO: check how to fix this with typehints
+            **extra_kwargs,
             **file_resource.loader_kwargs,
         )
+
+
+@lru_cache(maxsize=None)
+def _loader_accepts_dataset_resource(loader) -> bool:
+    """Return True if loader accepts a `dataset_resource` keyword argument.
+
+    BatchLoader instances always do. Plain functions are introspected once.
+    """
+    if isinstance(loader, BatchLoader):
+        return True
+    try:
+        sig = inspect.signature(loader)
+    except (TypeError, ValueError):
+        return False
+    params = sig.parameters
+    if "dataset_resource" in params:
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
 
 
 class UpdateDatasetTask(Task):
@@ -131,7 +157,11 @@ class UpdateDatasetTask(Task):
         ) as task_summary:
             files = {
                 file_id: task_summary.record_load_file(
-                    lambda: load_file(file_resource, dataset=self.dataset),
+                    lambda: load_file(
+                        file_resource,
+                        dataset=self.dataset,
+                        dataset_resource=self.dataset_resource,
+                    ),
                     metadata={"file_id": file_id},
                 )
                 for file_id, file_resource in self.dataset_resource.files.items()
@@ -177,7 +207,11 @@ class CreateDatasetTask(Task):
         with TaskSummary.create(self.task_id, dataset_identifier) as task_summary:
             files = {
                 file_id: task_summary.record_load_file(
-                    lambda: load_file(file_resource, dataset=None),
+                    lambda: load_file(
+                        file_resource,
+                        dataset=None,
+                        dataset_resource=self.dataset_resource,
+                    ),
                     metadata={"file_id": file_id},
                 )
                 for file_id, file_resource in self.dataset_resource.files.items()
@@ -205,6 +239,96 @@ class CreateDatasetTask(Task):
 
     def __repr__(self):
         return f"CreateDatasetTask({self.dataset_resource.provider} -> {self.dataset_resource.dataset_resource_id})"
+
+
+class BatchTask(Task):
+    """Wraps a group of inner tasks that share a BatchLoader instance.
+
+    On run(), invokes the shared loader_fn once with all items in the batch,
+    caches the results, then runs each inner task sequentially.
+    """
+
+    def __init__(self, inner_tasks: list, loader: BatchLoader):
+        self.inner_tasks = inner_tasks
+        self.loader = loader
+
+    def run(self):
+        # Collect items for the shared loader across all inner tasks.
+        file_resources, current_files, dataset_resources = [], [], []
+        for task in self.inner_tasks:
+            dataset = getattr(task, "dataset", None)
+            for file_id, file_resource in task.dataset_resource.files.items():
+                # A DatasetResource can have multiple files, each potentially
+                # using a different file_loader (e.g. a plain loader for one
+                # file and a BatchLoader for another, or multiple BatchLoaders).
+                # We only want files whose loader is this BatchTask's loader.
+                if file_resource.file_loader is not self.loader:
+                    continue
+                current_file = None
+                if dataset is not None:
+                    current_file = dataset.current_revision.modified_files_map.get(
+                        file_id
+                    )
+                file_resources.append(file_resource)
+                current_files.append(current_file)
+                dataset_resources.append(task.dataset_resource)
+
+        results = self.loader.loader_fn(
+            file_resources, current_files, dataset_resources
+        )
+        if len(results) != len(file_resources):
+            raise RuntimeError(
+                f"BatchLoader expected {len(file_resources)} results, got {len(results)}"
+            )
+        self.loader._store_results(file_resources, results)
+
+        # Run the wrapped inner tasks — they pick up cached results via
+        # BatchLoader.__call__ inside load_file().
+        return [task.run() for task in self.inner_tasks]
+
+    def __repr__(self):
+        return f"BatchTask(n={len(self.inner_tasks)})"
+
+
+def _wrap_batch_tasks(task_set: "TaskSet") -> "TaskSet":
+    """Rebuild a TaskSet, wrapping tasks that share a BatchLoader instance
+    into BatchTasks chunked by the loader's batch_size.
+
+    Tasks with no BatchLoader in any of their files remain unchanged.
+    """
+    loose: list = []
+    grouped: dict = {}  # id(loader) -> (loader, [tasks])
+
+    for task in task_set:
+        loader = _find_first_batch_loader(task)
+        if loader is None:
+            loose.append(task)
+        else:
+            grouped.setdefault(id(loader), (loader, []))[1].append(task)
+
+    new_task_set = TaskSet()
+    for task in loose:
+        new_task_set.add(task)
+
+    for loader, tasks in grouped.values():
+        batch_size = loader.batch_size
+        for i in range(0, len(tasks), batch_size):
+            new_task_set.add(
+                BatchTask(inner_tasks=tasks[i : i + batch_size], loader=loader)
+            )
+
+    return new_task_set
+
+
+def _find_first_batch_loader(task) -> "Optional[BatchLoader]":
+    """Return the first BatchLoader encountered in the task's file resources."""
+    dataset_resource = getattr(task, "dataset_resource", None)
+    if dataset_resource is None:
+        return None
+    for file_resource in dataset_resource.files.values():
+        if isinstance(file_resource.file_loader, BatchLoader):
+            return file_resource.file_loader
+    return None
 
 
 MAX_TASKS_PER_CHUNK = 10_000
@@ -365,13 +489,23 @@ class IngestionJob:
 
             with ingestion_job_summary.record_timing("tasks"):
                 if task_set:
+                    original_task_count = len(task_set)
+                    task_set = _wrap_batch_tasks(task_set)
                     logger.info(
                         f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                        f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
+                        f"using selector {self.selector} => {original_task_count} tasks. {skipped_tasks} skipped."
                     )
                     logger.info(f"Running {len(task_set)} tasks")
 
-                    task_summaries = task_executor.run(run_task, task_set)
+                    results = task_executor.run(run_task, task_set)
+
+                    # BatchTasks return a list of TaskSummary; flatten.
+                    task_summaries = []
+                    for result in results:
+                        if isinstance(result, list):
+                            task_summaries.extend(result)
+                        else:
+                            task_summaries.append(result)
 
                     ingestion_job_summary.add_task_summaries(task_summaries)
                 else:
