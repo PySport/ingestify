@@ -1,4 +1,6 @@
 import hashlib
+import re
+import unicodedata
 from abc import ABC, abstractmethod
 from urllib.parse import quote
 from enum import Enum
@@ -10,6 +12,7 @@ from ingestify.exceptions import IngestifyError
 class TransformationType(Enum):
     IDENTITY = "IDENTITY"
     BUCKET = "BUCKET"
+    PREFIX = "PREFIX"
     RANGE = "RANGE"
     CUSTOM = "CUSTOM"
 
@@ -32,6 +35,8 @@ class Transformation(ABC):
         type_ = config.pop("type")
         if type_ == "bucket":
             return BucketTransformation(**config)
+        elif type_ == "prefix":
+            return PrefixTransformation(**config)
         else:
             raise IngestifyError(f"Cannot build Transformation from {config}")
 
@@ -53,11 +58,9 @@ class BucketTransformation(Transformation):
 
     def __call__(self, id_key_value: Union[str, int]) -> str:
         if self.bucket_count:
-            try:
-                value = int(id_key_value)
-            except (ValueError, TypeError):
-                # String keys: use stable hash to distribute across buckets
-                value = int(hashlib.md5(str(id_key_value).encode()).hexdigest(), 16)
+            # Always hash the string representation so bucketing is consistent
+            # regardless of whether the value looks numeric or not.
+            value = int(hashlib.md5(str(id_key_value).encode()).hexdigest(), 16)
             return str(value % self.bucket_count)
         elif self.bucket_size:
             bucket_start = int(id_key_value) // self.bucket_size * self.bucket_size
@@ -65,6 +68,19 @@ class BucketTransformation(Transformation):
             return f"{bucket_start}-{bucket_end}"
         else:
             raise IngestifyError("Invalid BucketTransformation")
+
+
+class PrefixTransformation(Transformation):
+    transformation_type = TransformationType.PREFIX
+
+    def __init__(self, length: int = 1):
+        self.length = length
+
+    def __call__(self, id_key_value: Union[str, int]) -> str:
+        # Transliterate unicode (ü→u, é→e) then strip non-alphanumeric
+        text = unicodedata.normalize("NFKD", str(id_key_value).lower())
+        cleaned = re.sub(r"[^a-z0-9]", "", text)
+        return cleaned[: self.length] if cleaned else "_"
 
 
 class IdentifierTransformer:
