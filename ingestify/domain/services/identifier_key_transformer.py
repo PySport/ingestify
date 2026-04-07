@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Union
@@ -51,7 +52,12 @@ class BucketTransformation(Transformation):
 
     def __call__(self, id_key_value: Union[str, int]) -> str:
         if self.bucket_count:
-            return str(int(id_key_value) % self.bucket_count)
+            try:
+                value = int(id_key_value)
+            except (ValueError, TypeError):
+                # String keys: use stable hash to distribute across buckets
+                value = int(hashlib.md5(str(id_key_value).encode()).hexdigest(), 16)
+            return str(value % self.bucket_count)
         elif self.bucket_size:
             bucket_start = int(id_key_value) // self.bucket_size * self.bucket_size
             bucket_end = bucket_start + self.bucket_size - 1
