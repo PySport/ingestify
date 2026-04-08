@@ -143,8 +143,13 @@ class IdentifierTransformer:
                 path_parts.append(f"{key}_{suffix}={transformed_value}")
 
             # Append the original value (either standalone for identity or alongside transformed).
-            # URL-encode the value so special characters, spaces, etc. are safe in paths.
-            path_parts.append(f"{key}={quote(str(value), safe='')}")
+            # Truncate long values before encoding to keep paths under
+            # filesystem/GCS limits. Append a short hash to preserve uniqueness.
+            str_value = str(value)
+            if len(str_value) > 40:
+                short_hash = hashlib.md5(str_value.encode()).hexdigest()[:8]
+                str_value = f"{str_value[:40]}_{short_hash}"
+            path_parts.append(f"{key}={quote(str_value, safe='')}")
 
         # Join the parts with `/` to form the full path
         return "/".join(path_parts)
