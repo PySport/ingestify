@@ -190,6 +190,13 @@ class DatasetStore:
     def save_ingestion_job_summary(self, ingestion_job_summary):
         self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
+    def get_existing_dataset_timestamps(self, provider: str, dataset_type: str) -> dict:
+        return self.dataset_repository.get_existing_dataset_timestamps(
+            bucket=self.bucket,
+            provider=provider,
+            dataset_type=dataset_type,
+        )
+
     def get_dataset_collection(
         self,
         dataset_type: Optional[str] = None,
