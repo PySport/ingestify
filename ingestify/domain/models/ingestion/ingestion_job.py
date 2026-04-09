@@ -24,6 +24,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.resources.batch_loader import BatchLoader
+from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import SaveError, IngestifyError
 from ingestify.utils import TaskExecutor, chunker
@@ -346,7 +347,10 @@ class IngestionJob:
         self.selector = selector
 
     def execute(
-        self, store: DatasetStore, task_executor: TaskExecutor
+        self,
+        store: DatasetStore,
+        task_executor: TaskExecutor,
+        last_modified_at_map: Optional[DatasetLastModifiedAtMap] = None,
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
@@ -429,12 +433,42 @@ class IngestionJob:
                 yield ingestion_job_summary
                 return
 
+            # Fast pre-check: skip datasets that are definitely up-to-date
+            # based on the cached timestamps. Only resources that might need
+            # work proceed to the full get_dataset_collection check.
+            skipped_tasks = 0
+            if last_modified_at_map:
+                pending_batch = []
+                for dataset_resource in batch:
+                    identifier = Identifier.create_from_selector(
+                        self.selector, **dataset_resource.dataset_resource_id
+                    )
+                    ts = last_modified_at_map.get(identifier.key)
+                    if ts is not None:
+                        # Dataset exists — check if all files are up-to-date
+                        max_file_modified = max(
+                            f.last_modified for f in dataset_resource.files.values()
+                        )
+                        if ts >= max_file_modified:
+                            skipped_tasks += 1
+                            continue
+                    pending_batch.append(dataset_resource)
+                batch = pending_batch
+
+            if not batch:
+                logger.info(
+                    f"Discovered {skipped_tasks + len(batch)} datasets from "
+                    f"{self.ingestion_plan.source.__class__.__name__} "
+                    f"using selector {self.selector} => nothing to do "
+                    f"({skipped_tasks} skipped via pre-check)"
+                )
+                ingestion_job_summary.increase_skipped_tasks(skipped_tasks)
+                continue
+
             dataset_identifiers = [
                 Identifier.create_from_selector(
                     self.selector, **dataset_resource.dataset_resource_id
                 )
-                # We have to pass the data_spec_versions here as a Source can add some
-                # extra data to the identifier which is retrieved in a certain data format
                 for dataset_resource in batch
             ]
 
@@ -448,8 +482,6 @@ class IngestionJob:
                     provider=batch[0].provider,
                     selector=dataset_identifiers,
                 )
-
-            skipped_tasks = 0
 
             task_set = TaskSet()
 

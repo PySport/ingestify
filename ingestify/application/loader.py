@@ -240,6 +240,11 @@ class Loader:
     def run(self, selectors, dry_run: bool = False):
         """Execute the collected selectors."""
         ingestion_job_prefix = str(uuid.uuid1())
+
+        # Build a cache of existing dataset timestamps per (provider, dataset_type).
+        # Used as a fast pre-check to skip datasets that are already up-to-date.
+        last_modified_at_cache: dict[tuple, "DatasetLastModifiedAtMap"] = {}
+
         for ingestion_job_idx, (ingestion_plan, selector) in enumerate(selectors):
             logger.info(
                 f"Discovering datasets from {ingestion_plan.source.__class__.__name__} using selector {selector}"
@@ -253,12 +258,27 @@ class Loader:
                 selector=selector,
             )
 
+            # Lazily load the timestamps cache per (provider, dataset_type)
+            cache_key = (
+                ingestion_plan.source.provider,
+                ingestion_plan.dataset_type,
+            )
+            if cache_key not in last_modified_at_cache:
+                last_modified_at_cache[
+                    cache_key
+                ] = self.store.get_dataset_last_modified_at_map(
+                    provider=cache_key[0],
+                    dataset_type=cache_key[1],
+                )
+
             with TaskExecutor(
                 dry_run=dry_run,
                 processes=ingestion_plan.source.max_concurrency,
             ) as task_executor:
                 for ingestion_job_summary in ingestion_job.execute(
-                    self.store, task_executor=task_executor
+                    self.store,
+                    task_executor=task_executor,
+                    last_modified_at_map=last_modified_at_cache[cache_key],
                 ):
                     # TODO: handle task_summaries
                     #       Summarize to a IngestionJobSummary, and save to a database. This Summary can later be used in a

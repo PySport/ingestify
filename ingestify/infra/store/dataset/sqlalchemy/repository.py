@@ -1,4 +1,5 @@
 import itertools
+import json
 import logging
 import uuid
 from typing import Optional, Union, List
@@ -38,7 +39,7 @@ from ingestify.domain.models.dataset.collection_metadata import (
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
-from ingestify.utils import get_concurrency
+from ingestify.utils import get_concurrency, key_from_dict
 
 from .tables import get_tables
 
@@ -515,6 +516,31 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
             compile_kwargs={"literal_binds": True}, dialect=self.dialect
         )
         logger.debug(f"Running query: {text_}")
+
+    def get_dataset_last_modified_at_map(
+        self,
+        bucket: str,
+        provider: str,
+        dataset_type: str,
+    ) -> dict:
+        with self.session:
+            query = (
+                self.session.query(
+                    self.dataset_table.c.identifier,
+                    self.dataset_table.c.last_modified_at,
+                )
+                .filter(self.dataset_table.c.bucket == bucket)
+                .filter(self.dataset_table.c.provider == provider)
+                .filter(self.dataset_table.c.dataset_type == dataset_type)
+            )
+            return {
+                key_from_dict(
+                    row.identifier
+                    if isinstance(row.identifier, dict)
+                    else json.loads(row.identifier)
+                ): row.last_modified_at
+                for row in query
+            }
 
     def get_dataset_collection(
         self,
