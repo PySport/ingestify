@@ -11,6 +11,9 @@ from .revision import Revision, RevisionSource, SourceType
 from ..base import BaseModel
 
 
+DatasetLastModifiedAtMap = dict[str, datetime]
+
+
 class Dataset(BaseModel):
     bucket: str  # This must be set by the DatasetRepository
     dataset_id: str

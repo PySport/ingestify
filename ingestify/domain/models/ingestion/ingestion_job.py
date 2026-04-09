@@ -24,7 +24,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.resources.batch_loader import BatchLoader
-from ingestify.domain.models.dataset.dataset_repository import DatasetLastModifiedAtMap
+from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import SaveError, IngestifyError
 from ingestify.utils import TaskExecutor, chunker

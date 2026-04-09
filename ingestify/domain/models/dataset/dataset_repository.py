@@ -3,11 +3,9 @@ from datetime import datetime
 from typing import Optional, List, Union
 
 from .collection import DatasetCollection
-from .dataset import Dataset
+from .dataset import Dataset, DatasetLastModifiedAtMap
 from .dataset_state import DatasetState
 from .selector import Selector
-
-DatasetLastModifiedAtMap = dict[str, datetime]
 
 
 class DatasetRepository(ABC):
