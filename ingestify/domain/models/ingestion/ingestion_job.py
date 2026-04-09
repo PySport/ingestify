@@ -349,7 +349,7 @@ class IngestionJob:
         self,
         store: DatasetStore,
         task_executor: TaskExecutor,
-        existing_timestamps: Optional[dict] = None,
+        last_modified_at_map: Optional[dict] = None,
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
@@ -436,13 +436,13 @@ class IngestionJob:
             # based on the cached timestamps. Only resources that might need
             # work proceed to the full get_dataset_collection check.
             skipped_tasks = 0
-            if existing_timestamps:
+            if last_modified_at_map:
                 pending_batch = []
                 for dataset_resource in batch:
                     identifier = Identifier.create_from_selector(
                         self.selector, **dataset_resource.dataset_resource_id
                     )
-                    ts = existing_timestamps.get(identifier.key)
+                    ts = last_modified_at_map.get(identifier.key)
                     if ts is not None:
                         # Dataset exists — check if all files are up-to-date
                         max_file_modified = max(

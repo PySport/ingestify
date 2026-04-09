@@ -517,7 +517,7 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         )
         logger.debug(f"Running query: {text_}")
 
-    def get_existing_dataset_timestamps(
+    def get_dataset_last_modified_at_map(
         self,
         bucket: str,
         provider: str,

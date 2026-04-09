@@ -243,7 +243,7 @@ class Loader:
 
         # Build a cache of existing dataset timestamps per (provider, dataset_type).
         # Used as a fast pre-check to skip datasets that are already up-to-date.
-        existing_timestamps_cache: dict[tuple, dict] = {}
+        last_modified_at_cache: dict[tuple, dict] = {}
 
         for ingestion_job_idx, (ingestion_plan, selector) in enumerate(selectors):
             logger.info(
@@ -263,10 +263,10 @@ class Loader:
                 ingestion_plan.source.provider,
                 ingestion_plan.dataset_type,
             )
-            if cache_key not in existing_timestamps_cache:
-                existing_timestamps_cache[
+            if cache_key not in last_modified_at_cache:
+                last_modified_at_cache[
                     cache_key
-                ] = self.store.get_existing_dataset_timestamps(
+                ] = self.store.get_dataset_last_modified_at_map(
                     provider=cache_key[0],
                     dataset_type=cache_key[1],
                 )
@@ -278,7 +278,7 @@ class Loader:
                 for ingestion_job_summary in ingestion_job.execute(
                     self.store,
                     task_executor=task_executor,
-                    existing_timestamps=existing_timestamps_cache[cache_key],
+                    last_modified_at_map=last_modified_at_cache[cache_key],
                 ):
                     # TODO: handle task_summaries
                     #       Summarize to a IngestionJobSummary, and save to a database. This Summary can later be used in a

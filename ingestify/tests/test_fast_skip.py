@@ -50,11 +50,11 @@ def _setup(engine):
 
 
 def test_timestamps_cache_matches_identifiers(engine):
-    """Keys from get_existing_dataset_timestamps match Identifier.key."""
+    """Keys from get_dataset_last_modified_at_map match Identifier.key."""
     _setup(engine)
     engine.run()
 
-    timestamps = engine.store.get_existing_dataset_timestamps(
+    timestamps = engine.store.get_dataset_last_modified_at_map(
         provider="test_provider", dataset_type="test"
     )
     datasets = engine.store.get_dataset_collection(
