@@ -7,6 +7,8 @@ from .dataset import Dataset
 from .dataset_state import DatasetState
 from .selector import Selector
 
+DatasetLastModifiedAtMap = dict[str, datetime]
+
 
 class DatasetRepository(ABC):
     @abstractmethod
@@ -29,7 +31,7 @@ class DatasetRepository(ABC):
         bucket: str,
         provider: str,
         dataset_type: str,
-    ) -> dict[str, datetime]:
+    ) -> DatasetLastModifiedAtMap:
         """Return {identifier_json: last_modified_at} for all datasets matching
         the given provider and dataset_type. Used as a fast pre-check to skip
         datasets that are already up-to-date without loading the full

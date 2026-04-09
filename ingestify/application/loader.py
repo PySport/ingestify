@@ -243,7 +243,7 @@ class Loader:
 
         # Build a cache of existing dataset timestamps per (provider, dataset_type).
         # Used as a fast pre-check to skip datasets that are already up-to-date.
-        last_modified_at_cache: dict[tuple, dict] = {}
+        last_modified_at_cache: dict[tuple, "DatasetLastModifiedAtMap"] = {}
 
         for ingestion_job_idx, (ingestion_plan, selector) in enumerate(selectors):
             logger.info(

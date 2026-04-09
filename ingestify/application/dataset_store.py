@@ -190,7 +190,9 @@ class DatasetStore:
     def save_ingestion_job_summary(self, ingestion_job_summary):
         self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
-    def get_dataset_last_modified_at_map(self, provider: str, dataset_type: str) -> dict:
+    def get_dataset_last_modified_at_map(
+        self, provider: str, dataset_type: str
+    ) -> "DatasetLastModifiedAtMap":
         return self.dataset_repository.get_dataset_last_modified_at_map(
             bucket=self.bucket,
             provider=provider,
