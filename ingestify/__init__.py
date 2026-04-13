@@ -10,4 +10,4 @@ if not __INGESTIFY_SETUP__:
     from .domain.models.resources.batch_loader import BatchLoader
     from .main import debug_source
 
-__version__ = "0.14.0"
+__version__ = "0.14.1"
