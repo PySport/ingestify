@@ -105,7 +105,14 @@ class IdentifierTransformer:
         When set, the repository uses this to cast JSONB values in queries and
         to generate matching expression indexes via sync-indexes.
         """
-        if isinstance(transformation, dict):
+        if isinstance(transformation, str):
+            if transformation == "identity":
+                transformation = IdentityTransformation()
+            else:
+                raise IngestifyError(
+                    f"Unknown transformation string: '{transformation}'"
+                )
+        elif isinstance(transformation, dict):
             transformation = Transformation.from_dict(transformation)
 
         self.key_transformations[(provider, dataset_type, id_key)] = transformation
