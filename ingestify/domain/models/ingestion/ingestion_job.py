@@ -26,7 +26,7 @@ from ingestify.domain.models.resources.dataset_resource import (
 from ingestify.domain.models.resources.batch_loader import BatchLoader
 from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
 from ingestify.domain.models.task.task_summary import TaskSummary
-from ingestify.exceptions import SaveError, IngestifyError
+from ingestify.exceptions import SaveError, IngestifyError, StopProcessing
 from ingestify.utils import TaskExecutor, chunker
 
 logger = logging.getLogger(__name__)
@@ -529,7 +529,16 @@ class IngestionJob:
                     )
                     logger.info(f"Running {len(task_set)} tasks")
 
-                    results = task_executor.run(run_task, task_set)
+                    try:
+                        results = task_executor.run(run_task, task_set)
+                    except StopProcessing:
+                        logger.info(
+                            "StopProcessing raised — saving partial results "
+                            "and stopping"
+                        )
+                        ingestion_job_summary.set_finished()
+                        yield ingestion_job_summary
+                        raise
 
                     # BatchTasks return a list of TaskSummary; flatten.
                     task_summaries = []

@@ -8,6 +8,7 @@ if not __INGESTIFY_SETUP__:
     from .infra import retrieve_http
     from .source_base import Source, DatasetResource
     from .domain.models.resources.batch_loader import BatchLoader
+    from .exceptions import StopProcessing
     from .main import debug_source
 
 __version__ = "0.15.1"
