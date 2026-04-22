@@ -37,6 +37,12 @@ class DatasetRepository(ABC):
         return {}
 
     @abstractmethod
+    def invalidate_revision(self, dataset: Dataset):
+        """Mark the current revision as VALIDATION_FAILED and reset
+        last_modified_at on the dataset."""
+        pass
+
+    @abstractmethod
     def destroy(self, dataset: Dataset):
         pass
 

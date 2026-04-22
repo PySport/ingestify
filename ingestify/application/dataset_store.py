@@ -20,7 +20,11 @@ from typing import (
 )
 
 from ingestify.domain.models.dataset.dataset import DatasetState
-from ingestify.domain.models.dataset.events import RevisionAdded, MetadataUpdated
+from ingestify.domain.models.dataset.events import (
+    RevisionAdded,
+    MetadataUpdated,
+    RevisionInvalidated,
+)
 from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.domain.models.dataset.file_collection import FileCollection
 from ingestify.domain.models.dataset.revision import RevisionSource
@@ -490,6 +494,18 @@ class DatasetStore:
             self.dispatch(MetadataUpdated(dataset=dataset))
 
         return revision
+
+    def invalidate_revision(self, dataset: Dataset, reason: str = ""):
+        """Mark the current revision as VALIDATION_FAILED and reset
+        last_modified_at so the dataset is refetched on the next run.
+
+        Args:
+            dataset: Dataset whose current revision should be invalidated
+            reason: Human-readable reason for invalidation
+        """
+        self.dataset_repository.invalidate_revision(dataset)
+
+        self.dispatch(RevisionInvalidated(dataset=dataset, reason=reason))
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around

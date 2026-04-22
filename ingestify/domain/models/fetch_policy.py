@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from ingestify.domain import Dataset, Identifier, DatasetResource
+from ingestify.domain.models.dataset.revision import RevisionState
 from ingestify.utils import utcnow
 
 
@@ -22,6 +23,8 @@ class FetchPolicy:
             # TODO: this is weird? Dataset without any data. Fetch error?
             return True
         elif current_revision:
+            if current_revision.state == RevisionState.VALIDATION_FAILED:
+                return True
             files_last_modified = {
                 file.file_id: file.last_modified
                 for file in dataset_resource.files.values()

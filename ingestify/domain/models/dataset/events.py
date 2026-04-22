@@ -32,3 +32,9 @@ class SelectorSkipped(DomainEvent):
 class DatasetSkipped(DomainEvent):
     dataset: Dataset
     event_type: ClassVar[str] = "dataset_skipped"
+
+
+class RevisionInvalidated(DomainEvent):
+    dataset: Dataset
+    reason: str
+    event_type: ClassVar[str] = "revision_invalidated"
