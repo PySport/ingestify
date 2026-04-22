@@ -26,6 +26,7 @@ from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, Query, sessionmaker, scoped_session
 
 from ingestify.domain import File, Revision
+from ingestify.domain.models.dataset.revision import RevisionState
 from ingestify.domain.models import (
     Dataset,
     DatasetCollection,
@@ -674,6 +675,30 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 raise
             else:
                 connection.commit()
+
+    def invalidate_revision(self, dataset: Dataset):
+        current_revision = dataset.current_revision
+        with self.connect() as connection:
+            # Set revision state to VALIDATION_FAILED
+            connection.execute(
+                self.revision_table.update()
+                .where(self.revision_table.c.dataset_id == dataset.dataset_id)
+                .where(
+                    self.revision_table.c.revision_id == current_revision.revision_id
+                )
+                .values(state=RevisionState.VALIDATION_FAILED)
+            )
+            # Reset last_modified_at so the pre-check cache doesn't skip it
+            connection.execute(
+                self.dataset_table.update()
+                .where(self.dataset_table.c.dataset_id == dataset.dataset_id)
+                .values(last_modified_at=None)
+            )
+            connection.commit()
+
+        # Update in-memory state
+        current_revision.state = RevisionState.VALIDATION_FAILED
+        dataset.last_modified_at = None
 
     def destroy(self, dataset: Dataset):
         with self.connect() as connection:
