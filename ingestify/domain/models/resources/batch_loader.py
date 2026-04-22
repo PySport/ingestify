@@ -18,6 +18,11 @@ a list of results in the same order:
 
 current_files may contain None entries (for create tasks) or a File (for
 update tasks) — the loader_fn handles both.
+
+Error propagation: if the loader_fn stores an Exception instead of a
+DraftFile for a specific item, __call__ will re-raise it when that item's
+task runs. This lets successful items in a batch proceed while failed items
+cause their individual tasks to fail and be retried on the next run.
 """
 from typing import Callable, List
 
@@ -35,7 +40,10 @@ class BatchLoader:
                 "BatchLoader result not precomputed. A BatchTask must "
                 "populate the cache before inner tasks execute."
             )
-        return self._results.pop(key)
+        result = self._results.pop(key)
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     def _store_results(self, file_resources: List, results: List):
         """Store batch results so they can be retrieved via __call__."""
