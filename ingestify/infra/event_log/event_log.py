@@ -6,6 +6,7 @@ from ingestify.domain.models.dataset.events import (
     DatasetCreated,
     MetadataUpdated,
     RevisionAdded,
+    RevisionInvalidated,
 )
 from ingestify.domain.models.event.domain_event import DomainEvent
 from ingestify.utils import utcnow
@@ -18,6 +19,7 @@ _EVENT_TYPE_MAP = {
     "dataset_created": DatasetCreated,
     "revision_added": RevisionAdded,
     "metadata_updated": MetadataUpdated,
+    "revision_invalidated": RevisionInvalidated,
 }
 
 

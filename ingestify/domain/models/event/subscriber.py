@@ -7,6 +7,7 @@ if TYPE_CHECKING:
         DatasetCreated,
         MetadataUpdated,
         RevisionAdded,
+        RevisionInvalidated,
     )
 
 
@@ -23,12 +24,16 @@ class Subscriber:
     def on_revision_added(self, event: "RevisionAdded"):
         pass
 
+    def on_revision_invalidated(self, event: "RevisionInvalidated"):
+        pass
+
     def handle(self, event: DomainEvent):
         # TODO: fix the circular dependencies
         from ingestify.domain.models.dataset.events import (
             DatasetCreated,
             MetadataUpdated,
             RevisionAdded,
+            RevisionInvalidated,
         )
 
         if isinstance(event, DatasetCreated):
@@ -37,3 +42,5 @@ class Subscriber:
             self.on_metadata_updated(event)
         elif isinstance(event, RevisionAdded):
             self.on_revision_added(event)
+        elif isinstance(event, RevisionInvalidated):
+            self.on_revision_invalidated(event)
