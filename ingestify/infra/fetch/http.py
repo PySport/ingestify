@@ -126,6 +126,7 @@ def retrieve_http(
             )
         stream = BufferedStream.from_stream(BytesIO(content_bytes))
         content_length = len(content_bytes)
+        content_compression_method = None
     else:
         # Stream response body directly into BufferedStream, hashing on the fly
         raw_stream = BufferedStream()

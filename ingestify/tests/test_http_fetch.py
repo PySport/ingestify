@@ -57,3 +57,34 @@ def test_plain_content_has_no_compression_method():
         result = retrieve_http("https://example.com/data.json", **FILE_KWARGS)
 
     assert result.content_compression_method is None
+
+
+def make_pager_response(page_data):
+    mock = MagicMock()
+    mock.status_code = 200
+    mock.headers = MagicMock()
+    mock.headers.get = lambda key, default=None: default
+    mock.headers.__contains__ = lambda self, key: False
+    mock.raise_for_status = MagicMock()
+    mock.json = lambda: page_data
+    return mock
+
+
+def test_pager_returns_draft_file_without_compression_method():
+    """Regression test: pager branch used to leave content_compression_method
+    unbound, raising UnboundLocalError when building the DraftFile. Pager output
+    is freshly JSON-encoded (never compressed), so None is the correct value."""
+    page = {"items": [{"id": 1}, {"id": 2}]}
+
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_pager_response(page)
+
+        result = retrieve_http(
+            "https://example.com/data.json",
+            pager=("items", lambda url, data: None),
+            **FILE_KWARGS,
+        )
+
+    assert result.content_compression_method is None
+    assert result.stream.read() == b'{"items": [{"id": 1}, {"id": 2}]}'
+    assert result.size == len(b'{"items": [{"id": 1}, {"id": 2}]}')
