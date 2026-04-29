@@ -497,15 +497,19 @@ class DatasetStore:
 
     def invalidate_revision(self, dataset: Dataset, reason: str = ""):
         """Mark the current revision as VALIDATION_FAILED and reset
-        last_modified_at so the dataset is refetched on the next run.
+        last_modified_at so the dataset is refetched on the next run."""
+        self.invalidate_revisions([dataset], reason=reason)
 
-        Args:
-            dataset: Dataset whose current revision should be invalidated
-            reason: Human-readable reason for invalidation
-        """
-        self.dataset_repository.invalidate_revision(dataset)
-
-        self.dispatch(RevisionInvalidated(dataset=dataset, reason=reason))
+    def invalidate_revisions(self, datasets: list, reason: str = ""):
+        """Batch invalidate revisions. Batches DB updates and event writes
+        per 1000 datasets for efficiency."""
+        batch_size = 1000
+        for i in range(0, len(datasets), batch_size):
+            batch = datasets[i : i + batch_size]
+            self.dataset_repository.invalidate_revisions(batch)
+            self.event_bus.dispatch_many(
+                [RevisionInvalidated(dataset=ds, reason=reason) for ds in batch]
+            )
 
     def destroy_dataset(self, dataset: Dataset):
         # TODO: remove files. Now we leave some orphaned files around

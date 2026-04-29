@@ -677,28 +677,34 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 connection.commit()
 
     def invalidate_revision(self, dataset: Dataset):
-        current_revision = dataset.current_revision
+        self.invalidate_revisions([dataset])
+
+    def invalidate_revisions(self, datasets: list[Dataset]):
+        if not datasets:
+            return
+
+        dataset_ids = [d.dataset_id for d in datasets]
+
         with self.connect() as connection:
-            # Set revision state to VALIDATION_FAILED
+            # Batch update revision state
             connection.execute(
                 self.revision_table.update()
-                .where(self.revision_table.c.dataset_id == dataset.dataset_id)
-                .where(
-                    self.revision_table.c.revision_id == current_revision.revision_id
-                )
+                .where(self.revision_table.c.dataset_id.in_(dataset_ids))
                 .values(state=RevisionState.VALIDATION_FAILED)
             )
-            # Reset last_modified_at so the pre-check cache doesn't skip it
+            # Batch reset last_modified_at
             connection.execute(
                 self.dataset_table.update()
-                .where(self.dataset_table.c.dataset_id == dataset.dataset_id)
+                .where(self.dataset_table.c.dataset_id.in_(dataset_ids))
                 .values(last_modified_at=None)
             )
             connection.commit()
 
         # Update in-memory state
-        current_revision.state = RevisionState.VALIDATION_FAILED
-        dataset.last_modified_at = None
+        for dataset in datasets:
+            if dataset.current_revision:
+                dataset.current_revision.state = RevisionState.VALIDATION_FAILED
+            dataset.last_modified_at = None
 
     def destroy(self, dataset: Dataset):
         with self.connect() as connection:

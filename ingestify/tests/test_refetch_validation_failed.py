@@ -25,22 +25,27 @@ def counting_loader(file_resource, current_file, **kwargs):
 class SimpleSource(Source):
     provider = "test_provider"
 
+    def __init__(self, name, n_datasets=1):
+        super().__init__(name)
+        self.n_datasets = n_datasets
+
     def find_datasets(
         self, dataset_type, data_spec_versions, dataset_collection_metadata, **kwargs
     ):
-        r = DatasetResource(
-            dataset_resource_id={"item_id": 1},
-            provider=self.provider,
-            dataset_type="test",
-            name="item-1",
-        )
-        r.add_file(
-            last_modified=FIXED_TIME,
-            data_feed_key="f1",
-            data_spec_version="v1",
-            file_loader=counting_loader,
-        )
-        yield r
+        for i in range(self.n_datasets):
+            r = DatasetResource(
+                dataset_resource_id={"item_id": i},
+                provider=self.provider,
+                dataset_type="test",
+                name=f"item-{i}",
+            )
+            r.add_file(
+                last_modified=FIXED_TIME,
+                data_feed_key="f1",
+                data_spec_version="v1",
+                file_loader=counting_loader,
+            )
+            yield r
 
 
 def _setup(engine):
@@ -99,3 +104,47 @@ def test_invalidate_revision_triggers_refetch(engine):
     # Second run: should refetch
     engine.run()
     assert call_count == 2, "Dataset with invalidated revision should be refetched"
+
+
+def test_invalidate_revisions_batch(engine):
+    """invalidate_revisions works on multiple datasets at once."""
+    global call_count
+    call_count = 0
+
+    dsv = DataSpecVersionCollection.from_dict({"default": {"v1"}})
+    engine.add_ingestion_plan(
+        IngestionPlan(
+            source=SimpleSource("s", n_datasets=5),
+            fetch_policy=FetchPolicy(),
+            dataset_type="test",
+            selectors=[Selector.build({}, data_spec_versions=dsv)],
+            data_spec_versions=dsv,
+        )
+    )
+
+    # First run: creates 5 datasets
+    engine.run()
+    assert call_count == 5
+
+    # Batch invalidate all 5
+    datasets = list(
+        engine.store.get_dataset_collection(
+            provider="test_provider", dataset_type="test"
+        )
+    )
+    assert len(datasets) == 5
+    engine.store.invalidate_revisions(datasets, reason="Batch test")
+
+    # Verify all invalidated
+    datasets = list(
+        engine.store.get_dataset_collection(
+            provider="test_provider", dataset_type="test"
+        )
+    )
+    for ds in datasets:
+        assert ds.current_revision.state == RevisionState.VALIDATION_FAILED
+        assert ds.last_modified_at is None
+
+    # Second run: should refetch all 5
+    engine.run()
+    assert call_count == 10, "All 5 invalidated datasets should be refetched"

@@ -36,10 +36,15 @@ class DatasetRepository(ABC):
         dataset+revision+file graph."""
         return {}
 
-    @abstractmethod
     def invalidate_revision(self, dataset: Dataset):
         """Mark the current revision as VALIDATION_FAILED and reset
         last_modified_at on the dataset."""
+        self.invalidate_revisions([dataset])
+
+    @abstractmethod
+    def invalidate_revisions(self, datasets: list[Dataset]):
+        """Batch invalidate: mark current revisions as VALIDATION_FAILED
+        and reset last_modified_at on the datasets."""
         pass
 
     @abstractmethod

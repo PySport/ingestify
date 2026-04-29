@@ -14,6 +14,10 @@ class QueueForwarder:
     def dispatch(self, event):
         self.queue.put(event)
 
+    def dispatch_many(self, events):
+        for event in events:
+            self.queue.put(event)
+
 
 class EventBus:
     def __init__(self):
@@ -37,3 +41,11 @@ class EventBus:
             except Exception as e:
                 logger.exception(f"Failed to handle {event}")
                 raise Exception(f"Failed to handle {event}") from e
+
+    def dispatch_many(self, events):
+        for dispatcher in self.dispatchers:
+            try:
+                dispatcher.dispatch_many(events)
+            except Exception as e:
+                logger.exception(f"Failed to handle {len(events)} events")
+                raise Exception(f"Failed to handle {len(events)} events") from e
