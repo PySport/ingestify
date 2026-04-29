@@ -44,3 +44,8 @@ class Subscriber:
             self.on_revision_added(event)
         elif isinstance(event, RevisionInvalidated):
             self.on_revision_invalidated(event)
+
+    def handle_many(self, events: list[DomainEvent]):
+        """Handle a batch of events. Override for efficient bulk writes."""
+        for event in events:
+            self.handle(event)

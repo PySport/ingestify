@@ -34,6 +34,15 @@ class EventLogSubscriber(Subscriber):
                 event.dataset.dataset_id,
             )
 
+    def _write_many(self, events) -> None:
+        try:
+            self._event_log.write_many(events)
+        except Exception:
+            logger.exception(
+                "EventLogSubscriber: failed to write %d events",
+                len(events),
+            )
+
     def on_dataset_created(self, event) -> None:
         self._write(event)
 
@@ -45,3 +54,6 @@ class EventLogSubscriber(Subscriber):
 
     def on_revision_invalidated(self, event) -> None:
         self._write(event)
+
+    def handle_many(self, events) -> None:
+        self._write_many(events)

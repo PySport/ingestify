@@ -19,5 +19,14 @@ class Publisher(Dispatcher):
             except Exception:
                 logger.exception(f"Failed to handle {event} by {subscriber}")
 
+    def dispatch_many(self, events: list[DomainEvent]):
+        for subscriber in self.subscribers:
+            try:
+                subscriber.handle_many(events)
+            except Exception:
+                logger.exception(
+                    f"Failed to handle {len(events)} events by {subscriber}"
+                )
+
     def add_subscriber(self, subscriber: Subscriber):
         self.subscribers.append(subscriber)

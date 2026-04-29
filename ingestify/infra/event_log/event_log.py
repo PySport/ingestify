@@ -31,16 +31,24 @@ class EventLog:
         self._table.create(engine, checkfirst=True)
 
     def write(self, event: DomainEvent) -> None:
+        self.write_many([event])
+
+    def write_many(self, events: list[DomainEvent]) -> None:
+        if not events:
+            return
+        now = utcnow()
+        rows = [
+            {
+                "event_type": type(event).event_type,
+                "payload_json": event.model_dump(mode="json"),
+                "source": event.dataset.provider,
+                "dataset_id": event.dataset.dataset_id,
+                "created_at": now,
+            }
+            for event in events
+        ]
         with self._engine.connect() as conn:
-            conn.execute(
-                self._table.insert().values(
-                    event_type=type(event).event_type,
-                    payload_json=event.model_dump(mode="json"),
-                    source=event.dataset.provider,
-                    dataset_id=event.dataset.dataset_id,
-                    created_at=utcnow(),
-                )
-            )
+            conn.execute(self._table.insert(), rows)
             conn.commit()
 
     def fetch_batch(self, last_event_id: int, batch_size: int) -> list:
