@@ -42,3 +42,6 @@ class EventLogSubscriber(Subscriber):
 
     def on_revision_added(self, event) -> None:
         self._write(event)
+
+    def on_revision_invalidated(self, event) -> None:
+        self._write(event)
