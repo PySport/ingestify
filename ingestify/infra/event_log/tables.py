@@ -1,4 +1,6 @@
-from sqlalchemy import BigInteger, Column, Integer, JSON, MetaData, String, Table
+from sqlalchemy import BigInteger, Column, Integer, MetaData, String, Table
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import JSON
 
 from ingestify.infra.store.dataset.sqlalchemy.tables import TZDateTime
 
@@ -18,7 +20,9 @@ def get_tables(table_prefix: str = ""):
             autoincrement=True,
         ),
         Column("event_type", String(255), nullable=False),
-        Column("payload_json", JSON, nullable=False),
+        Column(
+            "payload_json", JSON().with_variant(JSONB(), "postgresql"), nullable=False
+        ),
         Column("source", String(255)),
         Column("dataset_id", String(255)),
         Column("created_at", TZDateTime(6)),
