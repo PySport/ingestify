@@ -248,6 +248,27 @@ ingestion_plans:
 Plans without a `fetch_policy` keep the default behaviour, so this is fully
 backward-compatible.
 
+#### Passing per-resource config to the policy
+
+A source can attach `fetch_policy_config` to a `DatasetResource` in
+`find_datasets`. The policy reads it in `should_fetch` / `should_refetch` via
+`dataset_resource.fetch_policy_config`. Unlike `metadata`, this is **not**
+persisted onto the dataset — it travels only with the freshly discovered
+resource, so the policy always sees current values:
+
+```python
+yield DatasetResource(
+    dataset_resource_id={"keyword": keyword},
+    dataset_type="serp",
+    provider=self.provider,
+    name=keyword,
+    fetch_policy_config={"interval_days": interval_days},
+).add_file(...)
+```
+
+This lets the source decide *what* (e.g. a per-keyword interval) while the
+policy decides *how* to act on it — without overloading domain `metadata`.
+
 ## Event Subscribers Section (Optional)
 
 The `event_subscribers` section defines handlers that are called after each dataset lifecycle event (`dataset_created`, `revision_added`, `metadata_updated`).

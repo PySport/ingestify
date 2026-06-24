@@ -49,6 +49,11 @@ class DatasetResource(BaseModel):
     provider: str
     name: str
     metadata: dict = Field(default_factory=dict)
+    # Transient configuration for the FetchPolicy (e.g. a refetch interval).
+    # Unlike `metadata`, this is NOT persisted onto the Dataset — it only
+    # travels with the freshly discovered resource so a policy can read it in
+    # should_fetch/should_refetch.
+    fetch_policy_config: dict = Field(default_factory=dict)
     state: DatasetState = Field(default_factory=lambda: DatasetState.COMPLETE)
     files: dict[str, FileResource] = Field(default_factory=dict)
     post_load_files: Optional[
