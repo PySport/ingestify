@@ -12,4 +12,4 @@ if not __INGESTIFY_SETUP__:
     from .exceptions import StopProcessing
     from .main import debug_source
 
-__version__ = "0.15.6"
+__version__ = "0.16.0"
