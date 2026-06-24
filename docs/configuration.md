@@ -198,6 +198,76 @@ ingestion_plans:
   - Can use specific values, lists, or wildcard expressions
   - Multiple selectors can be specified (processed as OR conditions)
   - For advanced filtering, you can use a string expression: `"*"` or complex conditions
+- `fetch_policy`: Optional custom fetch policy for this plan (see below). Defaults to the built-in `FetchPolicy`.
+
+### Fetch Policy
+
+The fetch policy decides whether an already-ingested dataset should be re-fetched.
+By default every plan uses the built-in `ingestify.FetchPolicy`, which re-fetches
+when a `DatasetResource`'s `last_modified` is newer than the stored revision.
+
+To control this yourself — e.g. to re-fetch on a fixed cadence rather than on
+`last_modified` — provide a `fetch_policy` on the plan. Point it at a subclass of
+`ingestify.FetchPolicy` that overrides `should_fetch` / `should_refetch`:
+
+```python
+# my_package/policies.py
+from ingestify import FetchPolicy
+
+
+class CadenceFetchPolicy(FetchPolicy):
+    def __init__(self, interval_days: int = 30):
+        super().__init__()
+        self.interval_days = interval_days
+
+    def should_refetch(self, dataset, dataset_resource) -> bool:
+        ...  # decide based on dataset.current_revision age and self.interval_days
+```
+
+Reference it from the plan as either a dotted class path:
+
+```yaml
+ingestion_plans:
+  - source: my_source
+    dataset_type: match
+    fetch_policy: my_package.policies.CadenceFetchPolicy
+```
+
+or as a mapping with constructor arguments:
+
+```yaml
+ingestion_plans:
+  - source: my_source
+    dataset_type: match
+    fetch_policy:
+      type: my_package.policies.CadenceFetchPolicy
+      configuration:
+        interval_days: 15
+```
+
+Plans without a `fetch_policy` keep the default behaviour, so this is fully
+backward-compatible.
+
+#### Passing per-resource config to the policy
+
+A source can attach `fetch_policy_config` to a `DatasetResource` in
+`find_datasets`. The policy reads it in `should_fetch` / `should_refetch` via
+`dataset_resource.fetch_policy_config`. Unlike `metadata`, this is **not**
+persisted onto the dataset — it travels only with the freshly discovered
+resource, so the policy always sees current values:
+
+```python
+yield DatasetResource(
+    dataset_resource_id={"keyword": keyword},
+    dataset_type="serp",
+    provider=self.provider,
+    name=keyword,
+    fetch_policy_config={"interval_days": interval_days},
+).add_file(...)
+```
+
+This lets the source decide *what* (e.g. a per-keyword interval) while the
+policy decides *how* to act on it — without overloading domain `metadata`.
 
 ## Event Subscribers Section (Optional)
 
