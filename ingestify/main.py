@@ -235,6 +235,44 @@ def get_event_subscriber_cls(key: str) -> Type[Subscriber]:
     return import_cls(key)
 
 
+def get_fetch_policy_cls(key: str) -> Type[FetchPolicy]:
+    return import_cls(key)
+
+
+def build_fetch_policy(fetch_policy_args) -> FetchPolicy:
+    """Build a ``FetchPolicy`` from its config definition.
+
+    Accepts either a dotted class path as a string::
+
+        fetch_policy: my_package.policies.CadenceFetchPolicy
+
+    or a mapping with an optional ``configuration`` passed to the constructor::
+
+        fetch_policy:
+          type: my_package.policies.CadenceFetchPolicy
+          configuration:
+            interval_days: 15
+    """
+    if isinstance(fetch_policy_args, str):
+        fetch_policy_cls = get_fetch_policy_cls(fetch_policy_args)
+        configuration = {}
+    elif isinstance(fetch_policy_args, dict):
+        try:
+            type_ = fetch_policy_args["type"]
+        except KeyError:
+            raise ConfigurationError(
+                "A fetch_policy mapping must contain a 'type' (dotted class path)"
+            )
+        fetch_policy_cls = get_fetch_policy_cls(type_)
+        configuration = fetch_policy_args.get("configuration") or {}
+    else:
+        raise ConfigurationError(
+            f"Don't know how to build a fetch_policy from '{fetch_policy_args}'"
+        )
+
+    return fetch_policy_cls(**configuration)
+
+
 def get_engine(
     config_file: Optional[str] = None,
     bucket: Optional[str] = None,
@@ -300,7 +338,7 @@ def get_engine(
 
     logger.info("Adding IngestionPlans...")
 
-    fetch_policy = FetchPolicy()
+    default_fetch_policy = FetchPolicy()
 
     # Previous naming
     ingestion_plans = config.get("extract_jobs", [])
@@ -322,6 +360,12 @@ def get_engine(
             # Add a single empty selector. This won't match anything
             # but makes it easier later one where we loop over selectors.
             selectors = [Selector.build({}, data_spec_versions=data_spec_versions)]
+
+        fetch_policy_args = ingestion_plan.get("fetch_policy")
+        if fetch_policy_args is not None:
+            fetch_policy = build_fetch_policy(fetch_policy_args)
+        else:
+            fetch_policy = default_fetch_policy
 
         ingestion_plan_ = IngestionPlan(
             source=sources[ingestion_plan["source"]],
