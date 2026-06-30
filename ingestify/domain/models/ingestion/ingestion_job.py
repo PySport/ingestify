@@ -23,7 +23,6 @@ from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
 )
-from ingestify.domain.models.resources.batch_loader import BatchLoader
 from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import SaveError, IngestifyError, StopProcessing
@@ -118,12 +117,7 @@ def load_file(
 
 @lru_cache(maxsize=None)
 def _loader_accepts_dataset_resource(loader) -> bool:
-    """Return True if loader accepts a `dataset_resource` keyword argument.
-
-    BatchLoader instances always do. Plain functions are introspected once.
-    """
-    if isinstance(loader, BatchLoader):
-        return True
+    """Return True if loader accepts a `dataset_resource` keyword argument."""
     try:
         sig = inspect.signature(loader)
     except (TypeError, ValueError):
@@ -242,96 +236,6 @@ class CreateDatasetTask(Task):
         return f"CreateDatasetTask({self.dataset_resource.provider} -> {self.dataset_resource.dataset_resource_id})"
 
 
-class BatchTask(Task):
-    """Wraps a group of inner tasks that share a BatchLoader instance.
-
-    On run(), invokes the shared loader_fn once with all items in the batch,
-    caches the results, then runs each inner task sequentially.
-    """
-
-    def __init__(self, inner_tasks: list, loader: BatchLoader):
-        self.inner_tasks = inner_tasks
-        self.loader = loader
-
-    def run(self):
-        # Collect items for the shared loader across all inner tasks.
-        file_resources, current_files, dataset_resources = [], [], []
-        for task in self.inner_tasks:
-            dataset = getattr(task, "dataset", None)
-            for file_id, file_resource in task.dataset_resource.files.items():
-                # A DatasetResource can have multiple files, each potentially
-                # using a different file_loader (e.g. a plain loader for one
-                # file and a BatchLoader for another, or multiple BatchLoaders).
-                # We only want files whose loader is this BatchTask's loader.
-                if file_resource.file_loader is not self.loader:
-                    continue
-                current_file = None
-                if dataset is not None:
-                    current_file = dataset.current_revision.modified_files_map.get(
-                        file_id
-                    )
-                file_resources.append(file_resource)
-                current_files.append(current_file)
-                dataset_resources.append(task.dataset_resource)
-
-        results = self.loader.loader_fn(
-            file_resources, current_files, dataset_resources
-        )
-        if len(results) != len(file_resources):
-            raise RuntimeError(
-                f"BatchLoader expected {len(file_resources)} results, got {len(results)}"
-            )
-        self.loader._store_results(file_resources, results)
-
-        # Run the wrapped inner tasks — they pick up cached results via
-        # BatchLoader.__call__ inside load_file().
-        return [task.run() for task in self.inner_tasks]
-
-    def __repr__(self):
-        return f"BatchTask(n={len(self.inner_tasks)})"
-
-
-def _wrap_batch_tasks(task_set: "TaskSet") -> "TaskSet":
-    """Rebuild a TaskSet, wrapping tasks that share a BatchLoader instance
-    into BatchTasks chunked by the loader's batch_size.
-
-    Tasks with no BatchLoader in any of their files remain unchanged.
-    """
-    loose: list = []
-    grouped: dict = {}  # id(loader) -> (loader, [tasks])
-
-    for task in task_set:
-        loader = _find_first_batch_loader(task)
-        if loader is None:
-            loose.append(task)
-        else:
-            grouped.setdefault(id(loader), (loader, []))[1].append(task)
-
-    new_task_set = TaskSet()
-    for task in loose:
-        new_task_set.add(task)
-
-    for loader, tasks in grouped.values():
-        batch_size = loader.batch_size
-        for i in range(0, len(tasks), batch_size):
-            new_task_set.add(
-                BatchTask(inner_tasks=tasks[i : i + batch_size], loader=loader)
-            )
-
-    return new_task_set
-
-
-def _find_first_batch_loader(task) -> "Optional[BatchLoader]":
-    """Return the first BatchLoader encountered in the task's file resources."""
-    dataset_resource = getattr(task, "dataset_resource", None)
-    if dataset_resource is None:
-        return None
-    for file_resource in dataset_resource.files.values():
-        if isinstance(file_resource.file_loader, BatchLoader):
-            return file_resource.file_loader
-    return None
-
-
 MAX_TASKS_PER_CHUNK = 10_000
 
 
@@ -416,6 +320,19 @@ class IngestionJob:
             return
 
         logger.info("Starting tasks")
+
+        source = self.ingestion_plan.source
+        if hasattr(source, "submit") and hasattr(source, "collect"):
+            yield from self._execute_async(
+                source,
+                batches,
+                store,
+                task_executor,
+                last_modified_at_map,
+                ingestion_job_summary,
+                is_first_chunk,
+            )
+            return
 
         while True:
             logger.info(f"Finding next batch of datasets for selector={self.selector}")
@@ -521,13 +438,10 @@ class IngestionJob:
 
             with ingestion_job_summary.record_timing("tasks"):
                 if task_set:
-                    original_task_count = len(task_set)
-                    task_set = _wrap_batch_tasks(task_set)
                     logger.info(
                         f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
-                        f"using selector {self.selector} => {original_task_count} tasks. {skipped_tasks} skipped."
+                        f"using selector {self.selector} => {len(task_set)} tasks. {skipped_tasks} skipped."
                     )
-                    logger.info(f"Running {len(task_set)} tasks")
 
                     try:
                         results = task_executor.run(run_task, task_set)
@@ -540,15 +454,7 @@ class IngestionJob:
                         yield ingestion_job_summary
                         raise
 
-                    # BatchTasks return a list of TaskSummary; flatten.
-                    task_summaries = []
-                    for result in results:
-                        if isinstance(result, list):
-                            task_summaries.extend(result)
-                        else:
-                            task_summaries.append(result)
-
-                    ingestion_job_summary.add_task_summaries(task_summaries)
+                    ingestion_job_summary.add_task_summaries(results)
                 else:
                     logger.info(
                         f"Discovered {len(dataset_identifiers)} datasets from {self.ingestion_plan.source.__class__.__name__} "
@@ -568,3 +474,156 @@ class IngestionJob:
             # When there is interesting information to store, or there was no data at all, store it
             ingestion_job_summary.set_finished()
             yield ingestion_job_summary
+
+    def _execute_async(
+        self,
+        source,
+        batches,
+        store: DatasetStore,
+        task_executor: TaskExecutor,
+        last_modified_at_map,
+        ingestion_job_summary: IngestionJobSummary,
+        is_first_chunk: bool,
+    ) -> Iterator[IngestionJobSummary]:
+        """Execute using the submit/collect pattern for async sources."""
+
+        def filtered_stream():
+            """Lazily yield filtered DatasetResources across all batches."""
+            while True:
+                try:
+                    with ingestion_job_summary.record_timing("find_datasets"):
+                        try:
+                            batch = next(batches)
+                        except StopIteration:
+                            return
+                except Exception as e:
+                    logger.exception("Failed to fetch next batch")
+                    ingestion_job_summary.set_exception(e)
+                    return
+
+                # Fast pre-check
+                if last_modified_at_map:
+                    pending = []
+                    for dr in batch:
+                        identifier = Identifier.create_from_selector(
+                            self.selector, **dr.dataset_resource_id
+                        )
+                        ts = last_modified_at_map.get(identifier.key)
+                        if ts is not None and dr.files:
+                            max_mod = max(f.last_modified for f in dr.files.values())
+                            if ts >= max_mod:
+                                ingestion_job_summary.increase_skipped_tasks(1)
+                                continue
+                        pending.append(dr)
+                    batch = pending
+
+                if not batch:
+                    continue
+
+                # Store check: determine create vs update
+                dataset_identifiers = [
+                    Identifier.create_from_selector(
+                        self.selector, **dr.dataset_resource_id
+                    )
+                    for dr in batch
+                ]
+
+                with ingestion_job_summary.record_timing("get_dataset_collection"):
+                    dataset_collection = store.get_dataset_collection(
+                        dataset_type=self.ingestion_plan.dataset_type,
+                        provider=batch[0].provider,
+                        selector=dataset_identifiers,
+                    )
+
+                for dr in batch:
+                    identifier = Identifier.create_from_selector(
+                        self.selector, **dr.dataset_resource_id
+                    )
+                    dataset = dataset_collection.get(identifier)
+                    if dataset:
+                        if self.ingestion_plan.fetch_policy.should_refetch(dataset, dr):
+                            dr._existing_dataset = dataset
+                            yield dr
+                        else:
+                            store.dispatch(DatasetSkipped(dataset=dataset))
+                            ingestion_job_summary.increase_skipped_tasks(1)
+                    else:
+                        if self.ingestion_plan.fetch_policy.should_fetch(dr):
+                            yield dr
+                        else:
+                            ingestion_job_summary.increase_skipped_tasks(1)
+
+        resources = filtered_stream()
+        done = False
+
+        while not done or source.has_pending():
+            done = source.submit(resources)
+
+            for dataset_resource in source.collect():
+                task_summary = self._store_async_result(dataset_resource, store)
+                ingestion_job_summary.add_task_summaries([task_summary])
+
+        if ingestion_job_summary.task_count() > 0 or is_first_chunk:
+            ingestion_job_summary.set_finished()
+            yield ingestion_job_summary
+
+    def _store_async_result(
+        self, dataset_resource: DatasetResource, store: DatasetStore
+    ):
+        """Store a dataset resource returned by collect()."""
+        import uuid
+
+        dataset_identifier = Identifier(**dataset_resource.dataset_resource_id)
+        revision_source = RevisionSource(
+            source_id=str(uuid.uuid1()), source_type=SourceType.TASK
+        )
+
+        existing_dataset = getattr(dataset_resource, "_existing_dataset", None)
+
+        # Load files that have file_loader or json_content
+        files = {}
+        for file_id, file_resource in dataset_resource.files.items():
+            files[file_id] = load_file(
+                file_resource,
+                dataset=existing_dataset,
+                dataset_resource=dataset_resource,
+            )
+
+        if existing_dataset:
+            with TaskSummary.update(
+                str(uuid.uuid1()), dataset_identifier=dataset_identifier
+            ) as task_summary:
+                dataset_resource.run_post_load_files(files, existing_dataset)
+                try:
+                    revision = store.update_dataset(
+                        dataset=existing_dataset,
+                        name=dataset_resource.name,
+                        state=dataset_resource.state,
+                        metadata=dataset_resource.metadata,
+                        files=files,
+                        revision_source=revision_source,
+                    )
+                    task_summary.set_stats_from_revision(revision)
+                except Exception as e:
+                    raise SaveError("Could not update dataset") from e
+        else:
+            with TaskSummary.create(
+                str(uuid.uuid1()), dataset_identifier
+            ) as task_summary:
+                dataset_resource.run_post_load_files(files)
+                try:
+                    revision = store.create_dataset(
+                        dataset_type=dataset_resource.dataset_type,
+                        provider=dataset_resource.provider,
+                        dataset_identifier=dataset_identifier,
+                        name=dataset_resource.name,
+                        state=dataset_resource.state,
+                        metadata=dataset_resource.metadata,
+                        files=files,
+                        revision_source=revision_source,
+                    )
+                    task_summary.set_stats_from_revision(revision)
+                except Exception as e:
+                    raise SaveError("Could not create dataset") from e
+
+        return task_summary

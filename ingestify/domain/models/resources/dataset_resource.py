@@ -111,3 +111,12 @@ class DatasetResource(BaseModel):
 
         # Allow chaining
         return self
+
+    def update_file(self, data_feed_key: str, **kwargs):
+        """Update an existing file resource's attributes (e.g. json_content)."""
+        for file_id, file_resource in self.files.items():
+            if file_resource.data_feed_key == data_feed_key:
+                for key, value in kwargs.items():
+                    setattr(file_resource, key, value)
+                return self
+        raise KeyError(f"No file with data_feed_key '{data_feed_key}'")
