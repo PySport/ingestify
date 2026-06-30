@@ -324,8 +324,13 @@ class IngestionJob:
         source = self.ingestion_plan.source
         if hasattr(source, "submit") and hasattr(source, "collect"):
             yield from self._execute_async(
-                source, batches, store, task_executor,
-                last_modified_at_map, ingestion_job_summary, is_first_chunk,
+                source,
+                batches,
+                store,
+                task_executor,
+                last_modified_at_map,
+                ingestion_job_summary,
+                is_first_chunk,
             )
             return
 
@@ -562,7 +567,9 @@ class IngestionJob:
             ingestion_job_summary.set_finished()
             yield ingestion_job_summary
 
-    def _store_async_result(self, dataset_resource: DatasetResource, store: DatasetStore):
+    def _store_async_result(
+        self, dataset_resource: DatasetResource, store: DatasetStore
+    ):
         """Store a dataset resource returned by collect()."""
         import uuid
 

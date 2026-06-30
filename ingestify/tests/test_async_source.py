@@ -3,7 +3,9 @@ from typing import Iterator
 
 from ingestify import Source, DatasetResource
 from ingestify.domain import DataSpecVersionCollection, DraftFile, Selector
-from ingestify.domain.models.dataset.collection_metadata import DatasetCollectionMetadata
+from ingestify.domain.models.dataset.collection_metadata import (
+    DatasetCollectionMetadata,
+)
 from ingestify.domain.models.fetch_policy import FetchPolicy
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.main import get_dev_engine
@@ -131,8 +133,13 @@ def test_async_source_with_existing_files(tmp_path):
     class SourceWithExistingFiles(Source):
         provider = "fake_async"
 
-        def find_datasets(self, dataset_type, data_spec_versions,
-                          dataset_collection_metadata, **kwargs):
+        def find_datasets(
+            self,
+            dataset_type,
+            data_spec_versions,
+            dataset_collection_metadata,
+            **kwargs,
+        ):
             yield (
                 DatasetResource(
                     dataset_resource_id={"keyword": "test"},
