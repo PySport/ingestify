@@ -7,7 +7,7 @@ from ingestify.utils import utcnow
 from .dataset_state import DatasetState
 from .file import DraftFile
 from .identifier import Identifier
-from .revision import Revision, RevisionSource, SourceType
+from .revision import Revision, RevisionSource, RevisionState, SourceType
 from ..base import BaseModel
 
 
@@ -112,12 +112,28 @@ class Dataset(BaseModel):
                     files[file_id] = file
                     files[file_id].revision_id = revision.revision_id
 
+            # Derive the squashed state from the revisions that actually
+            # contribute the current files: if any current file still comes from
+            # a VALIDATION_FAILED revision, the squashed dataset holds invalid
+            # data and must report VALIDATION_FAILED (so it gets refetched).
+            revision_state = {r.revision_id: r.state for r in self.revisions}
+            contributing_revision_ids = {file.revision_id for file in files.values()}
+            squashed_state = (
+                RevisionState.VALIDATION_FAILED
+                if any(
+                    revision_state[revision_id] == RevisionState.VALIDATION_FAILED
+                    for revision_id in contributing_revision_ids
+                )
+                else self.revisions[-1].state
+            )
+
             return Revision(
                 revision_id=self.revisions[-1].revision_id,
                 created_at=self.revisions[-1].created_at,
                 # created_at=max([file.modified_at for file in files.values()]),
                 description="Squashed revision",
                 is_squashed=True,
+                state=squashed_state,
                 modified_files=list(files.values()),
                 source=RevisionSource(source_type=SourceType.SQUASHED, source_id=""),
             )
