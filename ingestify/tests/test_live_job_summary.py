@@ -1,8 +1,12 @@
-"""The IngestionJobSummary is persisted *live*: a RUNNING row is written as
-soon as the job starts and updated while it runs — for both the sync
-find_datasets flow and the async submit/collect flow. Previously the summary
-was only written once, at the very end (so a long submit/collect run left no
-trace at all until it finished, and none if it never finished).
+"""The IngestionJobSummary is persisted *live*: a RUNNING row is written to the
+database as soon as the job starts and updated while it runs — for both the
+sync find_datasets flow and the async submit/collect flow. Previously the
+summary was written to the database only once, at the very end (so a long
+submit/collect run left no trace until it finished, and none at all if it never
+finished).
+
+These tests assert on what is actually stored in the database
+(load_ingestion_job_summaries), not just on the in-memory save calls.
 """
 from typing import Iterator
 
@@ -14,7 +18,7 @@ from ingestify.utils import utcnow
 
 
 class SyncSource(Source):
-    """Plain source: find_datasets only (the batch/find_datasets flow)."""
+    """Plain source: find_datasets only (the batch / find_datasets flow)."""
 
     provider = "fake_sync"
 
@@ -86,29 +90,31 @@ class AsyncSource(Source):
         return self._in_flight > 0
 
 
-def _spy_on_summary_saves(engine):
-    """Record a snapshot of each save_ingestion_job_summary call.
+def _db_summaries(engine):
+    """Read the ingestion job summaries back from the database."""
+    return engine.store.dataset_repository.load_ingestion_job_summaries()
 
-    Snapshots are taken at call time because the summary object is mutated
-    afterwards (recount / _set_ended).
+
+def _capture_db_after_each_save(engine):
+    """After every summary write, read the summaries back FROM THE DATABASE and
+    snapshot their (state, total_tasks). Lets us assert on what is actually
+    persisted mid-run — not merely on the in-memory save calls.
     """
-    calls = []
+    snapshots = []
     original = engine.store.save_ingestion_job_summary
 
-    def wrapper(summary, include_task_summaries=True):
-        calls.append(
-            {
-                "state": summary.state,
-                "include_task_summaries": include_task_summaries,
-                "total_tasks": summary.total_tasks,
-                "successful_tasks": summary.successful_tasks,
-                "summary_id": summary.ingestion_job_summary_id,
-            }
+    def wrapper(summary):
+        result = original(summary)
+        snapshots.append(
+            [
+                (s.state, s.total_tasks, s.successful_tasks)
+                for s in _db_summaries(engine)
+            ]
         )
-        return original(summary, include_task_summaries=include_task_summaries)
+        return result
 
     engine.store.save_ingestion_job_summary = wrapper
-    return calls
+    return snapshots
 
 
 def _dev_engine(source, tmp_path):
@@ -121,45 +127,54 @@ def _dev_engine(source, tmp_path):
     )
 
 
-def test_sync_flow_writes_running_row_before_finished(tmp_path, monkeypatch):
+def test_sync_flow_persists_running_row_before_finished(tmp_path, monkeypatch):
     monkeypatch.setattr(ingestion_job_module, "PROGRESS_SAVE_INTERVAL", 1)
     engine = _dev_engine(SyncSource("test", ["a", "b", "c"]), tmp_path)
-    calls = _spy_on_summary_saves(engine)
+    db_snapshots = _capture_db_after_each_save(engine)
 
     engine.run()
 
-    assert calls, "summary was never persisted"
-    # First persisted write is the RUNNING row, parent-only (no task summaries).
-    assert calls[0]["state"] == IngestionJobState.RUNNING
-    assert calls[0]["include_task_summaries"] is False
-    # Final write is FINISHED and carries the task summaries.
-    assert calls[-1]["state"] == IngestionJobState.FINISHED
-    assert calls[-1]["include_task_summaries"] is True
-    assert calls[-1]["successful_tasks"] == 3
-    # A single job -> a single summary id across all writes.
-    assert {c["summary_id"] for c in calls} == {calls[0]["summary_id"]}
+    # The very first thing written to the DB is a RUNNING row.
+    assert db_snapshots, "nothing was ever written to the database"
+    first = db_snapshots[0]
+    assert len(first) == 1
+    assert first[0][0] == IngestionJobState.RUNNING
+
+    # End state, read straight from the database.
+    summaries = _db_summaries(engine)
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.state == IngestionJobState.FINISHED
+    assert summary.successful_tasks == 3
+    # Only failed task summaries are persisted; this run had none.
+    assert summary.task_summaries == []
 
 
-def test_async_flow_updates_summary_during_collect(tmp_path, monkeypatch):
+def test_async_flow_updates_db_summary_during_collect(tmp_path, monkeypatch):
     monkeypatch.setattr(ingestion_job_module, "PROGRESS_SAVE_INTERVAL", 1)
     engine = _dev_engine(
         AsyncSource("test", ["a", "b", "c", "d", "e"], capacity=2), tmp_path
     )
-    calls = _spy_on_summary_saves(engine)
+    db_snapshots = _capture_db_after_each_save(engine)
 
     engine.run()
 
-    # RUNNING row written up front, before any task completed.
-    assert calls[0]["state"] == IngestionJobState.RUNNING
-    assert calls[0]["include_task_summaries"] is False
-    # Progress is written *while polling*, not only at the end: at least one
-    # RUNNING snapshot with tasks already counted precedes the final write.
-    live_progress = [
-        c
-        for c in calls[:-1]
-        if c["state"] == IngestionJobState.RUNNING and c["total_tasks"] > 0
-    ]
-    assert live_progress, "no live progress snapshot was written during collect"
-    # Final write is FINISHED with all tasks accounted for.
-    assert calls[-1]["state"] == IngestionJobState.FINISHED
-    assert calls[-1]["successful_tasks"] == 5
+    # RUNNING row is in the database from the start, before any task completed.
+    assert db_snapshots[0] == [(IngestionJobState.RUNNING, 0, 0)]
+
+    # While polling, the database already shows a RUNNING summary with tasks
+    # counted — i.e. progress is visible before the job finishes.
+    seen_live_progress = any(
+        state == IngestionJobState.RUNNING and total > 0
+        for snapshot in db_snapshots[:-1]
+        for (state, total, _successful) in snapshot
+    )
+    assert seen_live_progress, "database never showed live progress during collect"
+
+    # Final state in the database.
+    summaries = _db_summaries(engine)
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.state == IngestionJobState.FINISHED
+    assert summary.successful_tasks == 5
+    assert summary.task_summaries == []

@@ -266,20 +266,19 @@ class IngestionJob:
     ):
         """Persist a live snapshot of the (still RUNNING) summary.
 
-        Writes the parent summary row only (no child task_summaries), so it is
-        cheap enough to call repeatedly. Throttled to roughly every
-        PROGRESS_SAVE_INTERVAL tasks unless ``force`` is set (used for the
-        initial RUNNING row and when a new chunk starts). Works for both the
-        sync find_datasets flow and the async submit/collect flow.
+        Only the parent row plus any FAILED task summaries are written (see
+        DatasetStore.save_ingestion_job_summary), so it is cheap enough to call
+        repeatedly. Throttled to roughly every PROGRESS_SAVE_INTERVAL tasks
+        unless ``force`` is set (used for the initial RUNNING row and when a new
+        chunk starts). Works for both the sync find_datasets flow and the async
+        submit/collect flow.
         """
         count = ingestion_job_summary.task_count()
         if not force and count - self._last_progress_saved_at < PROGRESS_SAVE_INTERVAL:
             return
         self._last_progress_saved_at = count
         ingestion_job_summary.recount()
-        store.save_ingestion_job_summary(
-            ingestion_job_summary, include_task_summaries=False
-        )
+        store.save_ingestion_job_summary(ingestion_job_summary)
 
     def execute(
         self,
