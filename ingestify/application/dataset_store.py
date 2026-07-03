@@ -191,8 +191,12 @@ class DatasetStore:
             self._thread_local.use_file_cache = False
             self._thread_local.file_cache = {}
 
-    def save_ingestion_job_summary(self, ingestion_job_summary):
-        self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
+    def save_ingestion_job_summary(
+        self, ingestion_job_summary, include_task_summaries: bool = True
+    ):
+        self.dataset_repository.save_ingestion_job_summary(
+            ingestion_job_summary, include_task_summaries=include_task_summaries
+        )
 
     def get_dataset_last_modified_at_map(
         self, provider: str, dataset_type: str

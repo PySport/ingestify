@@ -739,18 +739,31 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
         return str(uuid.uuid4())
 
     # TODO: consider moving the IngestionJobSummary methods to a different Repository
-    def save_ingestion_job_summary(self, ingestion_job_summary: IngestionJobSummary):
+    def save_ingestion_job_summary(
+        self,
+        ingestion_job_summary: IngestionJobSummary,
+        include_task_summaries: bool = True,
+    ):
+        """Upsert the summary row (keyed on ingestion_job_summary_id).
+
+        ``include_task_summaries=False`` writes only the parent summary row.
+        Live/progress snapshots use this to cheaply update the counters +
+        state while the job runs, without re-upserting the (potentially large
+        and still-growing) child task_summary rows every time. The final write
+        keeps the default so failed task summaries are persisted.
+        """
         ingestion_job_summary_entities = [
             ingestion_job_summary.model_dump(exclude={"task_summaries"})
         ]
         task_summary_entities = []
-        for task_summary in ingestion_job_summary.task_summaries:
-            task_summary_entities.append(
-                {
-                    **task_summary.model_dump(),
-                    "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
-                }
-            )
+        if include_task_summaries:
+            for task_summary in ingestion_job_summary.task_summaries:
+                task_summary_entities.append(
+                    {
+                        **task_summary.model_dump(),
+                        "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
+                    }
+                )
 
         with self.session_provider.engine.connect() as connection:
             try:

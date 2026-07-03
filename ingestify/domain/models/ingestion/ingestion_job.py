@@ -238,6 +238,11 @@ class CreateDatasetTask(Task):
 
 MAX_TASKS_PER_CHUNK = 10_000
 
+# How many additional tasks must accumulate before a live progress snapshot of
+# the IngestionJobSummary is persisted again. Keeps mid-run writes to roughly
+# one per PROGRESS_SAVE_INTERVAL tasks instead of one per (possibly tiny) batch.
+PROGRESS_SAVE_INTERVAL = 100
+
 
 class IngestionJob:
     def __init__(
@@ -249,6 +254,32 @@ class IngestionJob:
         self.ingestion_job_id = ingestion_job_id
         self.ingestion_plan = ingestion_plan
         self.selector = selector
+        # task_count() at which the summary was last persisted mid-run.
+        self._last_progress_saved_at = 0
+
+    def _save_progress(
+        self,
+        store: DatasetStore,
+        ingestion_job_summary: IngestionJobSummary,
+        *,
+        force: bool = False,
+    ):
+        """Persist a live snapshot of the (still RUNNING) summary.
+
+        Writes the parent summary row only (no child task_summaries), so it is
+        cheap enough to call repeatedly. Throttled to roughly every
+        PROGRESS_SAVE_INTERVAL tasks unless ``force`` is set (used for the
+        initial RUNNING row and when a new chunk starts). Works for both the
+        sync find_datasets flow and the async submit/collect flow.
+        """
+        count = ingestion_job_summary.task_count()
+        if not force and count - self._last_progress_saved_at < PROGRESS_SAVE_INTERVAL:
+            return
+        self._last_progress_saved_at = count
+        ingestion_job_summary.recount()
+        store.save_ingestion_job_summary(
+            ingestion_job_summary, include_task_summaries=False
+        )
 
     def execute(
         self,
@@ -258,6 +289,11 @@ class IngestionJob:
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
+        # Persist the RUNNING row up front so the job is observable from the
+        # moment it starts — and so a record survives even if the run never
+        # reaches its final yield (e.g. an async source that keeps polling).
+        self._last_progress_saved_at = 0
+        self._save_progress(store, ingestion_job_summary, force=True)
         # Process all items in batches. Yield a IngestionJobSummary per batch
 
         logger.info("Finding metadata")
@@ -462,6 +498,10 @@ class IngestionJob:
                     )
                 ingestion_job_summary.increase_skipped_tasks(skipped_tasks)
 
+            # Live snapshot after each batch (throttled) so the summary's
+            # counters/state stay current while the job runs.
+            self._save_progress(store, ingestion_job_summary)
+
             if ingestion_job_summary.task_count() >= MAX_TASKS_PER_CHUNK:
                 ingestion_job_summary.set_finished()
                 yield ingestion_job_summary
@@ -469,6 +509,8 @@ class IngestionJob:
                 # Start a new one
                 is_first_chunk = False
                 ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
+                self._last_progress_saved_at = 0
+                self._save_progress(store, ingestion_job_summary, force=True)
 
         if ingestion_job_summary.task_count() > 0 or is_first_chunk:
             # When there is interesting information to store, or there was no data at all, store it
@@ -562,6 +604,10 @@ class IngestionJob:
             for dataset_resource in source.collect():
                 task_summary = self._store_async_result(dataset_resource, store)
                 ingestion_job_summary.add_task_summaries([task_summary])
+
+                # Live snapshot (throttled) so long-running submit/collect jobs
+                # are observable while polling, instead of only at the very end.
+                self._save_progress(store, ingestion_job_summary)
 
         if ingestion_job_summary.task_count() > 0 or is_first_chunk:
             ingestion_job_summary.set_finished()
