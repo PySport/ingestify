@@ -7,7 +7,7 @@ from typing import Optional
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from ingestify.exceptions import ConfigurationError, StopProcessing
+from ingestify.exceptions import ConfigurationError, StopProcessing, FatalError
 from ingestify.main import get_engine
 
 from ingestify import __version__
@@ -120,6 +120,9 @@ def run(
         engine.load(dry_run=dry_run, provider=provider, source=source)
     except StopProcessing as e:
         logger.warning(f"Stopped early: {e}")
+        sys.exit(e.exit_code)
+    except FatalError as e:
+        logger.error(f"Fatal error: {e}")
         sys.exit(e.exit_code)
 
     logger.info("Done")
