@@ -8,7 +8,7 @@ if not __INGESTIFY_SETUP__:
     from .infra import retrieve_http
     from .source_base import Source, DatasetResource
     from .domain.models.fetch_policy import FetchPolicy
-    from .exceptions import StopProcessing
+    from .exceptions import StopProcessing, FatalError
     from .main import debug_source
 
 __version__ = "0.17.1"
