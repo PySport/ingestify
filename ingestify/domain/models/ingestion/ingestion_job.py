@@ -302,10 +302,12 @@ class IngestionJob:
 
                 # We need to include the to_batches as that will start the generator
                 batches = to_batches(dataset_resources)
-        except (StopProcessing, FatalError):
-            # Propagate: the run must stop gracefully (StopProcessing) or fail
-            # loudly (FatalError). Neither should be swallowed as a skipped
-            # find_datasets.
+        except FatalError as e:
+            # Persist the failure so it isn't lost, then abort — not swallowed as
+            # a skipped find_datasets. (StopProcessing keeps its own controlled
+            # stop and is not intercepted here.)
+            ingestion_job_summary.set_exception(e)
+            yield ingestion_job_summary
             raise
         except ValidationError as e:
             # Make sure to pass this to the highest level as this means the Source is wrong
@@ -348,9 +350,11 @@ class IngestionJob:
                         batch = next(batches)
                     except StopIteration:
                         break
-            except (StopProcessing, FatalError):
-                # Propagate stop/fail signals instead of swallowing them as a
+            except FatalError as e:
+                # Persist the failure, then abort, instead of swallowing it as a
                 # failed batch fetch.
+                ingestion_job_summary.set_exception(e)
+                yield ingestion_job_summary
                 raise
             except Exception as e:
                 logger.exception("Failed to fetch next batch")
@@ -462,6 +466,11 @@ class IngestionJob:
                         ingestion_job_summary.set_finished()
                         yield ingestion_job_summary
                         raise
+                    except FatalError as e:
+                        logger.error("Fatal error — saving summary and aborting")
+                        ingestion_job_summary.set_exception(e)
+                        yield ingestion_job_summary
+                        raise
 
                     ingestion_job_summary.add_task_summaries(results)
                 else:
@@ -505,9 +514,9 @@ class IngestionJob:
                             batch = next(batches)
                         except StopIteration:
                             return
-                except (StopProcessing, FatalError):
-                    # Propagate stop/fail signals instead of swallowing them as
-                    # a failed batch fetch.
+                except FatalError:
+                    # Propagate to the submit/collect handler (which persists the
+                    # summary); don't swallow it as a failed batch fetch.
                     raise
                 except Exception as e:
                     logger.exception("Failed to fetch next batch")
@@ -569,12 +578,27 @@ class IngestionJob:
         resources = filtered_stream()
         done = False
 
-        while not done or source.has_pending():
-            done = source.submit(resources)
+        # Unlike the sync path, submit/collect had no stop/fail handling: a
+        # StopProcessing (e.g. quota) or FatalError raised while collecting would
+        # propagate without ever persisting the summary, losing the record. Mirror
+        # the sync handler here so both are saved before aborting.
+        try:
+            while not done or source.has_pending():
+                done = source.submit(resources)
 
-            for dataset_resource in source.collect():
-                task_summary = self._store_async_result(dataset_resource, store)
-                ingestion_job_summary.add_task_summaries([task_summary])
+                for dataset_resource in source.collect():
+                    task_summary = self._store_async_result(dataset_resource, store)
+                    ingestion_job_summary.add_task_summaries([task_summary])
+        except StopProcessing:
+            logger.info("StopProcessing raised — saving partial results and stopping")
+            ingestion_job_summary.set_finished()
+            yield ingestion_job_summary
+            raise
+        except FatalError as e:
+            logger.error("Fatal error — saving summary and aborting")
+            ingestion_job_summary.set_exception(e)
+            yield ingestion_job_summary
+            raise
 
         if ingestion_job_summary.task_count() > 0 or is_first_chunk:
             ingestion_job_summary.set_finished()
