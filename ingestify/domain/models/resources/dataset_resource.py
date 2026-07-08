@@ -56,9 +56,23 @@ class DatasetResource(BaseModel):
     fetch_policy_config: dict = Field(default_factory=dict)
     state: DatasetState = Field(default_factory=lambda: DatasetState.COMPLETE)
     files: dict[str, FileResource] = Field(default_factory=dict)
+    # Set via mark_failed() when a source (async submit/collect) could not fetch
+    # this resource; recorded as a FAILED task instead of being stored.
+    fetch_error: Optional[str] = None
     post_load_files: Optional[
         Callable[["DatasetResource", Dict[str, DraftFile], Optional[Dataset]], None]
     ] = None
+
+    def mark_failed(self, error: Any) -> "DatasetResource":
+        """Mark this resource as failed to fetch (async submit/collect).
+
+        Yield the marked resource from ``collect()`` and ingestify records it as
+        a FAILED task. No revision is written, so the resource is retried on the
+        next run — but the failure is now visible in the ingestion job summary
+        instead of being silently dropped.
+        """
+        self.fetch_error = str(error)
+        return self
 
     def run_post_load_files(
         self, files: Dict[str, DraftFile], existing_dataset: Optional[Dataset] = None
