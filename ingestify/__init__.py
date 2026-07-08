@@ -11,4 +11,4 @@ if not __INGESTIFY_SETUP__:
     from .exceptions import StopProcessing, FatalError
     from .main import debug_source
 
-__version__ = "0.17.1"
+__version__ = "0.18.0"
