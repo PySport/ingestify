@@ -82,6 +82,27 @@ class TaskSummary(BaseModel, HasTiming):
     def create(cls, task_id: str, dataset_identifier: Identifier):
         return cls.new(task_id, Operation.CREATE, dataset_identifier)
 
+    @classmethod
+    def failed(
+        cls, task_id: str, dataset_identifier: Identifier, operation: Operation
+    ) -> "TaskSummary":
+        """A FAILED summary for a resource a source could not fetch (async
+        collect()); nothing was stored, so there is no revision to record.
+
+        ``operation`` reflects what would have happened had the fetch
+        succeeded: UPDATE for a resource with an existing dataset, CREATE
+        otherwise."""
+        now = utcnow()
+        task_summary = cls(
+            task_id=task_id,
+            started_at=now,
+            ended_at=now,
+            operation=operation,
+            dataset_identifier=dataset_identifier,
+        )
+        task_summary.set_state(TaskState.FAILED)
+        return task_summary
+
     def set_stats_from_revision(self, revision: Optional["Revision"]):
         if revision:
             self.persisted_file_count = len(revision.modified_files)

@@ -24,7 +24,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
-from ingestify.domain.models.task.task_summary import TaskSummary
+from ingestify.domain.models.task.task_summary import TaskSummary, Operation
 from ingestify.exceptions import SaveError, IngestifyError, StopProcessing
 from ingestify.utils import TaskExecutor, chunker
 
@@ -624,6 +624,19 @@ class IngestionJob:
         )
 
         existing_dataset = getattr(dataset_resource, "_existing_dataset", None)
+
+        # The source signalled (via mark_failed) that it could not fetch this
+        # resource: record a FAILED task and store nothing, so it is retried
+        # next run but stays visible in the summary. Mirror the operation that
+        # would have run — UPDATE for an existing dataset, CREATE otherwise.
+        if dataset_resource.fetch_error is not None:
+            logger.warning(
+                "Fetch failed for %s: %s",
+                dataset_identifier,
+                dataset_resource.fetch_error,
+            )
+            operation = Operation.UPDATE if existing_dataset else Operation.CREATE
+            return TaskSummary.failed(str(uuid.uuid1()), dataset_identifier, operation)
 
         # Load files that have file_loader or json_content
         files = {}
