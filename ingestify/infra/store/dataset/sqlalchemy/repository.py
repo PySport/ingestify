@@ -38,7 +38,7 @@ from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
-from ingestify.domain.models.task.task_summary import TaskSummary
+from ingestify.domain.models.task.task_summary import TaskSummary, TaskState
 from ingestify.exceptions import IngestifyError
 from ingestify.utils import get_concurrency, key_from_dict
 
@@ -740,17 +740,26 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     # TODO: consider moving the IngestionJobSummary methods to a different Repository
     def save_ingestion_job_summary(self, ingestion_job_summary: IngestionJobSummary):
+        """Upsert the summary row (keyed on ingestion_job_summary_id).
+
+        Only FAILED task summaries are persisted as child rows — successful,
+        ignored and skipped tasks are captured by the counters, not individual
+        rows. This keeps repeated live (mid-run) writes cheap (a successful run
+        writes no child rows at all) while still surfacing failures as soon as
+        they happen. The upsert is keyed on ingestion_job_summary_id, so live
+        snapshots update the same row in place.
+        """
         ingestion_job_summary_entities = [
             ingestion_job_summary.model_dump(exclude={"task_summaries"})
         ]
-        task_summary_entities = []
-        for task_summary in ingestion_job_summary.task_summaries:
-            task_summary_entities.append(
-                {
-                    **task_summary.model_dump(),
-                    "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
-                }
-            )
+        task_summary_entities = [
+            {
+                **task_summary.model_dump(),
+                "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
+            }
+            for task_summary in ingestion_job_summary.task_summaries
+            if task_summary.state == TaskState.FAILED
+        ]
 
         with self.session_provider.engine.connect() as connection:
             try:
