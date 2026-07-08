@@ -25,7 +25,7 @@ from ingestify.domain.models.resources.dataset_resource import (
 )
 from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
 from ingestify.domain.models.task.task_summary import TaskSummary
-from ingestify.exceptions import SaveError, IngestifyError, StopProcessing
+from ingestify.exceptions import SaveError, IngestifyError, StopProcessing, FatalError
 from ingestify.utils import TaskExecutor, chunker
 
 logger = logging.getLogger(__name__)
@@ -302,6 +302,11 @@ class IngestionJob:
 
                 # We need to include the to_batches as that will start the generator
                 batches = to_batches(dataset_resources)
+        except (StopProcessing, FatalError):
+            # Propagate: the run must stop gracefully (StopProcessing) or fail
+            # loudly (FatalError). Neither should be swallowed as a skipped
+            # find_datasets.
+            raise
         except ValidationError as e:
             # Make sure to pass this to the highest level as this means the Source is wrong
             if "Field required" in str(e):
@@ -343,6 +348,10 @@ class IngestionJob:
                         batch = next(batches)
                     except StopIteration:
                         break
+            except (StopProcessing, FatalError):
+                # Propagate stop/fail signals instead of swallowing them as a
+                # failed batch fetch.
+                raise
             except Exception as e:
                 logger.exception("Failed to fetch next batch")
 
@@ -496,6 +505,10 @@ class IngestionJob:
                             batch = next(batches)
                         except StopIteration:
                             return
+                except (StopProcessing, FatalError):
+                    # Propagate stop/fail signals instead of swallowing them as
+                    # a failed batch fetch.
+                    raise
                 except Exception as e:
                     logger.exception("Failed to fetch next batch")
                     ingestion_job_summary.set_exception(e)
