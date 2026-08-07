@@ -8,7 +8,26 @@ from .dataset_state import DatasetState
 from .selector import Selector
 
 
+class RunLock:
+    """Handle for a held single-run lock (one per job identity). ``release()`` frees it;
+    it is also released automatically when the owning DB connection/process ends."""
+
+    def release(self) -> None:
+        pass
+
+
+class NoopRunLock(RunLock):
+    """Always-granted lock for stores without cross-process locking (e.g. SQLite)."""
+
+
 class DatasetRepository(ABC):
+    def acquire_run_lock(self, job_key: str) -> Optional[RunLock]:
+        """Best-effort single-run lock for one job identity (design:
+        docs/design/single-run-lock.md). Return a held ``RunLock``, or ``None`` if another
+        process already holds it. Stores without cross-process locking return an
+        always-granted no-op lock, so a lone local process is never blocked."""
+        return NoopRunLock()
+
     @abstractmethod
     def get_dataset_collection(
         self,

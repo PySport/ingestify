@@ -280,7 +280,36 @@ class IngestionJob:
         ingestion_job_summary.recount()
         store.save_ingestion_job_summary(ingestion_job_summary)
 
+    def _job_key(self) -> str:
+        # One lock per (source, dataset_type, selector) -- the same identity the loader
+        # uses to guarantee one dataset per combination.
+        return (
+            f"{self.ingestion_plan.source.name}:{self.ingestion_plan.dataset_type}"
+            f":{self.selector.key}"
+        )
+
     def execute(
+        self,
+        store: DatasetStore,
+        task_executor: TaskExecutor,
+        last_modified_at_map: Optional[DatasetLastModifiedAtMap] = None,
+    ) -> Iterator[IngestionJobSummary]:
+        # Single-run guard: one job identity must never run in two processes at once
+        # (design: docs/design/single-run-lock.md). The lock is a session-scoped DB lock,
+        # released the instant this process ends. If another run holds it, skip cleanly.
+        run_lock = store.acquire_run_lock(self._job_key())
+        if run_lock is None:
+            logger.info("Skipping %s: another run holds the lock", self._job_key())
+            summary = IngestionJobSummary.new(ingestion_job=self)
+            summary.set_skipped()
+            yield summary  # Loader persists every yielded summary
+            return
+        try:
+            yield from self._execute_locked(store, task_executor, last_modified_at_map)
+        finally:
+            run_lock.release()
+
+    def _execute_locked(
         self,
         store: DatasetStore,
         task_executor: TaskExecutor,
