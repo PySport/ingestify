@@ -13,8 +13,6 @@ WHERE the lock lives, and WHY there:
 Session locks are a server-DB feature, so the exclusivity test runs against Postgres/MySQL
 and skips on SQLite; the no-op contract is checked where no such lock exists.
 """
-import threading
-
 import pytest
 
 from ingestify import DatasetResource, Source
@@ -63,23 +61,18 @@ def test_run_lock_is_noop_without_cross_process_store(engine):
 
 
 class _FakeSource(Source):
-    """One dataset. With ``entered``/``proceed`` it blocks inside the job (holding the run
-    lock) until released; ``find_datasets_called`` records whether the job actually ran."""
+    """Ingests one dataset; ``find_datasets_called`` records whether its job actually ran."""
 
     provider = "run_lock_fake"
 
-    def __init__(self, name, entered=None, proceed=None):
+    def __init__(self, name):
         super().__init__(name)
-        self._entered, self._proceed = entered, proceed
         self.find_datasets_called = False
 
     def find_datasets(
         self, dataset_type, data_spec_versions, dataset_collection_metadata, **kwargs
     ):
         self.find_datasets_called = True
-        if self._entered is not None:
-            self._entered.set()  # the run lock is held from here on
-            self._proceed.wait(10)
         yield DatasetResource(
             dataset_resource_id={"keyword": "k"},
             provider=self.provider,
@@ -118,56 +111,50 @@ def _summaries(engine):
 
 
 def _cleanup(*engines):
-    dropped = False
-    for engine in engines:
-        sp = engine.store.dataset_repository.session_provider
-        if not dropped:
-            sp.drop_all_tables()
-            dropped = True
+    providers = [e.store.dataset_repository.session_provider for e in engines]
+    # Close every session + pool first (releasing any lingering transaction/lock), then
+    # DROP on a fresh connection -- otherwise DROP TABLE would wait on an idle connection.
+    for sp in providers:
         sp.session.remove()
         sp.engine.dispose()
+    providers[0].drop_all_tables()
 
 
 def test_two_instances_same_job_only_one_runs(ingestify_test_database_url, tmp_path):
-    """The real thing: two ingestify instances over the SAME database try the SAME
-    (source, dataset_type, selector) job at once. Instance 1 holds the run lock (it blocks
-    inside the job); instance 2 must skip -- its source is never invoked -- and record a
-    SKIPPED summary. Then instance 1 finishes normally. Needs a cross-process lock, so it
-    runs on Postgres/MySQL and skips on SQLite."""
+    """Two ingestify instances over the SAME database contend for the SAME
+    (source, dataset_type, selector) job. Instance 1 holds the run lock (on its own
+    connection, exactly as a running instance would); instance 2 tries the job and must
+    skip -- its source is never invoked and a SKIPPED summary is recorded. Once the lock is
+    freed, a fresh instance runs the job normally. Needs a cross-process lock, so it runs on
+    Postgres/MySQL and skips on SQLite. No threads -> no cleanup deadlock."""
     if not ingestify_test_database_url.startswith(("postgres", "mysql")):
         pytest.skip("cross-process lock needs Postgres or MySQL")
 
-    entered, proceed = threading.Event(), threading.Event()
-    inst1 = _engine(
-        ingestify_test_database_url, tmp_path, _FakeSource("shared", entered, proceed)
-    )
-    inst2_source = _FakeSource("shared")
-    inst2 = _engine(ingestify_test_database_url, tmp_path, inst2_source)
+    dsv = DataSpecVersionCollection.from_dict({"default": "v1"})
+    # Mirrors IngestionJob._job_key for this plan (source, dataset_type, empty selector).
+    job_key = f"shared:keyword:{Selector.build({}, data_spec_versions=dsv).key}"
 
-    t1 = threading.Thread(target=inst1.run, daemon=True)
-    t1.start()
+    holder = _engine(ingestify_test_database_url, tmp_path, _FakeSource("shared"))
+    blocked_source = _FakeSource("shared")
+    blocked = _engine(ingestify_test_database_url, tmp_path, blocked_source)
+    free_source = _FakeSource("shared")
+    free = _engine(ingestify_test_database_url, tmp_path, free_source)
+
     try:
-        assert entered.wait(10), "instance 1 never entered the job"
+        lock = holder.store.acquire_run_lock(job_key)  # instance 1 holds the lock
+        assert lock is not None
+        try:
+            blocked.run()  # instance 2, same job, lock held -> must skip
+            assert blocked_source.find_datasets_called is False  # it never ran the job
+            states = [s.state for s in _summaries(blocked)]
+            assert states.count(IngestionJobState.SKIPPED) == 1
+            assert IngestionJobState.FINISHED not in states
+        finally:
+            lock.release()  # instance 1 done -> lock free
 
-        inst2.run()  # second instance, same job identity -> must skip
-        # Decisive proof: instance 2 never ran the job body.
-        assert inst2_source.find_datasets_called is False
-
-        # Summaries live in the shared DB (both engines see all of them), so assert on the
-        # state distribution, not on a per-engine read. Instance 1 is still blocked here:
-        # exactly one SKIPPED (instance 2) and nothing FINISHED yet.
-        states = [s.state for s in _summaries(inst2)]
-        assert states.count(IngestionJobState.SKIPPED) == 1
-        assert IngestionJobState.FINISHED not in states
-
-        proceed.set()
-        t1.join(10)
-        states = [s.state for s in _summaries(inst1)]
-        assert (
-            states.count(IngestionJobState.FINISHED) == 1
-        )  # instance 1 won and finished
-        assert states.count(IngestionJobState.SKIPPED) == 1  # instance 2 stayed skipped
+        free.run()  # lock free now -> the job runs normally
+        assert free_source.find_datasets_called is True
+        finished = [s.state for s in _summaries(free)].count(IngestionJobState.FINISHED)
+        assert finished == 1
     finally:
-        proceed.set()
-        t1.join(10)
-        _cleanup(inst1, inst2)
+        _cleanup(holder, blocked, free)
