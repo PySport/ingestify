@@ -527,7 +527,14 @@ class IngestionJob:
                             "StopProcessing raised — saving partial results "
                             "and stopping"
                         )
-                        ingestion_job_summary.set_finished()
+                        ingestion_job_summary.set_aborted()
+                        yield ingestion_job_summary
+                        raise
+                    except (KeyboardInterrupt, SystemExit):
+                        logger.warning(
+                            "Interrupted — saving partial results and aborting"
+                        )
+                        ingestion_job_summary.set_aborted()
                         yield ingestion_job_summary
                         raise
                     except FatalError as e:
@@ -665,7 +672,12 @@ class IngestionJob:
                     self._save_progress(store, ingestion_job_summary)
         except StopProcessing:
             logger.info("StopProcessing raised — saving partial results and stopping")
-            ingestion_job_summary.set_finished()
+            ingestion_job_summary.set_aborted()
+            yield ingestion_job_summary
+            raise
+        except (KeyboardInterrupt, SystemExit):
+            logger.warning("Interrupted — saving partial results and aborting")
+            ingestion_job_summary.set_aborted()
             yield ingestion_job_summary
             raise
         except FatalError as e:
