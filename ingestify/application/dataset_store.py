@@ -194,6 +194,11 @@ class DatasetStore:
     def save_ingestion_job_summary(self, ingestion_job_summary):
         self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
+    def acquire_run_lock(self, job_key: str):
+        """Single-run lock for one job identity (see docs/design/single-run-lock.md).
+        Returns a held RunLock, or None if another process already holds it."""
+        return self.dataset_repository.acquire_run_lock(job_key)
+
     def get_dataset_last_modified_at_map(
         self, provider: str, dataset_type: str
     ) -> "DatasetLastModifiedAtMap":

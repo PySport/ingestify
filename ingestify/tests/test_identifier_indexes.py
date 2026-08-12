@@ -35,13 +35,18 @@ def repository(ingestify_test_database_url, db_cleanup):
     provider = SqlAlchemySessionProvider(ingestify_test_database_url)
     repo = SqlAlchemyDatasetRepository(provider)
     yield repo
-    # Drop test indexes so they don't leak between runs
+    # Drop test indexes + statistics so they don't leak between runs
     if provider.engine.dialect.name == "postgresql":
         with provider.engine.connect() as conn:
             for config in INDEX_CONFIGS:
                 conn.execute(
                     sqlalchemy.text(
                         f"DROP INDEX IF EXISTS idx_dataset_identifier_{config['name']}"
+                    )
+                )
+                conn.execute(
+                    sqlalchemy.text(
+                        f"DROP STATISTICS IF EXISTS stat_dataset_identifier_{config['name']}"
                     )
                 )
             conn.commit()
@@ -71,6 +76,33 @@ def test_create_identifier_indexes_creates_indexes(repository):
 
     assert "idx_dataset_identifier_test_keyword_metrics" in index_names
     assert "idx_dataset_identifier_test_keyword_set" in index_names
+
+
+def test_create_identifier_indexes_creates_statistics(repository):
+    """On PostgreSQL 14+, expression statistics are created alongside each index so the
+    planner estimates the JSONB-expression selectivity correctly (otherwise it mis-costs a
+    batch identifier lookup and full-scans the partition instead of using the index)."""
+    provider = repository.session_provider
+    if provider.engine.dialect.name != "postgresql":
+        pytest.skip("Expression statistics require PostgreSQL")
+    with provider.engine.connect() as conn:
+        version = int(conn.execute(sqlalchemy.text("SHOW server_version_num")).scalar())
+    if version < 140000:
+        pytest.skip("Expression statistics require PostgreSQL 14+")
+
+    repository.create_identifier_indexes(INDEX_CONFIGS)
+
+    with provider.engine.connect() as conn:
+        result = conn.execute(
+            sqlalchemy.text(
+                "SELECT stxname FROM pg_statistic_ext "
+                "WHERE stxname LIKE 'stat_dataset_identifier_%'"
+            )
+        )
+        stat_names = {row[0] for row in result}
+
+    assert "stat_dataset_identifier_test_keyword_metrics" in stat_names
+    assert "stat_dataset_identifier_test_keyword_set" in stat_names
 
 
 def test_create_identifier_indexes_idempotent(repository):

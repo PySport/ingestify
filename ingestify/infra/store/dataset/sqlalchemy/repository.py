@@ -1,3 +1,4 @@
+import hashlib
 import itertools
 import json
 import logging
@@ -26,6 +27,7 @@ from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, Query, sessionmaker, scoped_session
 
 from ingestify.domain import File, Revision
+from ingestify.domain.models.dataset.dataset_repository import RunLock
 from ingestify.domain.models.dataset.revision import RevisionState
 from ingestify.domain.models import (
     Dataset,
@@ -42,7 +44,7 @@ from ingestify.domain.models.dataset.dataset import (
     DatasetSummaryMap,
 )
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
-from ingestify.domain.models.task.task_summary import TaskSummary
+from ingestify.domain.models.task.task_summary import TaskSummary, TaskState
 from ingestify.exceptions import IngestifyError
 from ingestify.utils import get_concurrency, key_from_dict
 
@@ -169,6 +171,15 @@ class SqlAlchemySessionProvider:
         The WHERE clause limits the index to a single (provider, dataset_type) pair,
         making it smaller and ensuring neither column is a post-scan filter.
 
+        Alongside each index it also creates table-level *expression statistics* on the
+        same JSONB expression(s) (PostgreSQL 14+). The index lets the planner FIND rows,
+        but without statistics on a JSONB expression it mis-estimates the expression's
+        selectivity (it defaults to a poor n_distinct). For batch identifier lookups that
+        makes it prefer a full-partition hash join over a per-key index nested loop, so a
+        large table stays slow despite the index. The expression statistics give the
+        planner the real cardinality so it chooses the index plan on its own. Statistics
+        only take effect after ANALYZE, which this runs once at the end.
+
         Call this explicitly (e.g. via `ingestify sync-indexes`) when datasets
         have high-cardinality identifiers that are queried frequently.
         """
@@ -178,6 +189,10 @@ class SqlAlchemySessionProvider:
 
         table_name = f"{self.table_prefix}dataset"
         with self.engine.connect() as conn:
+            # Expression statistics (CREATE STATISTICS ... ON (<expr>)) need PostgreSQL 14+.
+            create_stats = (
+                int(conn.execute(text("SHOW server_version_num")).scalar()) >= 140000
+            )
             for config in index_configs:
                 name = config["name"]
                 provider = config["provider"]
@@ -198,7 +213,29 @@ class SqlAlchemySessionProvider:
                     )
                 )
                 logger.info("Created index %s on keys: %s", index_name, keys)
+
+                if create_stats:
+                    stats_name = f"{self.table_prefix}stat_dataset_identifier_{name}"
+                    conn.execute(
+                        text(
+                            f"CREATE STATISTICS IF NOT EXISTS {stats_name} "
+                            f"ON {expressions} FROM {table_name}"
+                        )
+                    )
+                    logger.info("Created statistics %s", stats_name)
             conn.commit()
+
+        # Statistics are inert until ANALYZE populates them (and ANALYZE cannot run inside
+        # the transaction above). Run it once so the new statistics take effect now instead
+        # of waiting for autovacuum.
+        if create_stats and index_configs:
+            with self.engine.connect().execution_options(
+                isolation_level="AUTOCOMMIT"
+            ) as conn:
+                logger.info(
+                    "Analyzing %s to populate identifier statistics", table_name
+                )
+                conn.execute(text(f"ANALYZE {table_name}"))
 
     def drop_all_tables(self):
         """Drop all tables in the database. Useful for test cleanup."""
@@ -207,6 +244,34 @@ class SqlAlchemySessionProvider:
 
     def get(self):
         return self.session()
+
+
+def _advisory_key(job_key: str) -> int:
+    """Stable signed 64-bit key for Postgres pg_advisory_lock (which takes a bigint)."""
+    return int.from_bytes(
+        hashlib.blake2b(job_key.encode(), digest_size=8).digest(), "big", signed=True
+    )
+
+
+def _lock_name(job_key: str) -> str:
+    """Stable MySQL GET_LOCK name (user-level lock names must be <= 64 chars)."""
+    return "ingestify_" + hashlib.blake2b(job_key.encode(), digest_size=24).hexdigest()
+
+
+class _SessionRunLock(RunLock):
+    """Holds a dedicated connection whose session owns the lock. ``release()`` unlocks and
+    returns the connection; a dropped connection (crash / process end) frees it too."""
+
+    def __init__(self, conn: Connection, unlock_sql, params: dict):
+        self._conn = conn
+        self._unlock_sql = unlock_sql
+        self._params = params
+
+    def release(self) -> None:
+        try:
+            self._conn.execute(self._unlock_sql, self._params)
+        finally:
+            self._conn.close()
 
 
 class SqlAlchemyDatasetRepository(DatasetRepository):
@@ -226,6 +291,43 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     @property
     def dialect(self) -> Dialect:
         return self.session_provider.dialect
+
+    def acquire_run_lock(self, job_key: str) -> Optional[RunLock]:
+        dialect = self.dialect.name
+        if dialect not in ("postgresql", "mysql"):
+            # No cross-process lock (e.g. SQLite): fall back to the no-op.
+            return super().acquire_run_lock(job_key)
+
+        # A dedicated AUTOCOMMIT connection: the session-level lock is held for the life of
+        # this connection (released the instant it/the process ends), with no long-open
+        # transaction. Kept outside the scoped_session, which is reused/closed.
+        conn = self.session_provider.engine.connect().execution_options(
+            isolation_level="AUTOCOMMIT"
+        )
+        try:
+            if dialect == "postgresql":
+                key = _advisory_key(job_key)
+                acquired = bool(
+                    conn.execute(
+                        text("SELECT pg_try_advisory_lock(:k)"), {"k": key}
+                    ).scalar()
+                )
+                unlock, params = text("SELECT pg_advisory_unlock(:k)"), {"k": key}
+            else:  # mysql
+                name = _lock_name(job_key)
+                acquired = (
+                    conn.execute(text("SELECT GET_LOCK(:n, 0)"), {"n": name}).scalar()
+                    == 1
+                )
+                unlock, params = text("SELECT RELEASE_LOCK(:n)"), {"n": name}
+        except Exception:
+            conn.close()
+            raise
+
+        if not acquired:
+            conn.close()
+            return None
+        return _SessionRunLock(conn, unlock, params)
 
     @property
     def dataset_table(self):
@@ -811,17 +913,26 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
 
     # TODO: consider moving the IngestionJobSummary methods to a different Repository
     def save_ingestion_job_summary(self, ingestion_job_summary: IngestionJobSummary):
+        """Upsert the summary row (keyed on ingestion_job_summary_id).
+
+        Only FAILED task summaries are persisted as child rows — successful,
+        ignored and skipped tasks are captured by the counters, not individual
+        rows. This keeps repeated live (mid-run) writes cheap (a successful run
+        writes no child rows at all) while still surfacing failures as soon as
+        they happen. The upsert is keyed on ingestion_job_summary_id, so live
+        snapshots update the same row in place.
+        """
         ingestion_job_summary_entities = [
             ingestion_job_summary.model_dump(exclude={"task_summaries"})
         ]
-        task_summary_entities = []
-        for task_summary in ingestion_job_summary.task_summaries:
-            task_summary_entities.append(
-                {
-                    **task_summary.model_dump(),
-                    "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
-                }
-            )
+        task_summary_entities = [
+            {
+                **task_summary.model_dump(),
+                "ingestion_job_summary_id": ingestion_job_summary.ingestion_job_summary_id,
+            }
+            for task_summary in ingestion_job_summary.task_summaries
+            if task_summary.state == TaskState.FAILED
+        ]
 
         with self.session_provider.engine.connect() as connection:
             try:

@@ -20,6 +20,10 @@ class IngestionJobState(str, Enum):
     FINISHED = "FINISHED"
     SKIPPED = "SKIPPED"
     FAILED = "FAILED"
+    # Stopped before the whole plan finished -- a source raising StopProcessing (e.g.
+    # quota), Ctrl-C, or a Cloud Run task timeout (SIGTERM). Partial results are saved and
+    # the next run resumes; it is NOT an error (that is FAILED).
+    ABORTED = "ABORTED"
 
 
 def format_duration(duration: timedelta):
@@ -70,7 +74,14 @@ class IngestionJobSummary(BaseModel, HasTiming):
     def task_count(self):
         return len(self.task_summaries) + self.skipped_tasks
 
-    def _set_ended(self):
+    def recount(self):
+        """Recompute the task counters from the currently collected task
+        summaries, without ending the job or discarding any summaries.
+
+        Safe to call repeatedly while the job is still RUNNING so a live
+        snapshot (written mid-run) reflects up-to-date counts. ``_set_ended``
+        reuses this before it truncates ``task_summaries``.
+        """
         self.failed_tasks = len(
             [task for task in self.task_summaries if task.state == TaskState.FAILED]
         )
@@ -90,6 +101,9 @@ class IngestionJobSummary(BaseModel, HasTiming):
             + self.ignored_successful_tasks
             + self.skipped_tasks
         )
+
+    def _set_ended(self):
+        self.recount()
         self.ended_at = utcnow()
 
         # Only keep failed tasks. Rest isn't interesting
@@ -109,9 +123,15 @@ class IngestionJobSummary(BaseModel, HasTiming):
         self.state = IngestionJobState.SKIPPED
         self._set_ended()
 
+    def set_aborted(self):
+        self.state = IngestionJobState.ABORTED
+        self._set_ended()
+
     @property
     def duration(self) -> timedelta:
-        return self.ended_at - self.started_at
+        # ended_at is None while the job is still RUNNING (live snapshots);
+        # measure against "now" so duration stays meaningful mid-run.
+        return (self.ended_at or utcnow()) - self.started_at
 
     def output_report(self):
         print(
