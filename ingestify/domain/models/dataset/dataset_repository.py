@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, List, Union
 
 from .collection import DatasetCollection
-from .dataset import Dataset, DatasetLastModifiedAtMap
+from .dataset import Dataset, DatasetSummaryMap
 from .dataset_state import DatasetState
 from .selector import Selector
 
@@ -43,16 +43,16 @@ class DatasetRepository(ABC):
     ) -> DatasetCollection:
         pass
 
-    def get_dataset_last_modified_at_map(
+    def get_dataset_summary_map(
         self,
         bucket: str,
         provider: str,
         dataset_type: str,
-    ) -> DatasetLastModifiedAtMap:
-        """Return {identifier_json: last_modified_at} for all datasets matching
-        the given provider and dataset_type. Used as a fast pre-check to skip
-        datasets that are already up-to-date without loading the full
-        dataset+revision+file graph."""
+    ) -> DatasetSummaryMap:
+        """Return {identifier_json: DatasetSummary} for all datasets matching the
+        given provider and dataset_type. Feeds FetchPolicy.can_skip as a cheap
+        pre-check, so an up-to-date dataset is skipped without loading the full
+        dataset+revision+file graph. Each summary reflects the latest revision."""
         return {}
 
     def invalidate_revision(self, dataset: Dataset):

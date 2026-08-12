@@ -4,7 +4,6 @@ import json
 import logging
 import uuid
 from enum import Enum
-from functools import lru_cache
 from typing import Optional, Iterator, Union
 
 from pydantic import ValidationError
@@ -23,7 +22,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     FileResource,
     DatasetResource,
 )
-from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
+from ingestify.domain.models.dataset.dataset import DatasetSummaryMap
 from ingestify.domain.models.task.task_summary import TaskSummary, Operation
 from ingestify.exceptions import SaveError, IngestifyError, StopProcessing, FatalError
 from ingestify.utils import TaskExecutor, chunker
@@ -115,7 +114,6 @@ def load_file(
         )
 
 
-@lru_cache(maxsize=None)
 def _loader_accepts_dataset_resource(loader) -> bool:
     """Return True if loader accepts a `dataset_resource` keyword argument."""
     try:
@@ -292,7 +290,7 @@ class IngestionJob:
         self,
         store: DatasetStore,
         task_executor: TaskExecutor,
-        last_modified_at_map: Optional[DatasetLastModifiedAtMap] = None,
+        summary_map: Optional[DatasetSummaryMap] = None,
     ) -> Iterator[IngestionJobSummary]:
         # Single-run guard: one job identity must never run in two processes at once
         # (design: docs/design/single-run-lock.md). The lock is a session-scoped DB lock,
@@ -305,7 +303,7 @@ class IngestionJob:
             yield summary  # Loader persists every yielded summary
             return
         try:
-            yield from self._execute_locked(store, task_executor, last_modified_at_map)
+            yield from self._execute_locked(store, task_executor, summary_map)
         finally:
             run_lock.release()
 
@@ -313,7 +311,7 @@ class IngestionJob:
         self,
         store: DatasetStore,
         task_executor: TaskExecutor,
-        last_modified_at_map: Optional[DatasetLastModifiedAtMap] = None,
+        summary_map: Optional[DatasetSummaryMap] = None,
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
@@ -399,7 +397,7 @@ class IngestionJob:
                 batches,
                 store,
                 task_executor,
-                last_modified_at_map,
+                summary_map,
                 ingestion_job_summary,
                 is_first_chunk,
             )
@@ -427,25 +425,29 @@ class IngestionJob:
                 yield ingestion_job_summary
                 return
 
-            # Fast pre-check: skip datasets that are definitely up-to-date
-            # based on the cached timestamps. Only resources that might need
-            # work proceed to the full get_dataset_collection check.
+            # Fast pre-check (bloom-filter style): let the fetch policy skip
+            # datasets it is certain are up-to-date from a cheap summary, before
+            # loading the full dataset+revision+file graph. can_skip is one-sided
+            # (True only when certain); "unknown" resources fall through to the
+            # authoritative get_dataset_collection + should_refetch path. Only
+            # existing datasets (summary present) are eligible — new ones go to
+            # the create path below.
             skipped_tasks = 0
-            if last_modified_at_map:
+            if summary_map:
                 pending_batch = []
                 for dataset_resource in batch:
                     identifier = Identifier.create_from_selector(
                         self.selector, **dataset_resource.dataset_resource_id
                     )
-                    ts = last_modified_at_map.get(identifier.key)
-                    if ts is not None:
-                        # Dataset exists — check if all files are up-to-date
-                        max_file_modified = max(
-                            f.last_modified for f in dataset_resource.files.values()
+                    summary = summary_map.get(identifier.key)
+                    if (
+                        summary is not None
+                        and self.ingestion_plan.fetch_policy.can_skip(
+                            summary, dataset_resource
                         )
-                        if ts >= max_file_modified:
-                            skipped_tasks += 1
-                            continue
+                    ):
+                        skipped_tasks += 1
+                        continue
                     pending_batch.append(dataset_resource)
                 batch = pending_batch
 
@@ -576,7 +578,7 @@ class IngestionJob:
         batches,
         store: DatasetStore,
         task_executor: TaskExecutor,
-        last_modified_at_map,
+        summary_map,
         ingestion_job_summary: IngestionJobSummary,
         is_first_chunk: bool,
     ) -> Iterator[IngestionJobSummary]:
@@ -600,19 +602,24 @@ class IngestionJob:
                     ingestion_job_summary.set_exception(e)
                     return
 
-                # Fast pre-check
-                if last_modified_at_map:
+                # Fast pre-check (bloom-filter style): policy.can_skip decides
+                # from a cheap summary whether an existing dataset is up-to-date,
+                # before the full get_dataset_collection load. One-sided (True only
+                # when certain); only existing datasets (summary present) are
+                # eligible — new ones fall through to the create path.
+                if summary_map:
                     pending = []
                     for dr in batch:
                         identifier = Identifier.create_from_selector(
                             self.selector, **dr.dataset_resource_id
                         )
-                        ts = last_modified_at_map.get(identifier.key)
-                        if ts is not None and dr.files:
-                            max_mod = max(f.last_modified for f in dr.files.values())
-                            if ts >= max_mod:
-                                ingestion_job_summary.increase_skipped_tasks(1)
-                                continue
+                        summary = summary_map.get(identifier.key)
+                        if (
+                            summary is not None
+                            and self.ingestion_plan.fetch_policy.can_skip(summary, dr)
+                        ):
+                            ingestion_job_summary.increase_skipped_tasks(1)
+                            continue
                         pending.append(dr)
                     batch = pending
 

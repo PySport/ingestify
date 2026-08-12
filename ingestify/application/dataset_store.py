@@ -199,10 +199,10 @@ class DatasetStore:
         Returns a held RunLock, or None if another process already holds it."""
         return self.dataset_repository.acquire_run_lock(job_key)
 
-    def get_dataset_last_modified_at_map(
+    def get_dataset_summary_map(
         self, provider: str, dataset_type: str
-    ) -> "DatasetLastModifiedAtMap":
-        return self.dataset_repository.get_dataset_last_modified_at_map(
+    ) -> "DatasetSummaryMap":
+        return self.dataset_repository.get_dataset_summary_map(
             bucket=self.bucket,
             provider=provider,
             dataset_type=dataset_type,
