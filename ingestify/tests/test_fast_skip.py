@@ -49,18 +49,18 @@ def _setup(engine):
     )
 
 
-def test_timestamps_cache_matches_identifiers(engine):
-    """Keys from get_dataset_last_modified_at_map match Identifier.key."""
+def test_summary_map_matches_identifiers(engine):
+    """Keys from get_dataset_summary_map match Identifier.key."""
     _setup(engine)
     engine.run()
 
-    timestamps = engine.store.get_dataset_last_modified_at_map(
+    summaries = engine.store.get_dataset_summary_map(
         provider="test_provider", dataset_type="test"
     )
     datasets = engine.store.get_dataset_collection(
         provider="test_provider", dataset_type="test"
     )
 
-    assert len(timestamps) == len(datasets) == 5
+    assert len(summaries) == len(datasets) == 5
     for dataset in datasets:
-        assert dataset.identifier.key in timestamps
+        assert dataset.identifier.key in summaries

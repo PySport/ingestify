@@ -12,9 +12,6 @@ from .revision import Revision, RevisionSource, RevisionState, SourceType
 from ..base import BaseModel
 
 
-DatasetLastModifiedAtMap = dict[str, datetime]
-
-
 @dataclass(frozen=True)
 class DatasetSummary:
     """Lightweight projection of a Dataset for FetchPolicy.can_skip.
@@ -30,7 +27,7 @@ class DatasetSummary:
     has_revisions: bool
 
 
-# Keyed by Identifier.key (the JSON identifier), like DatasetLastModifiedAtMap.
+# Keyed by Identifier.key (the JSON identifier).
 DatasetSummaryMap = dict[str, DatasetSummary]
 
 
