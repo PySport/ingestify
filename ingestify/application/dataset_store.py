@@ -203,6 +203,15 @@ class DatasetStore:
             dataset_type=dataset_type,
         )
 
+    def get_dataset_summary_map(
+        self, provider: str, dataset_type: str
+    ) -> "DatasetSummaryMap":
+        return self.dataset_repository.get_dataset_summary_map(
+            bucket=self.bucket,
+            provider=provider,
+            dataset_type=dataset_type,
+        )
+
     def get_dataset_collection(
         self,
         dataset_type: Optional[str] = None,

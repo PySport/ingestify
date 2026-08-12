@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from ingestify.domain import Dataset, Identifier, DatasetResource
+from ingestify.domain.models.dataset.dataset import DatasetSummary
 from ingestify.domain.models.dataset.revision import RevisionState
 from ingestify.utils import utcnow
 
@@ -14,6 +15,26 @@ class FetchPolicy:
     def should_fetch(self, dataset_resource: DatasetResource) -> bool:
         # this is called when dataset does not exist yet
         return True
+
+    def can_skip(
+        self, summary: DatasetSummary, dataset_resource: DatasetResource
+    ) -> bool:
+        """Cheap, one-sided pre-check (bloom-filter style) for an *existing*
+        dataset. Return True only when certain, from the lightweight ``summary``,
+        that the dataset is up-to-date: the engine then skips it without loading
+        the full Dataset or reaching ``should_refetch``. Returning False means
+        "unknown" — fall through to the authoritative path.
+
+        Base policy: skip when the stored dataset is at least as new as every file
+        the source reports. (This is the timestamp pre-check the engine used to do
+        inline; it now lives here as the single source of truth.)
+        """
+        if summary.last_modified is None or not dataset_resource.files:
+            return False
+        max_file_modified = max(
+            f.last_modified for f in dataset_resource.files.values()
+        )
+        return summary.last_modified >= max_file_modified
 
     def should_refetch(
         self, dataset: Dataset, dataset_resource: DatasetResource

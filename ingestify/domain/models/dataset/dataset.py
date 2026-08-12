@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict
@@ -7,11 +8,30 @@ from ingestify.utils import utcnow
 from .dataset_state import DatasetState
 from .file import DraftFile
 from .identifier import Identifier
-from .revision import Revision, RevisionSource, SourceType
+from .revision import Revision, RevisionSource, SourceType, RevisionState
 from ..base import BaseModel
 
 
 DatasetLastModifiedAtMap = dict[str, datetime]
+
+
+@dataclass(frozen=True)
+class DatasetSummary:
+    """Lightweight projection of a Dataset for FetchPolicy.can_skip.
+
+    Lets a policy decide an existing dataset is up-to-date from a few cheap
+    columns, so the engine can skip it without loading the full
+    dataset+revision+file graph. Fields reflect the latest revision (highest
+    revision_id)."""
+
+    last_modified: Optional[datetime]
+    current_created_at: Optional[datetime]
+    current_state: Optional[RevisionState]
+    has_revisions: bool
+
+
+# Keyed by Identifier.key (the JSON identifier), like DatasetLastModifiedAtMap.
+DatasetSummaryMap = dict[str, DatasetSummary]
 
 
 class Dataset(BaseModel):

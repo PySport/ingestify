@@ -24,7 +24,7 @@ from ingestify.domain.models.resources.dataset_resource import (
     DatasetResource,
 )
 from ingestify.domain.models.resources.batch_loader import BatchLoader
-from ingestify.domain.models.dataset.dataset import DatasetLastModifiedAtMap
+from ingestify.domain.models.dataset.dataset import DatasetSummaryMap
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import SaveError, IngestifyError, StopProcessing
 from ingestify.utils import TaskExecutor, chunker
@@ -350,7 +350,7 @@ class IngestionJob:
         self,
         store: DatasetStore,
         task_executor: TaskExecutor,
-        last_modified_at_map: Optional[DatasetLastModifiedAtMap] = None,
+        summary_map: Optional[DatasetSummaryMap] = None,
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
@@ -433,25 +433,29 @@ class IngestionJob:
                 yield ingestion_job_summary
                 return
 
-            # Fast pre-check: skip datasets that are definitely up-to-date
-            # based on the cached timestamps. Only resources that might need
-            # work proceed to the full get_dataset_collection check.
+            # Fast pre-check (bloom-filter style): let the fetch policy skip
+            # datasets it is certain are up-to-date from a cheap summary, before
+            # loading the full dataset+revision+file graph. can_skip is one-sided
+            # (True only when certain); "unknown" resources fall through to the
+            # authoritative get_dataset_collection + should_refetch path. Only
+            # existing datasets (summary present) are eligible — new ones go to
+            # the create path below.
             skipped_tasks = 0
-            if last_modified_at_map:
+            if summary_map:
                 pending_batch = []
                 for dataset_resource in batch:
                     identifier = Identifier.create_from_selector(
                         self.selector, **dataset_resource.dataset_resource_id
                     )
-                    ts = last_modified_at_map.get(identifier.key)
-                    if ts is not None:
-                        # Dataset exists — check if all files are up-to-date
-                        max_file_modified = max(
-                            f.last_modified for f in dataset_resource.files.values()
+                    summary = summary_map.get(identifier.key)
+                    if (
+                        summary is not None
+                        and self.ingestion_plan.fetch_policy.can_skip(
+                            summary, dataset_resource
                         )
-                        if ts >= max_file_modified:
-                            skipped_tasks += 1
-                            continue
+                    ):
+                        skipped_tasks += 1
+                        continue
                     pending_batch.append(dataset_resource)
                 batch = pending_batch
 

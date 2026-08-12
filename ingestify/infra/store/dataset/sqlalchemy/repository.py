@@ -37,6 +37,10 @@ from ingestify.domain.models import (
 from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
+from ingestify.domain.models.dataset.dataset import (
+    DatasetSummary,
+    DatasetSummaryMap,
+)
 from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
 from ingestify.domain.models.task.task_summary import TaskSummary
 from ingestify.exceptions import IngestifyError
@@ -542,6 +546,73 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 ): row.last_modified_at
                 for row in query
             }
+
+    def get_dataset_summary_map(
+        self,
+        bucket: str,
+        provider: str,
+        dataset_type: str,
+    ) -> DatasetSummaryMap:
+        with self.session:
+            ds = self.dataset_table
+            rev = self.revision_table
+
+            # The current revision is the highest revision_id per dataset.
+            # Compute it as a grouped subquery (portable — no Postgres-only
+            # DISTINCT ON, no correlated subquery-in-join) restricted to this
+            # provider/dataset_type, then LEFT JOIN back to fetch its
+            # created_at/state. LEFT JOIN so datasets without any revision still
+            # show up (has_revisions=False).
+            latest = (
+                self.session.query(
+                    rev.c.dataset_id.label("dataset_id"),
+                    func.max(rev.c.revision_id).label("revision_id"),
+                )
+                .select_from(rev.join(ds, ds.c.dataset_id == rev.c.dataset_id))
+                .filter(ds.c.bucket == bucket)
+                .filter(ds.c.provider == provider)
+                .filter(ds.c.dataset_type == dataset_type)
+                .group_by(rev.c.dataset_id)
+                .subquery()
+            )
+            query = (
+                self.session.query(
+                    ds.c.identifier,
+                    ds.c.last_modified_at,
+                    latest.c.revision_id,
+                    rev.c.created_at,
+                    rev.c.state,
+                )
+                .select_from(
+                    ds.outerjoin(
+                        latest, latest.c.dataset_id == ds.c.dataset_id
+                    ).outerjoin(
+                        rev,
+                        and_(
+                            rev.c.dataset_id == latest.c.dataset_id,
+                            rev.c.revision_id == latest.c.revision_id,
+                        ),
+                    )
+                )
+                .filter(ds.c.bucket == bucket)
+                .filter(ds.c.provider == provider)
+                .filter(ds.c.dataset_type == dataset_type)
+            )
+
+            result: DatasetSummaryMap = {}
+            for row in query:
+                identifier = (
+                    row.identifier
+                    if isinstance(row.identifier, dict)
+                    else json.loads(row.identifier)
+                )
+                result[key_from_dict(identifier)] = DatasetSummary(
+                    last_modified=row.last_modified_at,
+                    current_created_at=row.created_at,
+                    current_state=row.state,
+                    has_revisions=row.revision_id is not None,
+                )
+            return result
 
     def get_dataset_collection(
         self,
