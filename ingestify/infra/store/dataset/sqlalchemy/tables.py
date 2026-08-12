@@ -88,6 +88,7 @@ class TZDateTime(TypeDecorator):
 
 
 class PathString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: Path, dialect):
@@ -115,6 +116,7 @@ class DatasetStateString(TypeDecorator):
 
 
 class RevisionStateString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: RevisionState, dialect):
@@ -128,6 +130,7 @@ class RevisionStateString(TypeDecorator):
 
 
 class OperationString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: Operation, dialect):
@@ -141,6 +144,7 @@ class OperationString(TypeDecorator):
 
 
 class TaskStateString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: TaskState, dialect):
@@ -154,6 +158,7 @@ class TaskStateString(TypeDecorator):
 
 
 class IngestionJobStateString(TypeDecorator):
+    cache_ok = True
     impl = String(255)
 
     def process_bind_param(self, value: IngestionJobState, dialect):
