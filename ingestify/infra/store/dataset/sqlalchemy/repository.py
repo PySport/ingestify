@@ -167,6 +167,15 @@ class SqlAlchemySessionProvider:
         The WHERE clause limits the index to a single (provider, dataset_type) pair,
         making it smaller and ensuring neither column is a post-scan filter.
 
+        Alongside each index it also creates table-level *expression statistics* on the
+        same JSONB expression(s) (PostgreSQL 14+). The index lets the planner FIND rows,
+        but without statistics on a JSONB expression it mis-estimates the expression's
+        selectivity (it defaults to a poor n_distinct). For batch identifier lookups that
+        makes it prefer a full-partition hash join over a per-key index nested loop, so a
+        large table stays slow despite the index. The expression statistics give the
+        planner the real cardinality so it chooses the index plan on its own. Statistics
+        only take effect after ANALYZE, which this runs once at the end.
+
         Call this explicitly (e.g. via `ingestify sync-indexes`) when datasets
         have high-cardinality identifiers that are queried frequently.
         """
@@ -176,6 +185,10 @@ class SqlAlchemySessionProvider:
 
         table_name = f"{self.table_prefix}dataset"
         with self.engine.connect() as conn:
+            # Expression statistics (CREATE STATISTICS ... ON (<expr>)) need PostgreSQL 14+.
+            create_stats = (
+                int(conn.execute(text("SHOW server_version_num")).scalar()) >= 140000
+            )
             for config in index_configs:
                 name = config["name"]
                 provider = config["provider"]
@@ -196,7 +209,29 @@ class SqlAlchemySessionProvider:
                     )
                 )
                 logger.info("Created index %s on keys: %s", index_name, keys)
+
+                if create_stats:
+                    stats_name = f"{self.table_prefix}stat_dataset_identifier_{name}"
+                    conn.execute(
+                        text(
+                            f"CREATE STATISTICS IF NOT EXISTS {stats_name} "
+                            f"ON {expressions} FROM {table_name}"
+                        )
+                    )
+                    logger.info("Created statistics %s", stats_name)
             conn.commit()
+
+        # Statistics are inert until ANALYZE populates them (and ANALYZE cannot run inside
+        # the transaction above). Run it once so the new statistics take effect now instead
+        # of waiting for autovacuum.
+        if create_stats and index_configs:
+            with self.engine.connect().execution_options(
+                isolation_level="AUTOCOMMIT"
+            ) as conn:
+                logger.info(
+                    "Analyzing %s to populate identifier statistics", table_name
+                )
+                conn.execute(text(f"ANALYZE {table_name}"))
 
     def drop_all_tables(self):
         """Drop all tables in the database. Useful for test cleanup."""
