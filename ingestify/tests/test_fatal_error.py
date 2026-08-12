@@ -167,8 +167,8 @@ def test_fatal_error_in_async_collect_persists_failed_summary(tmp_path):
 
 
 def test_stop_processing_in_async_collect_persists_summary(tmp_path):
-    """StopProcessing while collecting is a controlled stop: the summary is
-    persisted (FINISHED) instead of being lost, mirroring the sync path."""
+    """StopProcessing while collecting is a controlled early stop: the summary is
+    persisted as ABORTED (not lost, not FINISHED), mirroring the sync path."""
     engine = _run_async(
         _AsyncSource("s", ["a", "b"], StopProcessing("quota")), tmp_path
     )
@@ -178,4 +178,4 @@ def test_stop_processing_in_async_collect_persists_summary(tmp_path):
 
     summaries = engine.store.dataset_repository.load_ingestion_job_summaries()
     assert len(summaries) == 1
-    assert summaries[0].state == IngestionJobState.FINISHED
+    assert summaries[0].state == IngestionJobState.ABORTED

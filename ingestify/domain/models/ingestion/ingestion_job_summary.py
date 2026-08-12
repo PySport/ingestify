@@ -20,6 +20,10 @@ class IngestionJobState(str, Enum):
     FINISHED = "FINISHED"
     SKIPPED = "SKIPPED"
     FAILED = "FAILED"
+    # Stopped before the whole plan finished -- a source raising StopProcessing (e.g.
+    # quota), Ctrl-C, or a Cloud Run task timeout (SIGTERM). Partial results are saved and
+    # the next run resumes; it is NOT an error (that is FAILED).
+    ABORTED = "ABORTED"
 
 
 def format_duration(duration: timedelta):
@@ -117,6 +121,10 @@ class IngestionJobSummary(BaseModel, HasTiming):
 
     def set_skipped(self):
         self.state = IngestionJobState.SKIPPED
+        self._set_ended()
+
+    def set_aborted(self):
+        self.state = IngestionJobState.ABORTED
         self._set_ended()
 
     @property

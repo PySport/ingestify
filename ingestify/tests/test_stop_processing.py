@@ -9,6 +9,7 @@ from ingestify.domain.models.dataset.collection_metadata import (
     DatasetCollectionMetadata,
 )
 from ingestify.domain.models.fetch_policy import FetchPolicy
+from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobState
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.exceptions import StopProcessing
 from ingestify.utils import utcnow
@@ -22,16 +23,21 @@ def stopping_loader(file_resource, current_file, **kwargs):
     raise StopProcessing("API quota exhausted")
 
 
+def interrupting_loader(file_resource, current_file, **kwargs):
+    raise KeyboardInterrupt()
+
+
 class SourceWithStopProcessing(Source):
     """Source that yields 5 datasets. The 3rd one raises StopProcessing."""
 
     provider = "test_provider"
+    bad_loader = staticmethod(stopping_loader)
 
     def find_datasets(
         self, dataset_type, data_spec_versions, dataset_collection_metadata, **kwargs
     ):
         for i in range(5):
-            loader = stopping_loader if i == 2 else good_loader
+            loader = self.bad_loader if i == 2 else good_loader
             r = DatasetResource(
                 dataset_resource_id={"item_id": i},
                 provider=self.provider,
@@ -103,3 +109,35 @@ def test_stop_processing_saves_ingestion_job_summary(engine):
         assert (
             mock_save.call_count >= 1
         ), "save_ingestion_job_summary should be called even on StopProcessing"
+
+
+class SourceWithInterrupt(SourceWithStopProcessing):
+    """Same shape, but the 3rd dataset raises KeyboardInterrupt (Ctrl-C / SIGTERM)."""
+
+    bad_loader = staticmethod(interrupting_loader)
+
+
+def _states(engine):
+    return [
+        s.state for s in engine.store.dataset_repository.load_ingestion_job_summaries()
+    ]
+
+
+def test_stop_processing_marks_summary_aborted(engine):
+    """A StopProcessing stop leaves the summary ABORTED (stopped early), not FINISHED."""
+    _setup(engine, SourceWithStopProcessing("s"))
+
+    with pytest.raises(StopProcessing):
+        engine.run()
+
+    assert _states(engine) == [IngestionJobState.ABORTED]
+
+
+def test_keyboard_interrupt_marks_summary_aborted(engine):
+    """Ctrl-C mid-run leaves the summary ABORTED instead of a stuck RUNNING row."""
+    _setup(engine, SourceWithInterrupt("s"))
+
+    with pytest.raises(KeyboardInterrupt):
+        engine.run()
+
+    assert _states(engine) == [IngestionJobState.ABORTED]

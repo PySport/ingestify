@@ -1,3 +1,4 @@
+import hashlib
 import itertools
 import json
 import logging
@@ -26,6 +27,7 @@ from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import Session, Query, sessionmaker, scoped_session
 
 from ingestify.domain import File, Revision
+from ingestify.domain.models.dataset.dataset_repository import RunLock
 from ingestify.domain.models.dataset.revision import RevisionState
 from ingestify.domain.models import (
     Dataset,
@@ -205,6 +207,34 @@ class SqlAlchemySessionProvider:
         return self.session()
 
 
+def _advisory_key(job_key: str) -> int:
+    """Stable signed 64-bit key for Postgres pg_advisory_lock (which takes a bigint)."""
+    return int.from_bytes(
+        hashlib.blake2b(job_key.encode(), digest_size=8).digest(), "big", signed=True
+    )
+
+
+def _lock_name(job_key: str) -> str:
+    """Stable MySQL GET_LOCK name (user-level lock names must be <= 64 chars)."""
+    return "ingestify_" + hashlib.blake2b(job_key.encode(), digest_size=24).hexdigest()
+
+
+class _SessionRunLock(RunLock):
+    """Holds a dedicated connection whose session owns the lock. ``release()`` unlocks and
+    returns the connection; a dropped connection (crash / process end) frees it too."""
+
+    def __init__(self, conn: Connection, unlock_sql, params: dict):
+        self._conn = conn
+        self._unlock_sql = unlock_sql
+        self._params = params
+
+    def release(self) -> None:
+        try:
+            self._conn.execute(self._unlock_sql, self._params)
+        finally:
+            self._conn.close()
+
+
 class SqlAlchemyDatasetRepository(DatasetRepository):
     def __init__(
         self, session_provider: SqlAlchemySessionProvider, identifier_transformer=None
@@ -222,6 +252,43 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
     @property
     def dialect(self) -> Dialect:
         return self.session_provider.dialect
+
+    def acquire_run_lock(self, job_key: str) -> Optional[RunLock]:
+        dialect = self.dialect.name
+        if dialect not in ("postgresql", "mysql"):
+            # No cross-process lock (e.g. SQLite): fall back to the no-op.
+            return super().acquire_run_lock(job_key)
+
+        # A dedicated AUTOCOMMIT connection: the session-level lock is held for the life of
+        # this connection (released the instant it/the process ends), with no long-open
+        # transaction. Kept outside the scoped_session, which is reused/closed.
+        conn = self.session_provider.engine.connect().execution_options(
+            isolation_level="AUTOCOMMIT"
+        )
+        try:
+            if dialect == "postgresql":
+                key = _advisory_key(job_key)
+                acquired = bool(
+                    conn.execute(
+                        text("SELECT pg_try_advisory_lock(:k)"), {"k": key}
+                    ).scalar()
+                )
+                unlock, params = text("SELECT pg_advisory_unlock(:k)"), {"k": key}
+            else:  # mysql
+                name = _lock_name(job_key)
+                acquired = (
+                    conn.execute(text("SELECT GET_LOCK(:n, 0)"), {"n": name}).scalar()
+                    == 1
+                )
+                unlock, params = text("SELECT RELEASE_LOCK(:n)"), {"n": name}
+        except Exception:
+            conn.close()
+            raise
+
+        if not acquired:
+            conn.close()
+            return None
+        return _SessionRunLock(conn, unlock, params)
 
     @property
     def dataset_table(self):
