@@ -15,6 +15,7 @@ from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.domain.models.dataset.revision import RevisionSource, SourceType
 from ingestify.domain.models.ingestion.ingestion_job_summary import (
     IngestionJobSummary,
+    IngestionJobState,
 )
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
 from ingestify.domain.models.dataset.events import SelectorSkipped, DatasetSkipped
@@ -295,6 +296,7 @@ class IngestionJob:
         # Single-run guard: one job identity must never run in two processes at once
         # (design: docs/design/single-run-lock.md). The lock is a session-scoped DB lock,
         # released the instant this process ends. If another run holds it, skip cleanly.
+        self._current_summary = None
         run_lock = store.acquire_run_lock(self._job_key())
         if run_lock is None:
             logger.info("Skipping %s: another run holds the lock", self._job_key())
@@ -304,6 +306,18 @@ class IngestionJob:
             return
         try:
             yield from self._execute_locked(store, task_executor, summary_map)
+        except (KeyboardInterrupt, SystemExit):
+            # An interrupt (Ctrl-C / SIGTERM) can land in any phase — including
+            # metadata and find_datasets, which the inner task-phase handlers do
+            # not cover. Flip the up-front RUNNING summary to ABORTED and persist
+            # it directly (not via yield, which a killed consumer may never drain)
+            # so no zombie RUNNING row is left behind. If an inner handler already
+            # marked the summary, leave that (richer, partial-results) one alone.
+            summary = self._current_summary
+            if summary is not None and summary.state == IngestionJobState.RUNNING:
+                summary.set_aborted()
+                store.save_ingestion_job_summary(summary)
+            raise
         finally:
             run_lock.release()
 
@@ -315,6 +329,9 @@ class IngestionJob:
     ) -> Iterator[IngestionJobSummary]:
         is_first_chunk = True
         ingestion_job_summary = IngestionJobSummary.new(ingestion_job=self)
+        # Exposed so execute()'s interrupt handler can mark it ABORTED whatever
+        # phase is running when a Ctrl-C / SIGTERM arrives.
+        self._current_summary = ingestion_job_summary
         # Persist the RUNNING row up front so the job is observable from the
         # moment it starts — and so a record survives even if the run never
         # reaches its final yield (e.g. an async source that keeps polling).
