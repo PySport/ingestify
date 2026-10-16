@@ -41,6 +41,22 @@ def cli():
     pass
 
 
+def _parse_selector_filters(items) -> dict:
+    """Turn repeated --selector key=value options into a filter dict."""
+    filters = {}
+    for item in items:
+        if "=" not in item:
+            raise click.BadParameter(f"--selector needs key=value, got '{item}'")
+        key, value = item.split("=", 1)
+        # Selector attributes are compared with !=, so a string never matches an
+        # int: competition_id=9 has to become 9, not "9".
+        try:
+            filters[key] = int(value)
+        except ValueError:
+            filters[key] = value
+    return filters
+
+
 @cli.command()
 @click.option(
     "--config",
@@ -95,6 +111,24 @@ def cli():
     is_flag=True,
     type=bool,
 )
+@click.option(
+    "--recheck-all",
+    "recheck_all",
+    required=False,
+    help="Hand every discovered dataset to should_refetch instead of trusting the "
+    "last-modified shortcuts. Needed after a data_spec_version bump, which renames "
+    "a file id those shortcuts cannot see. Slow - use for a migration run.",
+    is_flag=True,
+    type=bool,
+)
+@click.option(
+    "--selector",
+    "selector_filters",
+    required=False,
+    multiple=True,
+    help="Only run selectors matching key=value. Repeatable, e.g. "
+    "--selector competition_id=9 --selector season_id=318",
+)
 def run(
     config_file: str,
     bucket: Optional[str],
@@ -103,6 +137,8 @@ def run(
     source: Optional[str],
     debug: Optional[bool],
     disable_events: Optional[bool],
+    recheck_all: Optional[bool],
+    selector_filters: tuple,
 ):
     try:
         engine = get_engine(config_file, bucket, disable_events=disable_events)
@@ -117,7 +153,13 @@ def run(
         logging.getLogger("root").setLevel(logging.DEBUG)
 
     try:
-        engine.load(dry_run=dry_run, provider=provider, source=source)
+        engine.load(
+            dry_run=dry_run,
+            provider=provider,
+            source=source,
+            run_pre_checks=not recheck_all,
+            **_parse_selector_filters(selector_filters),
+        )
     except StopProcessing as e:
         logger.warning(f"Stopped early: {e}")
         sys.exit(e.exit_code)

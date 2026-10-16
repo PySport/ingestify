@@ -63,6 +63,7 @@ def load_file(
     file_resource: FileResource,
     dataset: Optional[Dataset] = None,
     dataset_resource: Optional[DatasetResource] = None,
+    trust_last_modified: bool = True,
 ) -> Union[DraftFile, NotModifiedFile]:
     current_file = None
     if dataset:
@@ -100,6 +101,7 @@ def load_file(
             file_data_serialization_format=file_resource.data_serialization_format
             or "txt",
             last_modified=file_resource.last_modified,
+            trust_last_modified=trust_last_modified,
             **http_options,
             **file_resource.loader_kwargs,
         )
@@ -133,10 +135,15 @@ class UpdateDatasetTask(Task):
         dataset: Dataset,
         dataset_resource: DatasetResource,
         store: DatasetStore,
+        trust_last_modified: bool = True,
     ):
         self.dataset = dataset
         self.dataset_resource = dataset_resource
         self.store = store
+        # False on a recheck run: fetch the file and compare its hash instead of
+        # believing a last_modified that did not move. A file that really is
+        # unchanged still ends up as NotModifiedFile and costs no revision.
+        self.trust_last_modified = trust_last_modified
         self.task_id = str(uuid.uuid1())
 
     def run(self):
@@ -155,6 +162,7 @@ class UpdateDatasetTask(Task):
                         file_resource,
                         dataset=self.dataset,
                         dataset_resource=self.dataset_resource,
+                        trust_last_modified=self.trust_last_modified,
                     ),
                     metadata={"file_id": file_id},
                 )
@@ -249,10 +257,17 @@ class IngestionJob:
         ingestion_job_id: str,
         ingestion_plan: IngestionPlan,
         selector: Selector,
+        run_pre_checks: bool = True,
     ):
         self.ingestion_job_id = ingestion_job_id
         self.ingestion_plan = ingestion_plan
         self.selector = selector
+        # Governs BOTH last-modified shortcuts below: the selector-level skip
+        # and the per-dataset pre-check. They are optimisations that assume
+        # nothing structural changed about a dataset; a data_spec_version bump
+        # renames a file id, which neither of them can see. Setting this False
+        # hands every discovered dataset to should_refetch instead.
+        self.run_pre_checks = run_pre_checks
         # task_count() at which the summary was last persisted mid-run.
         self._last_progress_saved_at = 0
 
@@ -350,9 +365,14 @@ class IngestionJob:
             ).metadata
         logger.info(f"Done: {dataset_collection_metadata}")
 
-        if self.selector.last_modified and dataset_collection_metadata.last_modified:
+        if (
+            self.run_pre_checks
+            and self.selector.last_modified
+            and dataset_collection_metadata.last_modified
+        ):
             # This check might fail when the data_spec_versions is changed;
-            # missing files are not detected
+            # missing files are not detected -- run with run_pre_checks=False
+            # to migrate those
             if self.selector.last_modified < dataset_collection_metadata.last_modified:
                 logger.info(
                     f"Skipping find_datasets because selector last_modified "
@@ -450,7 +470,7 @@ class IngestionJob:
             # existing datasets (summary present) are eligible — new ones go to
             # the create path below.
             skipped_tasks = 0
-            if summary_map:
+            if summary_map and self.run_pre_checks:
                 pending_batch = []
                 for dataset_resource in batch:
                     identifier = Identifier.create_from_selector(
@@ -513,6 +533,7 @@ class IngestionJob:
                                     dataset=dataset,  # Current dataset from the database
                                     dataset_resource=dataset_resource,  # Most recent dataset_resource
                                     store=store,
+                                    trust_last_modified=self.run_pre_checks,
                                 )
                             )
                         else:
@@ -624,7 +645,7 @@ class IngestionJob:
                 # before the full get_dataset_collection load. One-sided (True only
                 # when certain); only existing datasets (summary present) are
                 # eligible — new ones fall through to the create path.
-                if summary_map:
+                if summary_map and self.run_pre_checks:
                     pending = []
                     for dr in batch:
                         identifier = Identifier.create_from_selector(
@@ -747,6 +768,7 @@ class IngestionJob:
                 file_resource,
                 dataset=existing_dataset,
                 dataset_resource=dataset_resource,
+                trust_last_modified=self.run_pre_checks,
             )
 
         if existing_dataset:

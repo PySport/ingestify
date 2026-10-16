@@ -51,21 +51,28 @@ def retrieve_http(
     headers: Optional[dict] = None,
     pager: Optional[Tuple[str, Callable[[str, dict], Optional[str]]]] = None,
     last_modified: Optional[datetime] = None,
+    trust_last_modified: bool = True,
     **kwargs,
 ) -> Union[DraftFile, NotModifiedFile]:
     headers = headers or {}
     if current_file:
-        if last_modified and current_file.modified_at >= last_modified:
+        if (
+            trust_last_modified
+            and last_modified
+            and current_file.modified_at >= last_modified
+        ):
             # Not changed
             return NotModifiedFile(
                 modified_at=last_modified,
                 reason=f"last-modified same as current file: {current_file.modified_at} >= {last_modified}",
             )
-        # else:
-        #     print(f"{current_file.modified_at=} {last_modified=}")
-        headers["if-modified-since"] = format_datetime(
-            current_file.modified_at, usegmt=True
-        )
+        if trust_last_modified:
+            headers["if-modified-since"] = format_datetime(
+                current_file.modified_at, usegmt=True
+            )
+        # if-none-match validates on content, so it survives trust_last_modified:
+        # a server with a real ETag still saves us the download, and one without
+        # never matches the stored body hash, so we fetch and compare instead.
         headers["if-none-match"] = current_file.tag
 
     http_kwargs = {}

@@ -1,8 +1,11 @@
 import gzip
+from datetime import datetime, timezone
+from hashlib import sha1
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from ingestify.domain.models.dataset.file import NotModifiedFile
 from ingestify.infra.fetch.http import retrieve_http
 from ingestify.utils import BufferedStream
 
@@ -88,3 +91,90 @@ def test_pager_returns_draft_file_without_compression_method():
     assert result.content_compression_method is None
     assert result.stream.read() == b'{"items": [{"id": 1}, {"id": 2}]}'
     assert result.size == len(b'{"items": [{"id": 1}, {"id": 2}]}')
+
+
+def make_current_file(content, modified_at, tag=None):
+    """A stored File as retrieve_http sees it: only modified_at and tag are read."""
+    current = MagicMock()
+    current.modified_at = modified_at
+    current.tag = tag if tag is not None else sha1(content).hexdigest()
+    return current
+
+
+STORED_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def test_unchanged_last_modified_short_circuits_without_a_request():
+    """Default: a file whose reported last_modified did not move is not even
+    requested. Cheap, and wrong only when the provider's timestamp lies."""
+    current_file = make_current_file(PLAIN_JSON, STORED_AT)
+
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        result = retrieve_http(
+            "https://example.com/data.json",
+            current_file=current_file,
+            last_modified=STORED_AT,
+            **FILE_KWARGS,
+        )
+
+    assert isinstance(result, NotModifiedFile)
+    mock_session.assert_not_called()
+
+
+def test_recheck_detects_content_that_changed_behind_a_stale_timestamp():
+    """With trust_last_modified=False the file is fetched despite an unmoved
+    timestamp, and a body that really differs comes back as a DraftFile."""
+    current_file = make_current_file(PLAIN_JSON, STORED_AT)
+    changed = PLAIN_JSON + b"extra"
+
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_mock_response(changed)
+        result = retrieve_http(
+            "https://example.com/data.json",
+            current_file=current_file,
+            last_modified=STORED_AT,
+            trust_last_modified=False,
+            **FILE_KWARGS,
+        )
+
+    assert not isinstance(result, NotModifiedFile)
+    assert result.stream.read() == changed
+
+
+def test_recheck_keeps_a_genuinely_unchanged_file_out_of_the_revision():
+    """The point of comparing hashes rather than overwriting: a file that is
+    byte-identical costs a request but no new revision."""
+    current_file = make_current_file(PLAIN_JSON, STORED_AT)
+
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_mock_response(PLAIN_JSON)
+        result = retrieve_http(
+            "https://example.com/data.json",
+            current_file=current_file,
+            last_modified=STORED_AT,
+            trust_last_modified=False,
+            **FILE_KWARGS,
+        )
+
+    assert isinstance(result, NotModifiedFile)
+    assert result.reason == "tag matched current_file"
+
+
+def test_recheck_drops_if_modified_since_but_keeps_if_none_match():
+    """Only the time-based validator is dropped. if-none-match is a content
+    validator, so a server with a real ETag can still save us the download."""
+    current_file = make_current_file(PLAIN_JSON, STORED_AT, tag="server-etag")
+
+    with patch("ingestify.infra.fetch.http.get_session") as mock_session:
+        mock_session.return_value.get.return_value = make_mock_response(PLAIN_JSON)
+        retrieve_http(
+            "https://example.com/data.json",
+            current_file=current_file,
+            last_modified=STORED_AT,
+            trust_last_modified=False,
+            **FILE_KWARGS,
+        )
+        headers = mock_session.return_value.get.call_args.kwargs["headers"]
+
+    assert "if-modified-since" not in headers
+    assert headers["if-none-match"] == "server-etag"

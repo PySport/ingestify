@@ -237,9 +237,14 @@ class Loader:
 
         return collected_selectors
 
-    def run(self, selectors, dry_run: bool = False):
+    def run(self, selectors, dry_run: bool = False, run_pre_checks: bool = True):
         """Execute the collected selectors."""
         ingestion_job_prefix = str(uuid.uuid1())
+        if not run_pre_checks:
+            logger.info(
+                "Pre-checks off: every discovered dataset is handed to "
+                "should_refetch, and no summary map is built"
+            )
 
         # Build a cache of lightweight dataset summaries per (provider,
         # dataset_type). Fed to FetchPolicy.can_skip as a fast pre-check to skip
@@ -257,18 +262,24 @@ class Loader:
                 ingestion_job_id=f"{ingestion_job_prefix}.{ingestion_job_idx}",
                 ingestion_plan=ingestion_plan,
                 selector=selector,
+                run_pre_checks=run_pre_checks,
             )
 
-            # Lazily load the timestamps cache per (provider, dataset_type)
-            cache_key = (
-                ingestion_plan.source.provider,
-                ingestion_plan.dataset_type,
-            )
-            if cache_key not in summary_cache:
-                summary_cache[cache_key] = self.store.get_dataset_summary_map(
-                    provider=cache_key[0],
-                    dataset_type=cache_key[1],
+            # Lazily load the timestamps cache per (provider, dataset_type).
+            # Skipped entirely when pre-checks are off: nothing would read it,
+            # and on a large store the query is expensive.
+            summary_map = None
+            if run_pre_checks:
+                cache_key = (
+                    ingestion_plan.source.provider,
+                    ingestion_plan.dataset_type,
                 )
+                if cache_key not in summary_cache:
+                    summary_cache[cache_key] = self.store.get_dataset_summary_map(
+                        provider=cache_key[0],
+                        dataset_type=cache_key[1],
+                    )
+                summary_map = summary_cache[cache_key]
 
             with TaskExecutor(
                 dry_run=dry_run,
@@ -277,7 +288,7 @@ class Loader:
                 for ingestion_job_summary in ingestion_job.execute(
                     self.store,
                     task_executor=task_executor,
-                    summary_map=summary_cache[cache_key],
+                    summary_map=summary_map,
                 ):
                     # TODO: handle task_summaries
                     #       Summarize to a IngestionJobSummary, and save to a database. This Summary can later be used in a
@@ -297,6 +308,7 @@ class Loader:
         source: Optional[str] = None,
         dataset_type: Optional[str] = None,
         auto_ingest_config: Optional[dict] = None,
+        run_pre_checks: bool = True,
         **selector_filters,
     ):
         """
@@ -342,4 +354,4 @@ class Loader:
             }
             logger.warning(f"No data found matching filters: {filters_applied}")
         else:
-            self.run(selectors, dry_run=dry_run)
+            self.run(selectors, dry_run=dry_run, run_pre_checks=run_pre_checks)

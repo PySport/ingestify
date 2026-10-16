@@ -45,6 +45,7 @@ class IngestionEngine:
         dataset_type: Optional[str] = None,
         auto_ingest_config: Optional[AutoIngestConfig] = None,
         async_yield_events: bool = False,
+        run_pre_checks: bool = True,
         **selector_filters,
     ) -> Optional[Iterator[DomainEvent]]:
         """
@@ -57,6 +58,11 @@ class IngestionEngine:
             dataset_type: Filter ingestion to specific dataset type (e.g., 'match', 'lineups')
             auto_ingest_config: Configuration for auto-discovery of ingestion plans
             async_yield_events: If True, run ingestion in background and yield domain events
+            run_pre_checks: Set False to turn off both last-modified shortcuts
+                (the selector-level skip and the per-dataset pre-check) so every
+                discovered dataset reaches should_refetch. Needed after a
+                data_spec_version bump, which renames a file id that neither
+                shortcut can see.
             **selector_filters: Additional selector criteria (e.g., competition_id=43)
 
         Returns:
@@ -79,6 +85,7 @@ class IngestionEngine:
                 source=source,
                 dataset_type=dataset_type,
                 auto_ingest_config=auto_ingest_config or {},
+                run_pre_checks=run_pre_checks,
                 **selector_filters,
             )
 
