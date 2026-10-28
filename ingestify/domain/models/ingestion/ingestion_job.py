@@ -318,6 +318,19 @@ class IngestionJob:
                 summary.set_aborted()
                 store.save_ingestion_job_summary(summary)
             raise
+        except Exception as e:
+            # Any other crash (an HTTP error from a source, a DB failure, a bug)
+            # can land in a phase the inner handlers do not cover and would
+            # otherwise propagate without ever updating the up-front RUNNING row,
+            # leaving a zombie RUNNING job that monitoring reads as "still running".
+            # Flip it to FAILED and persist directly (same reasoning as the
+            # interrupt handler); if an inner handler already marked the summary,
+            # leave that (richer) one alone.
+            summary = self._current_summary
+            if summary is not None and summary.state == IngestionJobState.RUNNING:
+                summary.set_exception(e)
+                store.save_ingestion_job_summary(summary)
+            raise
         finally:
             run_lock.release()
 
