@@ -110,7 +110,10 @@ jobs:
         pip install -e ".[test]"
     - name: Install Postgres dependencies
       run: |
-        pip install psycopg2-binary
+        # SQLAlchemy 2.1 defaults the `postgresql://` URL to the psycopg (v3)
+        # dialect; older versions default to psycopg2. Install both drivers so the
+        # job works whichever SQLAlchemy resolves.
+        pip install "psycopg[binary]" psycopg2-binary
     - name: Test with pytest
       env:
         INGESTIFY_TEST_DATABASE_URL: postgresql://ingestify:ingestify@localhost:5432/ingestify_test
