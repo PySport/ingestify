@@ -5,7 +5,7 @@ from multiprocessing import set_start_method
 from typing import List, Optional
 
 from ingestify.domain.models import Selector
-from ingestify.utils import TaskExecutor
+from ingestify.utils import TaskExecutor, abort_on_termination_signal
 
 from .dataset_store import DatasetStore
 from ingestify.domain.models.ingestion.ingestion_plan import IngestionPlan
@@ -239,6 +239,15 @@ class Loader:
 
     def run(self, selectors, dry_run: bool = False):
         """Execute the collected selectors."""
+        # Route SIGTERM (e.g. a Cloud Run task hitting its timeout) through the
+        # same graceful ABORTED path as Ctrl-C. A bare SIGTERM would otherwise
+        # kill the process silently -- no exception, so execute()'s
+        # `except (KeyboardInterrupt, SystemExit)` never runs -- leaving a zombie
+        # RUNNING summary that monitoring reads as "still running".
+        with abort_on_termination_signal():
+            self._run(selectors, dry_run=dry_run)
+
+    def _run(self, selectors, dry_run: bool = False):
         ingestion_job_prefix = str(uuid.uuid1())
 
         # Build a cache of lightweight dataset summaries per (provider,
