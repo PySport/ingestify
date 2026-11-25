@@ -127,6 +127,16 @@ class IngestionJobSummary(BaseModel, HasTiming):
         self.state = IngestionJobState.ABORTED
         self._set_ended()
 
+    def mark_zombie_failed(self):
+        """Flip a reconciled zombie to FAILED: a previous process left this
+        summary RUNNING and died without unwinding (an uncatchable SIGKILL /
+        OOM). Keep the last-persisted counters -- this summary is loaded
+        without its task children, so recounting would zero them -- and just
+        stamp the end time.
+        """
+        self.state = IngestionJobState.FAILED
+        self.ended_at = utcnow()
+
     @property
     def duration(self) -> timedelta:
         # ended_at is None while the job is still RUNNING (live snapshots);

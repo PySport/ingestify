@@ -304,6 +304,7 @@ class IngestionJob:
             summary.set_skipped()
             yield summary  # Loader persists every yielded summary
             return
+        self._reconcile_stale_running(store)
         try:
             yield from self._execute_locked(store, task_executor, summary_map)
         except (KeyboardInterrupt, SystemExit):
@@ -333,6 +334,32 @@ class IngestionJob:
             raise
         finally:
             run_lock.release()
+
+    def _reconcile_stale_running(self, store: DatasetStore) -> None:
+        """Flip any zombie RUNNING summary for this job identity to FAILED.
+
+        We only reach here holding the single-run lock, which proves no live
+        process owns this identity. So a summary still in RUNNING state for it
+        is a zombie: a previous run was hard-killed (an uncatchable SIGKILL /
+        OOM, or a SIGTERM the handler could not persist within the grace
+        window) and never flipped its up-front RUNNING row. This is the
+        grace-independent backstop the in-process handlers cannot provide; it
+        self-heals on the next run of the same job, so the dashboard stops
+        reading a dead job as "still running".
+        """
+        my_key = self._job_key()
+        for stale in store.load_running_ingestion_job_summaries():
+            stale_key = (
+                f"{stale.source_name}:{stale.dataset_type}:{stale.selector.key}"
+            )
+            if stale_key == my_key:
+                stale.mark_zombie_failed()
+                store.save_ingestion_job_summary(stale)
+                logger.warning(
+                    "Reconciled zombie RUNNING summary %s (%s) -> FAILED",
+                    stale.ingestion_job_summary_id,
+                    my_key,
+                )
 
     def _execute_locked(
         self,

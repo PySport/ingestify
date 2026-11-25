@@ -18,6 +18,8 @@ class TestIngestionJobEventEmission:
     def setup_method(self):
         """Set up test fixtures."""
         self.mock_store = Mock()
+        # The stale-run reconciler runs at the start of execute(); no zombies here.
+        self.mock_store.load_running_ingestion_job_summaries.return_value = []
 
         # Create a proper mock source that inherits from Source
         class MockTestSource(Source):

@@ -43,7 +43,10 @@ from ingestify.domain.models.dataset.dataset import (
     DatasetSummary,
     DatasetSummaryMap,
 )
-from ingestify.domain.models.ingestion.ingestion_job_summary import IngestionJobSummary
+from ingestify.domain.models.ingestion.ingestion_job_summary import (
+    IngestionJobSummary,
+    IngestionJobState,
+)
 from ingestify.domain.models.task.task_summary import TaskSummary, TaskState
 from ingestify.exceptions import IngestifyError
 from ingestify.utils import get_concurrency, key_from_dict
@@ -978,6 +981,23 @@ class SqlAlchemyDatasetRepository(DatasetRepository):
                 )
             )
         return ingestion_job_summaries
+
+    def load_running_ingestion_job_summaries(self) -> list[IngestionJobSummary]:
+        """The summaries still in RUNNING state -- used by the stale-run
+        reconciler. There are only ever a handful (one per live run, plus any
+        zombies), so this stays cheap. Task children are not loaded: the caller
+        only needs the job identity and flips the row to FAILED.
+        """
+        table = self.ingestion_job_summary_table
+        rows = self.session.query(table).filter(
+            table.c.state == IngestionJobState.RUNNING
+        )
+        return [
+            IngestionJobSummary.model_validate(
+                {**row._mapping, "task_summaries": []}
+            )
+            for row in rows
+        ]
 
     def get_store_version(self) -> Optional[str]:
         """Get the current Ingestify version stored for this store."""
