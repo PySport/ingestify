@@ -1,7 +1,9 @@
 import logging
 import os
 import shutil
+import signal
 import tempfile
+import threading
 import time
 import re
 import traceback
@@ -89,6 +91,40 @@ def key_from_dict(d: dict) -> str:
 
 def utcnow() -> datetime:
     return datetime.fromtimestamp(time.time(), timezone.utc)
+
+
+@contextmanager
+def abort_on_termination_signal():
+    """Translate SIGTERM into a ``SystemExit`` for the duration of the block.
+
+    Python raises ``KeyboardInterrupt`` for SIGINT (Ctrl-C) out of the box, but
+    leaves SIGTERM on its default disposition: terminate the process at once,
+    without raising anything. An ingestion run killed that way (e.g. a Cloud Run
+    task hitting its timeout, which sends SIGTERM) never reaches its
+    ``except (KeyboardInterrupt, SystemExit)`` handler, so the up-front RUNNING
+    summary is never flipped to ABORTED and a zombie RUNNING row is left behind.
+
+    Installing a handler that raises ``SystemExit`` routes SIGTERM through the
+    same graceful path as Ctrl-C, giving the run a chance to persist ABORTED
+    before the process dies. Note the platform grace period is short (Cloud Run
+    jobs: ~10s, not configurable) and a hard SIGKILL/OOM can still bypass this —
+    a stale-RUNNING reconciler remains the belt-and-suspenders backstop.
+
+    Signal handlers can only be installed from the main thread; off the main
+    thread this is a no-op and the inherited disposition is kept.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _raise_system_exit(signum, frame):
+        raise SystemExit(128 + signum)
+
+    previous = signal.signal(signal.SIGTERM, _raise_system_exit)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 NOT_SET = object()
