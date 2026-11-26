@@ -194,6 +194,10 @@ class DatasetStore:
     def save_ingestion_job_summary(self, ingestion_job_summary):
         self.dataset_repository.save_ingestion_job_summary(ingestion_job_summary)
 
+    def load_running_ingestion_job_summaries(self):
+        """Summaries still in RUNNING state (for the stale-run reconciler)."""
+        return self.dataset_repository.load_running_ingestion_job_summaries()
+
     def acquire_run_lock(self, job_key: str):
         """Single-run lock for one job identity (see docs/design/single-run-lock.md).
         Returns a held RunLock, or None if another process already holds it."""
